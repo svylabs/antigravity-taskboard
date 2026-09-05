@@ -1,0 +1,4 @@
+# Ignore local runtime SQLite database & WAL files
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
