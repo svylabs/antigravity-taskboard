@@ -250,6 +250,84 @@
       border-color: #CBD5E1;
     }
 
+    /* State-based Card Color Coding */
+    .task-card.card-waiting {
+      background: #FFFDF5;
+      border: 1px solid #FCD34D;
+      border-left: 5px solid #F59E0B;
+      box-shadow: 0 3px 10px rgba(245, 158, 11, 0.12);
+    }
+
+    .task-card.card-in_progress {
+      background: #FAF5FF;
+      border: 1px solid #D8B4FE;
+      border-left: 5px solid #7C3AED;
+      box-shadow: 0 3px 12px rgba(124, 58, 237, 0.12);
+    }
+
+    .task-card.card-verification {
+      background: #F0F9FF;
+      border: 1px solid #BAE6FD;
+      border-left: 5px solid #0284C7;
+      box-shadow: 0 3px 10px rgba(2, 132, 199, 0.1);
+    }
+
+    .task-card.card-done {
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-left: 5px solid #10B981;
+    }
+
+    .task-card.card-failed {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-left: 5px solid #EF4444;
+    }
+
+    .task-card.card-backlog, .task-card.card-todo {
+      border-left: 4px solid #CBD5E1;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      letter-spacing: 0.3px;
+    }
+
+    .status-pill-waiting {
+      background: #FEF3C7;
+      color: #B45309;
+      border: 1px solid #FDE68A;
+      animation: pulse 2.2s infinite;
+    }
+
+    .status-pill-in_progress {
+      background: #F3E8FF;
+      color: #7C3AED;
+      border: 1px solid #E9D5FF;
+    }
+
+    .status-pill-verification {
+      background: #E0F2FE;
+      color: #0369A1;
+      border: 1px solid #BAE6FD;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .dot-amber { background: #F59E0B; animation: pulse 1.5s infinite; }
+    .dot-purple { background: #7C3AED; animation: pulse 1.5s infinite; }
+    .dot-blue { background: #0284C7; animation: pulse 1.5s infinite; }
+
     .task-card.dragging {
       opacity: 0.4;
     }
@@ -696,20 +774,21 @@
 
         colTasks.forEach(task => {
           const card = document.createElement('div');
-          card.className = 'task-card';
+          const stateClass = getCardStateClass(task);
+          card.className = `task-card ${stateClass}`;
           card.draggable = true;
           card.id = `card-${task.id}`;
           card.ondragstart = (e) => handleDragStart(e, task.id);
           card.onclick = () => openDetailModal(task.id);
 
-          const hasQuestion = task.question_count > 0;
           const hasComments = task.comment_count > 0;
           const verifyBadge = getVerificationBadgeHtml(task);
+          const statusBadge = getCardStatusBadge(task);
 
           card.innerHTML = `
             <div class="card-badges">
               <span class="badge badge-${task.priority}">${task.priority}</span>
-              ${hasQuestion ? `<span class="badge badge-question">❓ Question</span>` : ''}
+              ${statusBadge}
               <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
             </div>
             <div class="card-title">${escapeHtml(task.title)}</div>
@@ -724,6 +803,28 @@
           container.appendChild(card);
         });
       });
+    }
+
+    function getCardStateClass(task) {
+      if (task.question_count > 0) return 'card-waiting';
+      if (task.status === 'in_progress') return 'card-in_progress';
+      if (task.status === 'verification') return 'card-verification';
+      if (task.status === 'done') return 'card-done';
+      if (task.status === 'failed') return 'card-failed';
+      return `card-${task.status}`;
+    }
+
+    function getCardStatusBadge(task) {
+      if (task.question_count > 0) {
+        return `<span class="status-pill status-pill-waiting"><span class="status-dot dot-amber"></span>❓ Waiting for You</span>`;
+      }
+      if (task.status === 'in_progress') {
+        return `<span class="status-pill status-pill-in_progress"><span class="status-dot dot-purple"></span>⚡ Agent Working</span>`;
+      }
+      if (task.status === 'verification') {
+        return `<span class="status-pill status-pill-verification"><span class="status-dot dot-blue"></span>🧪 Verifying</span>`;
+      }
+      return '';
     }
 
     function getVerificationBadgeHtml(task) {
