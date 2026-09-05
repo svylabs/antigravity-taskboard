@@ -63,25 +63,8 @@ Antigravity will:
 
 ---
 
-## 🌐 Publishing Options
+## Installation
 
-### Option A: Install Globally on Your Machine
-Copy the plugin folder to your global Antigravity configuration so it is available in **every project**:
-```bash
-cp -r .agents/plugins/antigravity-taskboard ~/.gemini/config/plugins/
-```
-
-### Option B: Publish as a Public GitHub Repository
-1. Initialize a git repository inside `.agents/plugins/antigravity-taskboard/`.
-2. Push to GitHub:
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: initial release of antigravity-taskboard plugin"
-   git remote add origin https://github.com/<your-username>/antigravity-taskboard.git
-   git push -u origin main
-   ```
-3. Other developers can now install it in their own repositories:
    ```bash
    git clone https://github.com/<your-username>/antigravity-taskboard.git .agents/plugins/antigravity-taskboard
    ```
