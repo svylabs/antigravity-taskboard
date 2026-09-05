@@ -427,13 +427,18 @@
 
     .modal {
       background: #FFFFFF;
-      border-radius: 18px;
+      border-radius: 20px;
       width: 100%;
-      max-width: 680px;
-      max-height: 90vh;
+      max-width: 860px;
+      max-height: 92vh;
       overflow-y: auto;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
-      padding: 26px;
+      box-shadow: 0 25px 35px -5px rgba(0,0,0,0.18), 0 15px 15px -5px rgba(0,0,0,0.06);
+      padding: 32px;
+    }
+
+    .modal-create {
+      max-width: 920px;
+      width: 92%;
     }
 
     .modal-header {
@@ -682,30 +687,39 @@
 
   <!-- Create Task Modal -->
   <div class="modal-overlay" id="createModal">
-    <div class="modal">
+    <div class="modal modal-create">
       <div class="modal-header">
-        <div class="modal-title">Create New Task</div>
+        <div>
+          <div class="modal-title">Create New Task</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Define goals, acceptance criteria, and verification methods for the autonomous loop</div>
+        </div>
         <button class="close-btn" onclick="closeCreateModal()">&times;</button>
       </div>
       <form id="createForm" onsubmit="handleCreateTask(event)">
         <div class="form-group">
           <label class="form-label">Task Title</label>
-          <input type="text" class="form-input" id="newTitle" required placeholder="e.g. Add validation to checkin responses">
+          <input type="text" class="form-input" id="newTitle" required style="font-size: 15px; font-weight: 600;" placeholder="e.g. Add validation to checkin responses">
         </div>
+
         <div class="form-group">
-          <label class="form-label">Goal & Details</label>
-          <textarea class="form-textarea" id="newDescription" placeholder="Detailed goal, context, or files to touch..."></textarea>
+          <label class="form-label">Goal, Context & Details</label>
+          <textarea class="form-textarea" id="newDescription" style="min-height: 130px; font-size: 13.5px; line-height: 1.5;" placeholder="Describe the objective, background context, specific files to modify, or behavior expected..."></textarea>
         </div>
-        <div class="form-group">
-          <label class="form-label">Acceptance Criteria</label>
-          <input type="text" class="form-input" id="newCriteria" placeholder="What must pass before marking completed">
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-group">
+            <label class="form-label">Acceptance Criteria (Checklist)</label>
+            <textarea class="form-textarea" id="newCriteria" style="min-height: 95px; font-size: 13px;" placeholder="• Specific behavior required&#10;• Edge cases to handle&#10;• Or 'No verification required'"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Verification Command / Test Script</label>
+            <textarea class="form-textarea" id="newVerifyCmd" style="min-height: 95px; font-size: 13px; font-family: monospace;" placeholder="e.g. npm test backend/tests/api.test.js&#10;or: npm run build&#10;or leave blank if using text criteria above"></textarea>
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">Verification Command</label>
-          <input type="text" class="form-input" id="newVerifyCmd" placeholder="e.g. npm test or test -f docs/myfile.md">
-        </div>
-        <div style="display: flex; gap: 14px;">
-          <div class="form-group" style="flex: 1;">
+
+        <div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 16px;">
+          <div class="form-group">
             <label class="form-label">Priority</label>
             <select class="form-select" id="newPriority">
               <option value="medium">Medium</option>
@@ -714,17 +728,29 @@
               <option value="low">Low</option>
             </select>
           </div>
-          <div class="form-group" style="flex: 1;">
+          <div class="form-group">
+            <label class="form-label">Target Subagent Role</label>
+            <select class="form-select" id="newRole">
+              <option value="Fullstack Engineer">Fullstack Engineer</option>
+              <option value="Frontend Specialist">Frontend Specialist</option>
+              <option value="Backend / API Engineer">Backend / API Engineer</option>
+              <option value="QA / Test Engineer">QA / Test Engineer</option>
+              <option value="Documentation & Systems">Documentation & Systems</option>
+              <option value="Security Engineer">Security Engineer</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label class="form-label">Target Column</label>
             <select class="form-select" id="newStatus">
-              <option value="todo">To Do</option>
-              <option value="backlog">Backlog</option>
+              <option value="todo">📋 To Do (Ready to Run)</option>
+              <option value="backlog">📥 Backlog (Draft / Triage)</option>
             </select>
           </div>
         </div>
-        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+
+        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
           <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Create Card</button>
+          <button type="submit" class="btn btn-primary" style="padding: 10px 22px; font-size: 14px;">+ Create Card</button>
         </div>
       </form>
     </div>
@@ -889,13 +915,14 @@
       const acceptance_criteria = document.getElementById('newCriteria').value.trim();
       const verification_cmd = document.getElementById('newVerifyCmd').value.trim();
       const priority = document.getElementById('newPriority').value;
+      const subagent_role = document.getElementById('newRole') ? document.getElementById('newRole').value : 'Fullstack Engineer';
       const status = document.getElementById('newStatus').value;
 
       await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, description, acceptance_criteria, verification_cmd, priority, status
+          title, description, acceptance_criteria, verification_cmd, priority, subagent_role, status
         })
       });
 
