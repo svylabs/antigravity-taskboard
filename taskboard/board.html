@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Task Board | {{PROJECT_NAME}}</title>
+  <style>
+    :root {
+      --bg: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --border: #E2E8F0;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --primary: #7C3AED;
+      --primary-light: #F3E8FF;
+      --primary-hover: #6D28D9;
+      --urgent: #EF4444;
+      --urgent-light: #FEE2E2;
+      --high: #F59E0B;
+      --high-light: #FEF3C7;
+      --medium: #8B5CF6;
+      --medium-light: #EDE9FE;
+      --low: #64748B;
+      --low-light: #F1F5F9;
+      --success: #10B981;
+      --success-light: #D1FAE5;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #FFFFFF;
+      border-bottom: 1px solid var(--border);
+      padding: 16px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #7C3AED, #A855F7);
+      color: #FFFFFF;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 18px;
+      box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .project-pill {
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--primary-light);
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .sync-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      background: #F1F5F9;
+      padding: 6px 12px;
+      border-radius: 20px;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
+    button.btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #FFFFFF;
+      box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background: #FFFFFF;
+      color: var(--text-main);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      background: #F8FAFC;
+    }
+
+    /* Board Area */
+    .board-container {
+      flex: 1;
+      padding: 24px 28px;
+      overflow-x: auto;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+
+    .column {
+      background: #F1F5F9;
+      border: 1px solid #E2E8F0;
+      border-radius: 16px;
+      width: 320px;
+      min-width: 320px;
+      max-height: calc(100vh - 120px);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+
+    .column-header {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(226, 232, 240, 0.6);
+    }
+
+    .col-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .col-count {
+      font-size: 11px;
+      background: #E2E8F0;
+      color: var(--text-muted);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .card-list {
+      padding: 12px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-height: 120px;
+    }
+
+    .card-list.drag-over {
+      background: rgba(243, 232, 255, 0.5);
+      border-radius: 12px;
+    }
+
+    /* Task Card */
+    .task-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      cursor: grab;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      position: relative;
+    }
+
+    .task-card:hover {
+      box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+      transform: translateY(-2px);
+      border-color: #CBD5E1;
+    }
+
+    .task-card.dragging {
+      opacity: 0.4;
+    }
+
+    .card-badges {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .badge-urgent { background: var(--urgent-light); color: var(--urgent); }
+    .badge-high { background: var(--high-light); color: var(--high); }
+    .badge-medium { background: var(--medium-light); color: var(--medium); }
+    .badge-low { background: var(--low-light); color: var(--low); }
+
+    .role-badge {
+      font-size: 11px;
+      background: #F8FAFC;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #F1F5F9;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .cmd-tag {
+      font-family: monospace;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 4px;
+      max-width: 170px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      padding: 20px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #FFFFFF;
+      border-radius: 18px;
+      width: 100%;
+      max-width: 600px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+      padding: 24px;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 13px;
+      color: var(--text-main);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: var(--primary);
+    }
+
+    .form-textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .log-view {
+      background: #0F172A;
+      color: #E2E8F0;
+      font-family: monospace;
+      font-size: 12px;
+      padding: 14px;
+      border-radius: 10px;
+      max-height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">D</div>
+      <div>
+        <div class="brand-title">
+          <span>Agent Task Board</span>
+          <span class="project-pill" id="projectBadge">{{PROJECT_NAME}}</span>
+        </div>
+        <div class="brand-subtitle">Project-scoped SQLite subagent loop</div>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <div class="sync-badge">
+        <div class="pulse-dot"></div>
+        <span id="syncText">Syncing SQLite</span>
+      </div>
+      <button class="btn btn-secondary" onclick="copyLoopPrompt()">⚡ Copy Loop Prompt</button>
+      <button class="btn btn-primary" onclick="openCreateModal()">+ New Task</button>
+    </div>
+  </header>
+
+  <!-- Kanban Columns -->
+  <div class="board-container" id="board">
+    <!-- Backlog -->
+    <div class="column" data-status="backlog">
+      <div class="column-header">
+        <span class="col-title">📥 Backlog</span>
+        <span class="col-count" id="count-backlog">0</span>
+      </div>
+      <div class="card-list" id="list-backlog" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'backlog')"></div>
+    </div>
+
+    <!-- To Do -->
+    <div class="column" data-status="todo">
+      <div class="column-header">
+        <span class="col-title">📋 To Do</span>
+        <span class="col-count" id="count-todo">0</span>
+      </div>
+      <div class="card-list" id="list-todo" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'todo')"></div>
+    </div>
+
+    <!-- In Progress -->
+    <div class="column" data-status="in_progress">
+      <div class="column-header">
+        <span class="col-title">⚡ In Progress</span>
+        <span class="col-count" id="count-in_progress">0</span>
+      </div>
+      <div class="card-list" id="list-in_progress" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'in_progress')"></div>
+    </div>
+
+    <!-- Verification -->
+    <div class="column" data-status="verification">
+      <div class="column-header">
+        <span class="col-title">🧪 Verification</span>
+        <span class="col-count" id="count-verification">0</span>
+      </div>
+      <div class="card-list" id="list-verification" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'verification')"></div>
+    </div>
+
+    <!-- Done -->
+    <div class="column" data-status="done">
+      <div class="column-header">
+        <span class="col-title">✅ Done</span>
+        <span class="col-count" id="count-done">0</span>
+      </div>
+      <div class="card-list" id="list-done" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'done')"></div>
+    </div>
+
+    <!-- Failed -->
+    <div class="column" data-status="failed">
+      <div class="column-header">
+        <span class="col-title">⚠️ Failed</span>
+        <span class="col-count" id="count-failed">0</span>
+      </div>
+      <div class="card-list" id="list-failed" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'failed')"></div>
+    </div>
+  </div>
+
+  <!-- Create Task Modal -->
+  <div class="modal-overlay" id="createModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Create New Task</div>
+        <button class="close-btn" onclick="closeCreateModal()">&times;</button>
+      </div>
+      <form id="createForm" onsubmit="handleCreateTask(event)">
+        <div class="form-group">
+          <label class="form-label">Task Title</label>
+          <input type="text" class="form-input" id="newTitle" required placeholder="e.g. Add validation to checkin responses">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Goal & Details</label>
+          <textarea class="form-textarea" id="newDescription" placeholder="Detailed goal, context, or files to touch..."></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Acceptance Criteria</label>
+          <input type="text" class="form-input" id="newCriteria" placeholder="What must pass before marking completed">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Verification Command</label>
+          <input type="text" class="form-input" id="newVerifyCmd" placeholder="e.g. npm test or test -f docs/myfile.md">
+        </div>
+        <div style="display: flex; gap: 14px;">
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Priority</label>
+            <select class="form-select" id="newPriority">
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+              <option value="urgent">Urgent</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label class="form-label">Target Column</label>
+            <select class="form-select" id="newStatus">
+              <option value="todo">To Do</option>
+              <option value="backlog">Backlog</option>
+            </select>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn btn-secondary" onclick="closeCreateModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Card</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Detail / Edit Modal -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="detailTitle">Task Details</div>
+        <button class="close-btn" onclick="closeDetailModal()">&times;</button>
+      </div>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <script>
+    let tasks = [];
+    let draggedTaskId = null;
+
+    async function fetchTasks() {
+      try {
+        const res = await fetch('/api/tasks');
+        const data = await res.json();
+        if (data.success) {
+          tasks = data.tasks;
+          if (data.project) {
+            document.getElementById('projectBadge').innerText = data.project;
+          }
+          renderBoard();
+        }
+      } catch (err) {
+        console.error('Failed to sync tasks:', err);
+      }
+    }
+
+    function renderBoard() {
+      const columns = ['backlog', 'todo', 'in_progress', 'verification', 'done', 'failed'];
+      columns.forEach(col => {
+        const container = document.getElementById(`list-${col}`);
+        const countBadge = document.getElementById(`count-${col}`);
+        const colTasks = tasks.filter(t => t.status === col);
+        
+        countBadge.innerText = colTasks.length;
+        container.innerHTML = '';
+
+        colTasks.forEach(task => {
+          const card = document.createElement('div');
+          card.className = 'task-card';
+          card.draggable = true;
+          card.id = `card-${task.id}`;
+          card.ondragstart = (e) => handleDragStart(e, task.id);
+          card.onclick = () => openDetailModal(task.id);
+
+          card.innerHTML = `
+            <div class="card-badges">
+              <span class="badge badge-${task.priority}">${task.priority}</span>
+              <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
+            </div>
+            <div class="card-title">${escapeHtml(task.title)}</div>
+            <div class="card-footer">
+              <span class="cmd-tag" title="${escapeHtml(task.verification_cmd || 'No verify command')}">
+                ${task.verification_cmd ? '🧪 ' + escapeHtml(task.verification_cmd) : '⚡ Auto-verified'}
+              </span>
+              <span>${task.id.slice(-6)}</span>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      });
+    }
+
+    function handleDragStart(e, id) {
+      draggedTaskId = id;
+      e.dataTransfer.setData('text/plain', id);
+      setTimeout(() => {
+        const el = document.getElementById(`card-${id}`);
+        if (el) el.classList.add('dragging');
+      }, 0);
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    async function handleDrop(e, targetStatus) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      if (!draggedTaskId) return;
+
+      const task = tasks.find(t => t.id === draggedTaskId);
+      if (task && task.status !== targetStatus) {
+        task.status = targetStatus;
+        renderBoard();
+        await fetch(`/api/tasks/${draggedTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: targetStatus })
+        });
+        fetchTasks();
+      }
+      draggedTaskId = null;
+    }
+
+    async function handleCreateTask(e) {
+      e.preventDefault();
+      const title = document.getElementById('newTitle').value.trim();
+      const description = document.getElementById('newDescription').value.trim();
+      const acceptance_criteria = document.getElementById('newCriteria').value.trim();
+      const verification_cmd = document.getElementById('newVerifyCmd').value.trim();
+      const priority = document.getElementById('newPriority').value;
+      const status = document.getElementById('newStatus').value;
+
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title, description, acceptance_criteria, verification_cmd, priority, status
+        })
+      });
+
+      closeCreateModal();
+      document.getElementById('createForm').reset();
+      fetchTasks();
+    }
+
+    function openDetailModal(id) {
+      const task = tasks.find(t => t.id === id);
+      if (!task) return;
+
+      document.getElementById('detailTitle').innerText = task.title;
+      const content = document.getElementById('detailContent');
+      content.innerHTML = `
+        <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+          <span class="badge badge-${task.priority}">${task.priority}</span>
+          <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
+          <span class="role-badge" style="background: #E2E8F0;">Status: <b>${task.status}</b></span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description / Goal</label>
+          <div style="font-size: 13px; line-height: 1.5; color: #334155;">${escapeHtml(task.description || 'No description provided')}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Acceptance Criteria</label>
+          <div style="font-size: 13px; color: #334155;">${escapeHtml(task.acceptance_criteria || 'None')}</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Verification Command</label>
+          <div class="cmd-tag" style="font-size: 12px; padding: 6px 10px; max-width: 100%;">${escapeHtml(task.verification_cmd || 'None')}</div>
+        </div>
+        ${task.execution_logs ? `
+          <div class="form-group">
+            <label class="form-label">Execution / Test Logs</label>
+            <div class="log-view">${escapeHtml(task.execution_logs)}</div>
+          </div>
+        ` : ''}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 24px; padding-top: 14px; border-top: 1px solid #E2E8F0;">
+          <button class="btn btn-secondary" style="color: var(--urgent); border-color: #FECACA;" onclick="deleteTaskItem('${task.id}')">Delete Card</button>
+          <div style="display: flex; gap: 8px;">
+            ${task.status !== 'todo' ? `<button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'todo')">Move to To-Do</button>` : ''}
+            ${task.status !== 'done' ? `<button class="btn btn-primary" onclick="moveTaskStatus('${task.id}', 'done')">Mark Done</button>` : ''}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.add('active');
+    }
+
+    async function moveTaskStatus(id, newStatus) {
+      await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      closeDetailModal();
+      fetchTasks();
+    }
+
+    async function deleteTaskItem(id) {
+      if (!confirm('Are you sure you want to delete this task?')) return;
+      await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+      closeDetailModal();
+      fetchTasks();
+    }
+
+    function openCreateModal() {
+      document.getElementById('createModal').classList.add('active');
+    }
+
+    function closeCreateModal() {
+      document.getElementById('createModal').classList.remove('active');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    function copyLoopPrompt() {
+      const prompt = "Run the task loop continuously on the taskboard";
+      navigator.clipboard.writeText(prompt);
+      alert('Prompt copied! Paste it into Antigravity to run the loop.');
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    // Initial load & 3-second auto-sync
+    fetchTasks();
+    setInterval(fetchTasks, 3000);
+  </script>
+</body>
+</html>

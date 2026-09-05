@@ -1,0 +1,24 @@
+{
+  "name": "antigravity-taskboard",
+  "displayName": "Antigravity Task Board & Autonomous Loop",
+  "description": "Project-scoped SQLite Kanban board with continuous autonomous subagent loop orchestration.",
+  "version": "1.0.0",
+  "author": "Antigravity Community",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/antigravity-taskboard.git"
+  },
+  "keywords": [
+    "antigravity",
+    "plugin",
+    "kanban",
+    "trello",
+    "subagents",
+    "autonomous-loop",
+    "sqlite"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

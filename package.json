@@ -1,0 +1,28 @@
+{
+  "name": "@svylabs/antigravity-taskboard",
+  "version": "1.0.0",
+  "description": "Project-scoped SQLite Kanban board with continuous autonomous subagent loop orchestration for Google Antigravity",
+  "type": "module",
+  "main": "taskboard/server.mjs",
+  "bin": {
+    "taskboard": "taskboard/server.mjs",
+    "taskctl": "taskboard/tasks.mjs"
+  },
+  "scripts": {
+    "start": "node taskboard/server.mjs",
+    "tasks": "node taskboard/tasks.mjs"
+  },
+  "keywords": [
+    "antigravity",
+    "plugin",
+    "kanban",
+    "trello",
+    "subagents",
+    "ai-agent",
+    "sqlite"
+  ],
+  "dependencies": {
+    "better-sqlite3": "^11.8.1"
+  },
+  "license": "MIT"
+}

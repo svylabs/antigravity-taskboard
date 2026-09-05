@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Local SQLite databases & lock files (project-scoped, generated at runtime)
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+tasks.sqlite*
+
+# OS & Logs
+.DS_Store
+*.log
+.env
