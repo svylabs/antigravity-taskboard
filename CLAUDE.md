@@ -23,6 +23,14 @@ When working with this repository or when the taskboard plugin is installed, fol
    * Post a **question** comment if requirements are ambiguous.
    * Post a **walkthrough** comment summarizing changes and verification checks upon completion.
 
+5. **Sequential Subtask Execution**:
+   If a task contains subtasks:
+   * Implement them strictly in order of `order_index` (one after the other).
+   * Update the subtask status to `in_progress` before coding.
+   * Verify the subtask against its criteria/command before marking it `done`.
+   * Never skip subtasks or attempt concurrent execution.
+   * Move the parent task to `done` only after all subtasks are `done`.
+
 ---
 
 ## 🛠️ Tool Execution Methods
@@ -31,7 +39,10 @@ You can interact with the taskboard either via **MCP Tools** (if configured) or 
 
 ### Using MCP Tools:
 * `taskboard_poll()`: Ultra-lightweight check (<10 tokens) for active work, unread user comments, or new To-Do tasks.
-* `taskboard_get_next()`: Fetch the next To-Do task with description, criteria, and comment history.
+* `taskboard_get_next()`: Fetch the next To-Do task with description, subtasks, criteria, and comment history.
+* `taskboard_get_subtasks(task_id)`: Retrieve all ordered subtasks for a task.
+* `taskboard_add_subtask(task_id, title, verification_cmd)`: Add an ordered subtask.
+* `taskboard_update_subtask(subtask_id, status)`: Update subtask status (`in_progress`, `done`, `failed`).
 * `taskboard_add_comment(task_id, content, comment_type, author)`: Post a comment (`plan`, `question`, `walkthrough`, `comment`).
 * `taskboard_update_status(task_id, status, logs)`: Update status (`in_progress`, `verification`, `done`, `failed`).
 
@@ -40,8 +51,13 @@ You can interact with the taskboard either via **MCP Tools** (if configured) or 
 # Check if there is work to do (<10 tokens)
 node taskboard/tasks.mjs poll
 
-# Get next task
+# Get next task (includes subtasks)
 node taskboard/tasks.mjs next
+
+# Manage subtasks
+node taskboard/tasks.mjs subtasks <TASK_ID>
+node taskboard/tasks.mjs next-subtask <TASK_ID>
+node taskboard/tasks.mjs update-subtask <SUBTASK_ID> done
 
 # Post comment
 node taskboard/tasks.mjs comment <ID> "Content..." "Claude" "plan"

@@ -47,6 +47,21 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS task_subtasks (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    acceptance_criteria TEXT,
+    verification_cmd TEXT,
+    status TEXT NOT NULL DEFAULT 'todo', -- 'todo', 'in_progress', 'done', 'failed'
+    order_index INTEGER DEFAULT 0,
+    processed_by_agent INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
+  );
 `);
 
 // Safe migrations for existing databases
@@ -58,12 +73,18 @@ try {
   db.exec(`ALTER TABLE task_comments ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
 } catch (e) {}
 
+try {
+  db.exec(`ALTER TABLE task_subtasks ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
+} catch (e) {}
+
 export function getAllTasks() {
   return db.prepare(`
     SELECT 
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
-      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
     FROM agent_tasks t 
     ORDER BY t.order_index ASC, t.created_at ASC
   `).all();
@@ -74,7 +95,9 @@ export function getActiveTask() {
     SELECT 
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
-      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
     FROM agent_tasks t 
     WHERE t.status IN ('in_progress', 'verification')
     LIMIT 1
@@ -100,7 +123,9 @@ export function getNextTodoTask() {
     SELECT 
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
-      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
     FROM agent_tasks t 
     WHERE t.status = 'todo' 
     ORDER BY ${priorityOrder} ASC, t.order_index ASC, t.created_at ASC 
@@ -113,7 +138,9 @@ export function getTaskById(id) {
     SELECT 
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
-      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
     FROM agent_tasks t 
     WHERE t.id = ?
   `).get(id);
@@ -126,7 +153,8 @@ export function addTask({
   verification_cmd = '',
   status = 'backlog',
   priority = 'medium',
-  subagent_role = 'Fullstack Engineer'
+  subagent_role = 'Fullstack Engineer',
+  subtasks = null
 }) {
   const id = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const maxOrder = db.prepare('SELECT MAX(order_index) as max_order FROM agent_tasks WHERE status = ?').get(status);
@@ -136,6 +164,23 @@ export function addTask({
     INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index, processed_by_agent)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index);
+
+  if (subtasks) {
+    const subtaskList = Array.isArray(subtasks)
+      ? subtasks
+      : String(subtasks).split('\n').map(s => s.trim()).filter(Boolean);
+    subtaskList.forEach((st, idx) => {
+      const subTitle = typeof st === 'string' ? st.replace(/^[-*•\d.]+\s*/, '').trim() : (st.title || '').trim();
+      if (subTitle) {
+        addSubtask(id, {
+          title: subTitle,
+          order_index: idx + 1,
+          verification_cmd: typeof st === 'object' ? (st.verification_cmd || '') : '',
+          acceptance_criteria: typeof st === 'object' ? (st.acceptance_criteria || '') : ''
+        });
+      }
+    });
+  }
 
   return getTaskById(id);
 }
@@ -197,17 +242,93 @@ export function deleteComment(id) {
   return db.prepare('DELETE FROM task_comments WHERE id = ?').run(id);
 }
 
+// Subtasks API (Ordered Sequential Execution)
+export function getSubtasks(taskId) {
+  return db.prepare(`
+    SELECT * FROM task_subtasks 
+    WHERE task_id = ? 
+    ORDER BY order_index ASC, created_at ASC
+  `).all(taskId);
+}
+
+export function getNextSubtask(taskId) {
+  return db.prepare(`
+    SELECT * FROM task_subtasks 
+    WHERE task_id = ? AND status = 'todo' 
+    ORDER BY order_index ASC, created_at ASC 
+    LIMIT 1
+  `).get(taskId);
+}
+
+export function addSubtask(taskId, {
+  title,
+  description = '',
+  acceptance_criteria = '',
+  verification_cmd = '',
+  status = 'todo',
+  order_index
+}) {
+  if (!title || !title.trim()) {
+    throw new Error('Subtask title is required');
+  }
+  const id = `subtask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  let finalOrder = order_index;
+  if (finalOrder === undefined || finalOrder === null) {
+    const maxOrder = db.prepare('SELECT MAX(order_index) as max_order FROM task_subtasks WHERE task_id = ?').get(taskId);
+    finalOrder = (maxOrder?.max_order ?? 0) + 1;
+  }
+
+  db.prepare(`
+    INSERT INTO task_subtasks (id, task_id, title, description, acceptance_criteria, verification_cmd, status, order_index, processed_by_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).run(id, taskId, title.trim(), description, acceptance_criteria, verification_cmd, status, finalOrder);
+
+  return db.prepare('SELECT * FROM task_subtasks WHERE id = ?').get(id);
+}
+
+export function updateSubtask(subtaskId, fields) {
+  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'order_index', 'processed_by_agent'];
+  const setClauses = [];
+  const params = [];
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (allowed.includes(key)) {
+      setClauses.push(`${key} = ?`);
+      params.push(value);
+    }
+  }
+
+  if (setClauses.length === 0) return db.prepare('SELECT * FROM task_subtasks WHERE id = ?').get(subtaskId);
+
+  setClauses.push("updated_at = CURRENT_TIMESTAMP");
+  params.push(subtaskId);
+
+  db.prepare(`
+    UPDATE task_subtasks 
+    SET ${setClauses.join(', ')} 
+    WHERE id = ?
+  `).run(...params);
+
+  return db.prepare('SELECT * FROM task_subtasks WHERE id = ?').get(subtaskId);
+}
+
+export function deleteSubtask(subtaskId) {
+  return db.prepare('DELETE FROM task_subtasks WHERE id = ?').run(subtaskId);
+}
+
 // Token-efficient polling and acknowledgement functions
 export function checkPoll() {
   // 1. Is there an active running task?
   const activeTask = getActiveTask();
   if (activeTask) {
+    const nextSubtask = getNextSubtask(activeTask.id);
     return {
       has_work: true,
       action: 'monitor_active',
       task_id: activeTask.id,
       title: activeTask.title,
-      status: activeTask.status
+      status: activeTask.status,
+      next_subtask: nextSubtask || null
     };
   }
 
@@ -232,6 +353,7 @@ export function checkPoll() {
   // 3. Is there a next 'todo' task ready to execute?
   const nextTask = getNextTodoTask();
   if (nextTask) {
+    const subtasks = getSubtasks(nextTask.id);
     return {
       has_work: true,
       action: 'todo_task_available',
@@ -240,7 +362,9 @@ export function checkPoll() {
         title: nextTask.title,
         priority: nextTask.priority,
         verification_cmd: nextTask.verification_cmd,
-        acceptance_criteria: nextTask.acceptance_criteria
+        acceptance_criteria: nextTask.acceptance_criteria,
+        subtask_count: nextTask.subtask_count,
+        subtasks
       }
     };
   }
@@ -309,7 +433,8 @@ if (command) {
           for (const t of inCol) {
             const qBadge = t.question_count > 0 ? ' [❓ QUESTION]' : '';
             const cBadge = t.comment_count > 0 ? ` (${t.comment_count} 💬)` : '';
-            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${qBadge}${cBadge}`);
+            const sBadge = t.subtask_count > 0 ? ` [${t.subtask_done_count}/${t.subtask_count} subtasks]` : '';
+            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${sBadge}${qBadge}${cBadge}`);
           }
         }
         console.log('');
@@ -323,7 +448,11 @@ if (command) {
     }
     case 'get': {
       const id = args[0];
-      console.log(JSON.stringify(getTaskById(id), null, 2));
+      const task = getTaskById(id);
+      if (task) {
+        task.subtasks = getSubtasks(id);
+      }
+      console.log(JSON.stringify(task, null, 2));
       break;
     }
     case 'update': {
@@ -345,6 +474,38 @@ if (command) {
         status: 'todo'
       });
       console.log(`✅ Task created with ID ${created.id}`);
+      break;
+    }
+    case 'subtasks': {
+      const [taskId] = args;
+      const subtasks = getSubtasks(taskId);
+      console.log(JSON.stringify(subtasks, null, 2));
+      break;
+    }
+    case 'next-subtask': {
+      const [taskId] = args;
+      const subtask = getNextSubtask(taskId);
+      if (!subtask) {
+        console.log(JSON.stringify({ found: false, message: 'All subtasks completed or none defined' }));
+      } else {
+        console.log(JSON.stringify({ found: true, subtask }, null, 2));
+      }
+      break;
+    }
+    case 'add-subtask': {
+      const [taskId, title, order_index, verification_cmd] = args;
+      const subtask = addSubtask(taskId, {
+        title,
+        order_index: order_index ? parseInt(order_index, 10) : undefined,
+        verification_cmd: verification_cmd || ''
+      });
+      console.log(`✅ Subtask added to ${taskId}:`, JSON.stringify(subtask, null, 2));
+      break;
+    }
+    case 'update-subtask': {
+      const [subtaskId, status] = args;
+      const updated = updateSubtask(subtaskId, { status });
+      console.log(`✅ Updated subtask ${subtaskId} to ${status}:`, JSON.stringify(updated, null, 2));
       break;
     }
     case 'comment': {
@@ -374,7 +535,7 @@ if (command) {
       break;
     }
     default: {
-      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, comment, comments, ack-task, ack-comment.`);
+      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, comments, ack-task, ack-comment.`);
     }
   }
 }

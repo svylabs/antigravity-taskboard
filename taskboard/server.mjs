@@ -12,7 +12,12 @@ import {
   getProjectInfo,
   getComments,
   addComment,
-  deleteComment
+  deleteComment,
+  getSubtasks,
+  getNextSubtask,
+  addSubtask,
+  updateSubtask,
+  deleteSubtask
 } from './tasks.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -124,6 +129,48 @@ const server = http.createServer(async (req, res) => {
     const commentId = commentDeleteMatch[1];
     deleteComment(commentId);
     return sendJson(res, 200, { success: true, deleted: commentId });
+  }
+
+  // REST API: GET /api/tasks/:id/subtasks
+  const subtasksGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/subtasks$/);
+  if (subtasksGetMatch && req.method === 'GET') {
+    const taskId = subtasksGetMatch[1];
+    const subtasks = getSubtasks(taskId);
+    return sendJson(res, 200, { success: true, subtasks });
+  }
+
+  // REST API: POST /api/tasks/:id/subtasks
+  const subtasksPostMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/subtasks$/);
+  if (subtasksPostMatch && req.method === 'POST') {
+    const taskId = subtasksPostMatch[1];
+    try {
+      const body = await parseBody(req);
+      const subtask = addSubtask(taskId, body);
+      return sendJson(res, 201, { success: true, subtask });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: PATCH /api/subtasks/:id
+  const subtaskPatchMatch = pathname.match(/^\/api\/subtasks\/([^/]+)$/);
+  if (subtaskPatchMatch && req.method === 'PATCH') {
+    const subtaskId = subtaskPatchMatch[1];
+    try {
+      const body = await parseBody(req);
+      const updated = updateSubtask(subtaskId, body);
+      return sendJson(res, 200, { success: true, subtask: updated });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: DELETE /api/subtasks/:id
+  const subtaskDeleteMatch = pathname.match(/^\/api\/subtasks\/([^/]+)$/);
+  if (subtaskDeleteMatch && req.method === 'DELETE') {
+    const subtaskId = subtaskDeleteMatch[1];
+    deleteSubtask(subtaskId);
+    return sendJson(res, 200, { success: true, deleted: subtaskId });
   }
 
   // REST API: PATCH /api/tasks/:id

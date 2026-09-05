@@ -33,3 +33,12 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
 
 6. **Project Scoping**:
    All database operations must target the local project's `.agents/taskboard/tasks.sqlite`. Never touch or overwrite other repositories' taskboards.
+
+7. **Sequential Subtask Execution**:
+   If a task contains subtasks:
+   * Implement subtasks strictly in order of `order_index` (one after the other).
+   * Update the subtask status to `in_progress` before beginning work on it.
+   * Verify the subtask implementation against any subtask criteria/commands before marking it `done`.
+   * Never skip subtasks or attempt to implement multiple subtasks concurrently.
+   * Only transition the parent task to `verification` and `done` after all child subtasks have reached `done`.
+

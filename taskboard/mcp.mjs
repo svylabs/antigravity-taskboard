@@ -12,7 +12,12 @@ import {
   checkPoll, 
   markTaskProcessed, 
   markCommentProcessed,
-  getProjectInfo 
+  getProjectInfo,
+  getSubtasks,
+  getNextSubtask,
+  addSubtask,
+  updateSubtask,
+  deleteSubtask
 } from './tasks.mjs';
 
 const TOOLS = [
@@ -26,7 +31,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_get_next',
-    description: 'Fetch the next actionable task in the "To Do" column (ordered by priority), including its acceptance criteria, verification command, and discussion history.',
+    description: 'Fetch the next actionable task in the "To Do" column (ordered by priority), including its subtasks, acceptance criteria, verification command, and discussion history.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -34,10 +39,52 @@ const TOOLS = [
   },
   {
     name: 'taskboard_get_active',
-    description: 'Check if there is currently an active task running in_progress or verification (strictly one task at a time).',
+    description: 'Check if there is currently an active task running in_progress or verification (strictly one task at a time), including its subtasks and next subtask.',
     inputSchema: {
       type: 'object',
       properties: {}
+    }
+  },
+  {
+    name: 'taskboard_get_subtasks',
+    description: 'Get all ordered subtasks for a task, showing their current status (todo, in_progress, done, failed).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'ID of the task' }
+      },
+      required: ['task_id']
+    }
+  },
+  {
+    name: 'taskboard_add_subtask',
+    description: 'Add an ordered subtask to a task.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'ID of the parent task' },
+        title: { type: 'string', description: 'Title / goal of the subtask' },
+        verification_cmd: { type: 'string', description: 'Optional automated test or verification command for this subtask' },
+        acceptance_criteria: { type: 'string', description: 'Optional acceptance criteria for this subtask' },
+        order_index: { type: 'number', description: 'Optional ordering index' }
+      },
+      required: ['task_id', 'title']
+    }
+  },
+  {
+    name: 'taskboard_update_subtask',
+    description: 'Update the status of a subtask (e.g. in_progress, done, failed).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        subtask_id: { type: 'string', description: 'ID of the subtask' },
+        status: { 
+          type: 'string', 
+          enum: ['todo', 'in_progress', 'done', 'failed'],
+          description: 'New status for the subtask' 
+        }
+      },
+      required: ['subtask_id', 'status']
     }
   },
   {
@@ -77,7 +124,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_list',
-    description: 'List all tasks across all columns with their current status, priority, and comment counts.',
+    description: 'List all tasks across all columns with their current status, priority, subtask counts, and comment counts.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -94,13 +141,33 @@ function handleToolCall(name, args) {
       const task = getNextTodoTask();
       if (!task) return { found: false, message: 'No pending tasks in todo' };
       const comments = getComments(task.id);
-      return { found: true, task, comments };
+      const subtasks = getSubtasks(task.id);
+      return { found: true, task, comments, subtasks };
     }
     case 'taskboard_get_active': {
       const active = getActiveTask();
       if (!active) return { active: false };
       const comments = getComments(active.id);
-      return { active: true, task: active, comments };
+      const subtasks = getSubtasks(active.id);
+      const nextSubtask = getNextSubtask(active.id);
+      return { active: true, task: active, comments, subtasks, next_subtask: nextSubtask || null };
+    }
+    case 'taskboard_get_subtasks': {
+      const subtasks = getSubtasks(args.task_id);
+      return { task_id: args.task_id, subtasks };
+    }
+    case 'taskboard_add_subtask': {
+      const subtask = addSubtask(args.task_id, {
+        title: args.title,
+        verification_cmd: args.verification_cmd || '',
+        acceptance_criteria: args.acceptance_criteria || '',
+        order_index: args.order_index
+      });
+      return { success: true, subtask };
+    }
+    case 'taskboard_update_subtask': {
+      const updated = updateSubtask(args.subtask_id, { status: args.status });
+      return { success: true, subtask: updated };
     }
     case 'taskboard_update_status': {
       const fields = { status: args.status };

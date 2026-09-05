@@ -411,6 +411,38 @@
       gap: 6px;
     }
 
+    .card-subtask-progress {
+      margin: 8px 0 6px 0;
+      padding: 6px 8px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+
+    .subtask-progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .subtask-progress-bar {
+      height: 4px;
+      background: #E2E8F0;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .subtask-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7C3AED, #10B981);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+
     /* Modal */
     .modal-overlay {
       position: fixed;
@@ -508,6 +540,137 @@
       max-height: 180px;
       overflow-y: auto;
       white-space: pre-wrap;
+    }
+
+    /* Subtasks Checklist Section */
+    .subtasks-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .subtasks-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .subtasks-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .subtasks-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 12px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .subtask-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      transition: background 0.15s;
+      gap: 10px;
+    }
+
+    .subtask-item:hover {
+      background: #F1F5F9;
+    }
+
+    .subtask-item.subtask-done {
+      background: #F0FDF4;
+      border-color: #BBF7D0;
+    }
+
+    .subtask-item.subtask-done .subtask-title-text {
+      text-decoration: line-through;
+      color: #64748B;
+    }
+
+    .subtask-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .subtask-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .subtask-checkbox {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .subtask-order {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+    }
+
+    .subtask-title-text {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-main);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .subtask-status-badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .subtask-status-badge.status-todo { background: #F1F5F9; color: #64748B; }
+    .subtask-status-badge.status-in_progress { background: #F3E8FF; color: #7C3AED; }
+    .subtask-status-badge.status-done { background: #DCFCE7; color: #15803D; }
+    .subtask-status-badge.status-failed { background: #FEE2E2; color: #B91C1C; }
+
+    .subtask-delete-btn {
+      background: none;
+      border: none;
+      color: #94A3B8;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .subtask-delete-btn:hover {
+      color: var(--urgent);
+    }
+
+    .add-subtask-form {
+      display: flex;
+      gap: 8px;
+      align-items: center;
     }
 
     /* Discussion / Comments Section */
@@ -994,7 +1157,12 @@
 
         <div class="form-group">
           <label class="form-label">Goal, Context & Details</label>
-          <textarea class="form-textarea" id="newDescription" style="min-height: 130px; font-size: 13.5px; line-height: 1.5;" placeholder="Describe the objective, background context, specific files to modify, or behavior expected..."></textarea>
+          <textarea class="form-textarea" id="newDescription" style="min-height: 110px; font-size: 13.5px; line-height: 1.5;" placeholder="Describe the objective, background context, specific files to modify, or behavior expected..."></textarea>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Ordered Subtasks (Optional &mdash; one per line for sequential implementation)</label>
+          <textarea class="form-textarea" id="newSubtasks" style="min-height: 80px; font-size: 13px;" placeholder="1. Database schema and migrations&#10;2. Implement REST endpoints&#10;3. Add UI components&#10;4. Verify test suite"></textarea>
         </div>
 
         <div class="form-row-2col">
@@ -1101,6 +1269,20 @@
           card.onclick = () => openDetailModal(task.id);
 
           const hasComments = task.comment_count > 0;
+          const hasSubtasks = (task.subtask_count || 0) > 0;
+          const subtaskPercent = hasSubtasks ? Math.round(((task.subtask_done_count || 0) / task.subtask_count) * 100) : 0;
+          const subtaskHtml = hasSubtasks ? `
+            <div class="card-subtask-progress">
+              <div class="subtask-progress-header">
+                <span>☑️ ${task.subtask_done_count || 0}/${task.subtask_count} subtasks</span>
+                <span>${subtaskPercent}%</span>
+              </div>
+              <div class="subtask-progress-bar">
+                <div class="subtask-progress-fill" style="width: ${subtaskPercent}%;"></div>
+              </div>
+            </div>
+          ` : '';
+
           const verifyBadge = getVerificationBadgeHtml(task);
           const statusBadge = getCardStatusBadge(task);
 
@@ -1111,6 +1293,7 @@
               <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
             </div>
             <div class="card-title">${escapeHtml(task.title)}</div>
+            ${subtaskHtml}
             <div class="card-footer">
               ${verifyBadge}
               <div class="card-counts">
@@ -1209,13 +1392,14 @@
       const verification_cmd = document.getElementById('newVerifyCmd').value.trim();
       const priority = document.getElementById('newPriority').value;
       const subagent_role = document.getElementById('newRole') ? document.getElementById('newRole').value : 'Fullstack Engineer';
+      const subtasks = document.getElementById('newSubtasks') ? document.getElementById('newSubtasks').value.trim() : '';
       const status = document.getElementById('newStatus').value;
 
       await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, description, acceptance_criteria, verification_cmd, priority, subagent_role, status
+          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status
         })
       });
 
@@ -1256,6 +1440,30 @@
             <div class="log-view">${escapeHtml(task.execution_logs)}</div>
           </div>
         ` : ''}
+
+        <!-- Subtasks Checklist -->
+        <div class="subtasks-section">
+          <div class="subtasks-header">
+            <div class="subtasks-title">
+              <span>☑️ Ordered Subtasks</span>
+              <span class="col-count" id="modalSubtaskCount">0/0</span>
+            </div>
+            <div id="subtaskPercentBadge" style="font-size: 12px; font-weight: 700; color: var(--primary);">0%</div>
+          </div>
+          <div class="subtask-progress-bar" style="height: 6px; margin-bottom: 12px;">
+            <div class="subtask-progress-fill" id="modalSubtaskFill" style="width: 0%;"></div>
+          </div>
+          
+          <div id="subtasksList" class="subtasks-list">
+            <div style="font-size: 12px; color: #94A3B8; text-align: center; padding: 10px;">Loading subtasks...</div>
+          </div>
+
+          <!-- Add Subtask Form -->
+          <form class="add-subtask-form" onsubmit="handleAddSubtask(event)">
+            <input type="text" class="form-input" id="newSubtaskTitle" placeholder="Add an ordered subtask..." required style="font-size: 12.5px; padding: 8px 10px;">
+            <button type="submit" class="btn btn-secondary" style="padding: 8px 14px; font-size: 12px; white-space: nowrap;">+ Add Subtask</button>
+          </form>
+        </div>
 
         <!-- Discussion / Comments -->
         <div class="comments-section">
@@ -1301,7 +1509,94 @@
       `;
 
       document.getElementById('detailModal').classList.add('active');
+      loadSubtasks(id);
       loadComments(id);
+    }
+
+    async function loadSubtasks(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/subtasks`);
+        const data = await res.json();
+        const list = document.getElementById('subtasksList');
+        const countBadge = document.getElementById('modalSubtaskCount');
+        const percentBadge = document.getElementById('subtaskPercentBadge');
+        const fillBar = document.getElementById('modalSubtaskFill');
+        if (!list) return;
+
+        if (!data.success || data.subtasks.length === 0) {
+          list.innerHTML = `<div style="font-size: 12px; color: #94A3B8; text-align: center; padding: 10px;">No subtasks yet. Add one below to organize work sequentially.</div>`;
+          if (countBadge) countBadge.innerText = '0/0';
+          if (percentBadge) percentBadge.innerText = '0%';
+          if (fillBar) fillBar.style.width = '0%';
+          return;
+        }
+
+        const total = data.subtasks.length;
+        const done = data.subtasks.filter(s => s.status === 'done').length;
+        const percent = Math.round((done / total) * 100);
+
+        if (countBadge) countBadge.innerText = `${done}/${total}`;
+        if (percentBadge) percentBadge.innerText = `${percent}%`;
+        if (fillBar) fillBar.style.width = `${percent}%`;
+
+        list.innerHTML = data.subtasks.map(s => {
+          const isDone = s.status === 'done';
+          const isWorking = s.status === 'in_progress';
+          const statusLabel = isDone ? '✅ Done' : (isWorking ? '⚡ Working' : '📋 Todo');
+          return `
+            <div class="subtask-item ${isDone ? 'subtask-done' : ''}">
+              <div class="subtask-left">
+                <input type="checkbox" class="subtask-checkbox" ${isDone ? 'checked' : ''} onchange="toggleSubtaskStatus('${s.id}', this.checked)">
+                <span class="subtask-order">${s.order_index}.</span>
+                <span class="subtask-title-text" title="${escapeHtml(s.title)}">${escapeHtml(s.title)}</span>
+                ${s.verification_cmd ? `<span class="cmd-tag" style="font-size: 10.5px; padding: 1px 5px;" title="${escapeHtml(s.verification_cmd)}">🧪 ${escapeHtml(s.verification_cmd)}</span>` : ''}
+              </div>
+              <div class="subtask-right">
+                <span class="subtask-status-badge status-${s.status}">${statusLabel}</span>
+                <button type="button" class="subtask-delete-btn" onclick="handleDeleteSubtask('${s.id}')" title="Delete subtask">&times;</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+      } catch (err) {
+        console.error('Failed to load subtasks:', err);
+      }
+    }
+
+    async function handleAddSubtask(e) {
+      e.preventDefault();
+      if (!currentTaskId) return;
+      const input = document.getElementById('newSubtaskTitle');
+      const title = input.value.trim();
+      if (!title) return;
+
+      await fetch(`/api/tasks/${currentTaskId}/subtasks`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title })
+      });
+
+      input.value = '';
+      loadSubtasks(currentTaskId);
+      fetchTasks();
+    }
+
+    async function toggleSubtaskStatus(subtaskId, isChecked) {
+      const status = isChecked ? 'done' : 'todo';
+      await fetch(`/api/subtasks/${subtaskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (currentTaskId) loadSubtasks(currentTaskId);
+      fetchTasks();
+    }
+
+    async function handleDeleteSubtask(subtaskId) {
+      await fetch(`/api/subtasks/${subtaskId}`, { method: 'DELETE' });
+      if (currentTaskId) loadSubtasks(currentTaskId);
+      fetchTasks();
     }
 
     async function loadComments(taskId) {
