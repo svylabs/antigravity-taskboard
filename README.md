@@ -66,5 +66,5 @@ Antigravity will:
 ## Installation
 
    ```bash
-   git clone https://github.com/<your-username>/antigravity-taskboard.git .agents/plugins/antigravity-taskboard
+   git clone https://github.com/svylabs/antigravity-taskboard.git .agents/plugins/antigravity-taskboard
    ```
