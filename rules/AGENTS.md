@@ -3,22 +3,27 @@
 When executing tasks under the `antigravity-taskboard` plugin, all subagents and supervisor agents must strictly adhere to the following rules:
 
 1. **Pre-Execution Verification Gate (Mandatory)**:
-   Never begin implementing a task without first confirming the verification criteria and automated verification command (`verification_cmd`).
-   * If a task lacks an automated verification command or has ambiguous acceptance criteria:
+   Never begin implementing a task without first confirming the verification criteria. Verification criteria can be provided in any of the following 3 ways:
+   * **Automated Command** (e.g. `npm test`, `npm run build`, `test -f <file>`).
+   * **Textual Verification Criteria** (e.g. specific acceptance criteria describing expected behavior, UI state, API contracts, or code rules that the agent can evaluate and check against).
+   * **Explicit Exemption**: If the task explicitly states *"no verification required"* (or *"none"* / *"N/A"*), the task is allowed to proceed immediately.
+   * **Missing/Ambiguous Criteria**: If a task has no verification criteria, no automated command, and does not state *"no verification required"*:
      - **DO NOT modify any code or spawn subagents.**
-     - Post a `question` comment on the card asking for or proposing an automated test command (e.g. `npm test <file>` or `test -f <output>`).
-     - Leave the card in `todo` or `backlog` with the `❓ Question` badge visible until criteria are confirmed.
+     - Post a `question` comment on the card asking for verification criteria or proposing a verification plan.
+     - Leave the card in `todo` with the `❓ Question` badge visible until criteria are confirmed.
 
 2. **Strict Sequential Execution (One Task at a Time)**:
    Complete one task completely before moving to another.
    * Never run tasks in parallel.
-   * An active task must finish its entire lifecycle—implementation, automated verification pass (exit code `0`), status updated to `done`, and walkthrough comment posted—before the supervisor may claim the next task.
+   * An active task must finish its entire lifecycle—implementation, verification check (automated test or textual criteria review), status updated to `done`, and walkthrough comment posted—before the supervisor may claim the next task.
 
-3. **Workspace Branch Isolation**:
+3. **Verification Before Completion**:
+   * If an automated command exists: execute it and ensure an exit code of `0`.
+   * If textual criteria exist: the agent must evaluate the code diff against every item in the verification criteria and document the validation in the walkthrough comment.
+   * If *"no verification required"*: summarize changes made and proceed to `done`.
+
+4. **Workspace Branch Isolation**:
    Always execute code tasks in isolated branches (`Workspace: "branch"`). Never write untested changes directly to the primary working tree.
-
-4. **Automated Verification Before Completion**:
-   Never mark a task `done` in the SQLite taskboard without first running the task's `verification_cmd` with an exit code of `0`.
 
 5. **Context Preservation (Plans & Walkthroughs)**:
    Always record structured comments on task cards:

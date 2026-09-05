@@ -704,6 +704,7 @@
 
           const hasQuestion = task.question_count > 0;
           const hasComments = task.comment_count > 0;
+          const verifyBadge = getVerificationBadgeHtml(task);
 
           card.innerHTML = `
             <div class="card-badges">
@@ -713,9 +714,7 @@
             </div>
             <div class="card-title">${escapeHtml(task.title)}</div>
             <div class="card-footer">
-              <span class="cmd-tag" title="${escapeHtml(task.verification_cmd || 'No verify command')}">
-                ${task.verification_cmd ? '🧪 ' + escapeHtml(task.verification_cmd) : '⚡ Auto-verified'}
-              </span>
+              ${verifyBadge}
               <div class="card-counts">
                 ${hasComments ? `<span title="${task.comment_count} comments">💬 ${task.comment_count}</span>` : ''}
                 <span>${task.id.slice(-6)}</span>
@@ -725,6 +724,24 @@
           container.appendChild(card);
         });
       });
+    }
+
+    function getVerificationBadgeHtml(task) {
+      const cmd = (task.verification_cmd || '').trim();
+      const criteria = (task.acceptance_criteria || '').trim();
+      const lowerCriteria = criteria.toLowerCase();
+      const lowerCmd = cmd.toLowerCase();
+
+      if (lowerCmd.includes('no verification') || lowerCriteria.includes('no verification') || lowerCmd === 'none' || lowerCriteria === 'none') {
+        return `<span class="cmd-tag" style="background:#F1F5F9; color:#64748B;" title="Explicitly marked as no verification required">⚡ No verification required</span>`;
+      }
+      if (cmd) {
+        return `<span class="cmd-tag" title="${escapeHtml(cmd)}">🧪 ${escapeHtml(cmd)}</span>`;
+      }
+      if (criteria) {
+        return `<span class="cmd-tag" style="background:#F3E8FF; color:#7C3AED; border-color:#DDD6FE;" title="${escapeHtml(criteria)}">📋 Text criteria</span>`;
+      }
+      return `<span class="cmd-tag" style="background:#FEF2F2; color:#EF4444; border-color:#FECACA;" title="Missing verification criteria">⚠️ No criteria</span>`;
     }
 
     function handleDragStart(e, id) {
