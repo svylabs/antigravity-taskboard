@@ -35,10 +35,27 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS task_comments (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    author TEXT NOT NULL DEFAULT 'agent',
+    comment_type TEXT NOT NULL DEFAULT 'comment', -- 'comment', 'question', 'plan', 'walkthrough'
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
+  );
 `);
 
 export function getAllTasks() {
-  return db.prepare('SELECT * FROM agent_tasks ORDER BY order_index ASC, created_at ASC').all();
+  return db.prepare(`
+    SELECT 
+      t.*,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+    FROM agent_tasks t 
+    ORDER BY t.order_index ASC, t.created_at ASC
+  `).all();
 }
 
 export function getNextTodoTask() {
@@ -52,15 +69,26 @@ export function getNextTodoTask() {
     END
   `;
   return db.prepare(`
-    SELECT * FROM agent_tasks 
-    WHERE status = 'todo' 
-    ORDER BY ${priorityOrder} ASC, order_index ASC, created_at ASC 
+    SELECT 
+      t.*,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+    FROM agent_tasks t 
+    WHERE t.status = 'todo' 
+    ORDER BY ${priorityOrder} ASC, t.order_index ASC, t.created_at ASC 
     LIMIT 1
   `).get();
 }
 
 export function getTaskById(id) {
-  return db.prepare('SELECT * FROM agent_tasks WHERE id = ?').get(id);
+  return db.prepare(`
+    SELECT 
+      t.*,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+    FROM agent_tasks t 
+    WHERE t.id = ?
+  `).get(id);
 }
 
 export function addTask({
@@ -114,6 +142,28 @@ export function deleteTask(id) {
   return db.prepare('DELETE FROM agent_tasks WHERE id = ?').run(id);
 }
 
+// Comments API
+export function getComments(taskId) {
+  return db.prepare('SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at ASC').all(taskId);
+}
+
+export function addComment(taskId, { author = 'agent', comment_type = 'comment', content }) {
+  if (!content || !content.trim()) {
+    throw new Error('Comment content cannot be empty');
+  }
+  const id = `comment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  db.prepare(`
+    INSERT INTO task_comments (id, task_id, author, comment_type, content)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, taskId, author, comment_type, content.trim());
+
+  return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
+}
+
+export function deleteComment(id) {
+  return db.prepare('DELETE FROM task_comments WHERE id = ?').run(id);
+}
+
 // CLI handler
 const [,, command, ...args] = process.argv;
 
@@ -145,7 +195,9 @@ if (command) {
           console.log('    (empty)');
         } else {
           for (const t of inCol) {
-            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}`);
+            const qBadge = t.question_count > 0 ? ' [❓ QUESTION]' : '';
+            const cBadge = t.comment_count > 0 ? ` (${t.comment_count} 💬)` : '';
+            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${qBadge}${cBadge}`);
           }
         }
         console.log('');
@@ -183,8 +235,24 @@ if (command) {
       console.log(`✅ Task created with ID ${created.id}`);
       break;
     }
+    case 'comment': {
+      const [taskId, content, author, comment_type] = args;
+      const comment = addComment(taskId, {
+        content,
+        author: author || 'agent',
+        comment_type: comment_type || 'comment'
+      });
+      console.log(`✅ Added comment to ${taskId}:`, JSON.stringify(comment, null, 2));
+      break;
+    }
+    case 'comments': {
+      const [taskId] = args;
+      const comments = getComments(taskId);
+      console.log(JSON.stringify(comments, null, 2));
+      break;
+    }
     default: {
-      console.log(`Supported commands: info, next, list, json, get, update, add.`);
+      console.log(`Supported commands: info, next, list, json, get, update, add, comment, comments.`);
     }
   }
 }

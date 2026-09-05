@@ -3,7 +3,17 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getAllTasks, getTaskById, addTask, updateTask, deleteTask, getProjectInfo } from './tasks.mjs';
+import { 
+  getAllTasks, 
+  getTaskById, 
+  addTask, 
+  updateTask, 
+  deleteTask, 
+  getProjectInfo,
+  getComments,
+  addComment,
+  deleteComment
+} from './tasks.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,7 +67,6 @@ const server = http.createServer(async (req, res) => {
     }
     let html = fs.readFileSync(htmlPath, 'utf-8');
     const { projectName } = getProjectInfo();
-    // Inject current project name into board
     html = html.replace('{{PROJECT_NAME}}', projectName);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end(html);
@@ -86,6 +95,35 @@ const server = http.createServer(async (req, res) => {
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
     }
+  }
+
+  // REST API: GET /api/tasks/:id/comments
+  const commentsGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/comments$/);
+  if (commentsGetMatch && req.method === 'GET') {
+    const taskId = commentsGetMatch[1];
+    const comments = getComments(taskId);
+    return sendJson(res, 200, { success: true, comments });
+  }
+
+  // REST API: POST /api/tasks/:id/comments
+  const commentsPostMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/comments$/);
+  if (commentsPostMatch && req.method === 'POST') {
+    const taskId = commentsPostMatch[1];
+    try {
+      const body = await parseBody(req);
+      const comment = addComment(taskId, body);
+      return sendJson(res, 201, { success: true, comment });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: DELETE /api/comments/:id
+  const commentDeleteMatch = pathname.match(/^\/api\/comments\/([^/]+)$/);
+  if (commentDeleteMatch && req.method === 'DELETE') {
+    const commentId = commentDeleteMatch[1];
+    deleteComment(commentId);
+    return sendJson(res, 200, { success: true, deleted: commentId });
   }
 
   // REST API: PATCH /api/tasks/:id
