@@ -127,8 +127,16 @@ export function getNextTodoTask() {
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
     FROM agent_tasks t 
-    WHERE t.status = 'todo' 
-    ORDER BY ${priorityOrder} ASC, t.order_index ASC, t.created_at ASC 
+    WHERE t.status IN ('needs_revision', 'todo')
+    ORDER BY 
+      CASE t.status 
+        WHEN 'needs_revision' THEN 1 
+        WHEN 'todo' THEN 2 
+        ELSE 3 
+      END ASC,
+      ${priorityOrder} ASC, 
+      t.order_index ASC, 
+      t.created_at ASC 
     LIMIT 1
   `).get();
 }
@@ -350,16 +358,18 @@ export function checkPoll() {
     };
   }
 
-  // 3. Is there a next 'todo' task ready to execute?
+  // 3. Is there a next 'needs_revision' or 'todo' task ready to execute?
   const nextTask = getNextTodoTask();
   if (nextTask) {
     const subtasks = getSubtasks(nextTask.id);
     return {
       has_work: true,
-      action: 'todo_task_available',
+      action: nextTask.status === 'needs_revision' ? 'revision_task_available' : 'todo_task_available',
       task: {
         id: nextTask.id,
         title: nextTask.title,
+        status: nextTask.status,
+        is_revision: nextTask.status === 'needs_revision',
         priority: nextTask.priority,
         verification_cmd: nextTask.verification_cmd,
         acceptance_criteria: nextTask.acceptance_criteria,
@@ -421,7 +431,7 @@ if (command) {
     case 'list': {
       const { projectName, dbPath } = getProjectInfo();
       const tasks = getAllTasks();
-      const columns = ['backlog', 'todo', 'in_progress', 'verification', 'done', 'failed'];
+      const columns = ['backlog', 'todo', 'needs_revision', 'in_progress', 'verification', 'done', 'failed'];
       console.log(`\n================== 📋 KANBAN: [${projectName}] ==================`);
       console.log(`📂 DB: ${dbPath}\n`);
       for (const col of columns) {

@@ -42,3 +42,7 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
    * Never skip subtasks or attempt to implement multiple subtasks concurrently.
    * Only transition the parent task to `verification` and `done` after all child subtasks have reached `done`.
 
+8. **Intermediary Revision State (`needs_revision`)**:
+   When a completed task receives user feedback or changes are requested, it enters the `needs_revision` column.
+   * Supervisors must prioritize `needs_revision` tasks ahead of standard `todo` tasks to quickly iterate on user requests.
+   * Review user comments, acknowledge them (`ack-comment`), formulate an updated implementation plan addressing the feedback, and transition to `in_progress` to implement the requested revisions.

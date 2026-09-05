@@ -63,6 +63,13 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
      ```
   3. Resume the task with the user's new instructions.
 
+* **If `action == "revision_task_available"`**:
+  A completed task has received user feedback and is in **`Needs Revision`**! Revisions are prioritized ahead of standard `todo` tasks to quickly iterate on user requests.
+  1. Read the user's feedback/comments on the card.
+  2. Acknowledge unread comments (`ack-comment <COMMENT_ID>`).
+  3. Formulate an updated plan addressing the feedback.
+  4. Claim the task (`status: 'in_progress'`) and dispatch subagent to implement requested changes.
+
 * **If `action == "todo_task_available"`**:
   A new task is ready. Proceed to **Step 2 (Verification Gate)**.
 

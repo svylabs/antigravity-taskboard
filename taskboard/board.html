@@ -262,6 +262,13 @@
       box-shadow: 0 3px 10px rgba(245, 158, 11, 0.12);
     }
 
+    .task-card.card-needs_revision {
+      background: #FFFBEB;
+      border: 1px solid #FCD34D;
+      border-left: 5px solid #D97706;
+      box-shadow: 0 3px 10px rgba(217, 119, 6, 0.12);
+    }
+
     .task-card.card-in_progress {
       background: #FAF5FF;
       border: 1px solid #D8B4FE;
@@ -308,6 +315,12 @@
       color: #B45309;
       border: 1px solid #FDE68A;
       animation: pulse 2.2s infinite;
+    }
+
+    .status-pill-needs_revision {
+      background: #FEF3C7;
+      color: #B45309;
+      border: 1px solid #FDE68A;
     }
 
     .status-pill-in_progress {
@@ -853,6 +866,85 @@
       padding: 12px;
     }
 
+    /* Collapsible Task Details in Modal */
+    .task-details-collapsible {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      background: #FFFFFF;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+      transition: border-color 0.15s;
+    }
+
+    .task-details-collapsible:hover {
+      border-color: #CBD5E1;
+    }
+
+    .task-details-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #F8FAFC;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+
+    .task-details-header:hover {
+      background: #F1F5F9;
+    }
+
+    .task-details-title-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .details-chevron {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #64748B;
+      transition: transform 0.2s ease;
+      width: 20px;
+      height: 20px;
+      border-radius: 6px;
+      background: #E2E8F0;
+    }
+
+    .task-details-collapsible.open .details-chevron {
+      transform: rotate(180deg);
+    }
+
+    .details-toggle-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .task-details-body {
+      padding: 14px;
+      border-top: 1px solid var(--border);
+      display: none;
+      background: #FAFAFA;
+    }
+
+    .task-details-collapsible.open .task-details-body {
+      display: block;
+    }
+
+    /* Natural-height comments stream inside modal */
+    .comments-stream {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 10px;
+      margin-bottom: 16px;
+    }
+
     /* Mobile / Tablet Column Quick Navigation Bar */
     .column-tabs-bar {
       display: none;
@@ -1160,6 +1252,7 @@
     <div class="column-tabs-bar" id="columnTabsBar">
       <button class="col-tab active" onclick="scrollToColumn('backlog', this)">📥 Backlog <span class="tab-count" id="tab-count-backlog">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('todo', this)">📋 To Do <span class="tab-count" id="tab-count-todo">0</span></button>
+      <button class="col-tab" onclick="scrollToColumn('needs_revision', this)">📝 Revision <span class="tab-count" id="tab-count-needs_revision">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('in_progress', this)">⚡ In Progress <span class="tab-count" id="tab-count-in_progress">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('verification', this)">🧪 Verification <span class="tab-count" id="tab-count-verification">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('done', this)">✅ Done <span class="tab-count" id="tab-count-done">0</span></button>
@@ -1185,6 +1278,15 @@
         <span class="col-count" id="count-todo">0</span>
       </div>
       <div class="card-list" id="list-todo" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'todo')"></div>
+    </div>
+
+    <!-- Needs Revision -->
+    <div class="column" data-status="needs_revision">
+      <div class="column-header">
+        <span class="col-title">📝 Needs Revision</span>
+        <span class="col-count" id="count-needs_revision">0</span>
+      </div>
+      <div class="card-list" id="list-needs_revision" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'needs_revision')"></div>
     </div>
 
     <!-- In Progress -->
@@ -1333,7 +1435,7 @@
     }
 
     function renderBoard() {
-      const columns = ['backlog', 'todo', 'in_progress', 'verification', 'done', 'failed'];
+      const columns = ['backlog', 'todo', 'needs_revision', 'in_progress', 'verification', 'done', 'failed'];
       columns.forEach(col => {
         const container = document.getElementById(`list-${col}`);
         const countBadge = document.getElementById(`count-${col}`);
@@ -1394,6 +1496,7 @@
 
     function getCardStateClass(task) {
       if (task.question_count > 0) return 'card-waiting';
+      if (task.status === 'needs_revision') return 'card-needs_revision';
       if (task.status === 'in_progress') return 'card-in_progress';
       if (task.status === 'verification') return 'card-verification';
       if (task.status === 'done') return 'card-done';
@@ -1404,6 +1507,9 @@
     function getCardStatusBadge(task) {
       if (task.question_count > 0) {
         return `<span class="status-pill status-pill-waiting"><span class="status-dot dot-amber"></span>❓ Waiting for You</span>`;
+      }
+      if (task.status === 'needs_revision') {
+        return `<span class="status-pill status-pill-needs_revision"><span class="status-dot dot-amber"></span>📝 Needs Revision</span>`;
       }
       if (task.status === 'in_progress') {
         return `<span class="status-pill status-pill-in_progress"><span class="status-dot dot-purple"></span>⚡ Agent Working</span>`;
@@ -1502,29 +1608,42 @@
       const content = document.getElementById('detailContent');
 
       content.innerHTML = `
-        <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+        <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;">
           <span class="badge badge-${task.priority}">${task.priority}</span>
           <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
           <span class="role-badge" style="background: #E2E8F0;">Status: <b>${task.status}</b></span>
         </div>
-        <div class="form-group">
-          <label class="form-label">Goal & Details</label>
-          <div class="form-formatted-text">${renderMarkdown(task.description || 'No description provided')}</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Acceptance Criteria</label>
-          <div class="form-formatted-text">${renderMarkdown(task.acceptance_criteria || 'None')}</div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Verification Command</label>
-          <div class="cmd-tag" style="font-size: 12px; padding: 6px 10px; max-width: 100%;">${escapeHtml(task.verification_cmd || 'None')}</div>
-        </div>
-        ${task.execution_logs ? `
-          <div class="form-group">
-            <label class="form-label">Execution / Test Logs</label>
-            <div class="log-view">${escapeHtml(task.execution_logs)}</div>
+
+        <!-- Collapsible Task Details (Click Down Arrow to show/hide) -->
+        <div class="task-details-collapsible" id="taskDetailsContainer">
+          <div class="task-details-header" onclick="toggleTaskDetails()" id="taskDetailsToggle" title="Click down arrow to show full task details">
+            <div class="task-details-title-wrap">
+              <span class="details-chevron" id="detailsChevron">▼</span>
+              <span style="font-size: 13px; font-weight: 700; color: #1E293B;">Task Goals & Acceptance Criteria</span>
+            </div>
+            <span class="details-toggle-label" id="detailsToggleLabel">Show Full Detail</span>
           </div>
-        ` : ''}
+          <div class="task-details-body" id="taskDetailsBody" style="display: none;">
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label">Goal & Details</label>
+              <div class="form-formatted-text">${renderMarkdown(task.description || 'No description provided')}</div>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label">Acceptance Criteria</label>
+              <div class="form-formatted-text">${renderMarkdown(task.acceptance_criteria || 'None')}</div>
+            </div>
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="form-label">Verification Command</label>
+              <div class="cmd-tag" style="font-size: 12px; padding: 6px 10px; max-width: 100%;">${escapeHtml(task.verification_cmd || 'None')}</div>
+            </div>
+            ${task.execution_logs ? `
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Execution / Test Logs</label>
+                <div class="log-view">${escapeHtml(task.execution_logs)}</div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
 
         <!-- Subtasks Checklist -->
         <div class="subtasks-section">
@@ -1550,13 +1669,13 @@
           </form>
         </div>
 
-        <!-- Discussion / Comments -->
-        <div class="comments-section">
+        <!-- Discussion / Comments (Natural Height Stream) -->
+        <div class="comments-section" id="commentsSection">
           <div class="comments-header">
             <span class="comments-title">💬 Activity, Questions & Walkthroughs</span>
             <span class="col-count" id="modalCommentCount">0</span>
           </div>
-          <div id="commentsList" style="max-height: 240px; overflow-y: auto;">
+          <div id="commentsList" class="comments-stream">
             <div style="font-size: 12px; color: #94A3B8; text-align: center; padding: 12px;">Loading comments...</div>
           </div>
 
@@ -1573,7 +1692,7 @@
               <div style="display: flex; gap: 8px; align-items: center;">
                 <button type="submit" class="btn btn-primary" style="padding: 6px 14px; font-size: 12px;">Post</button>
                 ${(task.status === 'done' || task.status === 'failed') ? `
-                  <button type="button" class="btn btn-secondary" onclick="handlePostAndReopen(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: var(--primary); border-color: #DDD6FE; background: #FAF5FF;" title="Post comment and reopen task to In Progress">↩️ Post & Reopen</button>
+                  <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Post comment and move task to Needs Revision">↩️ Post & Request Revision</button>
                 ` : ''}
               </div>
             </div>
@@ -1585,13 +1704,13 @@
           <button class="btn btn-secondary" style="color: var(--urgent); border-color: #FECACA;" onclick="deleteTaskItem('${task.id}')">Delete Card</button>
           <div class="modal-footer-btns">
             ${(task.status === 'done' || task.status === 'failed') ? `
-              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'in_progress')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: var(--primary); border-color: #DDD6FE; background: #FAF5FF;">⚡ Reopen to In Progress</button>
-              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'todo')" style="padding: 7px 12px; font-size: 12px; font-weight: 600;">📋 Move to To Do</button>
+              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;">📝 Move to Revision</button>
             ` : ''}
             <select class="form-select" style="width: auto; padding: 7px 10px; font-size: 12px; font-weight: 600;" onchange="moveTaskStatus('${task.id}', this.value)">
               <option value="" disabled selected>Move to...</option>
               <option value="backlog" ${task.status === 'backlog' ? 'disabled' : ''}>📥 Backlog</option>
               <option value="todo" ${task.status === 'todo' ? 'disabled' : ''}>📋 To Do</option>
+              <option value="needs_revision" ${task.status === 'needs_revision' ? 'disabled' : ''}>📝 Needs Revision</option>
               <option value="in_progress" ${task.status === 'in_progress' ? 'disabled' : ''}>⚡ In Progress</option>
               <option value="verification" ${task.status === 'verification' ? 'disabled' : ''}>🧪 Verification</option>
               <option value="done" ${task.status === 'done' ? 'disabled' : ''}>✅ Done</option>
@@ -1604,7 +1723,17 @@
 
       document.getElementById('detailModal').classList.add('active');
       loadSubtasks(id);
-      loadComments(id);
+      loadComments(id, true);
+
+      // Auto-hide details when user scrolls down
+      const modalBox = document.querySelector('#detailModal .modal');
+      if (modalBox) {
+        modalBox.onscroll = () => {
+          if (modalBox.scrollTop > 60) {
+            collapseTaskDetails();
+          }
+        };
+      }
     }
 
     async function loadSubtasks(taskId) {
@@ -1693,7 +1822,7 @@
       fetchTasks();
     }
 
-    async function loadComments(taskId) {
+    async function loadComments(taskId, autoScroll = false) {
       try {
         const res = await fetch(`/api/tasks/${taskId}/comments`);
         const data = await res.json();
@@ -1720,6 +1849,14 @@
           </div>
         `).join('');
 
+        if (autoScroll) {
+          const modalBox = document.querySelector('#detailModal .modal');
+          if (modalBox) {
+            setTimeout(() => {
+              modalBox.scrollTo({ top: modalBox.scrollHeight, behavior: 'smooth' });
+            }, 80);
+          }
+        }
       } catch (err) {
         console.error('Failed to load comments:', err);
       }
@@ -1744,11 +1881,11 @@
       });
 
       document.getElementById('commentInput').value = '';
-      loadComments(currentTaskId);
+      loadComments(currentTaskId, true);
       fetchTasks();
     }
 
-    async function handlePostAndReopen(e, taskId) {
+    async function handlePostAndRequestRevision(e, taskId) {
       if (e) e.preventDefault();
       const id = taskId || currentTaskId;
       if (!id) return;
@@ -1756,7 +1893,7 @@
       const content = document.getElementById('commentInput').value.trim();
       const comment_type = document.getElementById('commentType').value;
       if (!content) {
-        alert('Please enter a comment or instructions to explain reopening the task.');
+        alert('Please enter your revision feedback before requesting revision.');
         return;
       }
 
@@ -1771,16 +1908,50 @@
         })
       });
 
-      // 2. Move task back to in_progress
+      // 2. Move task to needs_revision
       await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'in_progress', processed_by_agent: 0 })
+        body: JSON.stringify({ status: 'needs_revision', processed_by_agent: 0 })
       });
 
       document.getElementById('commentInput').value = '';
       closeDetailModal();
       fetchTasks();
+    }
+
+    function toggleTaskDetails() {
+      const container = document.getElementById('taskDetailsContainer');
+      const body = document.getElementById('taskDetailsBody');
+      const label = document.getElementById('detailsToggleLabel');
+      const chevron = document.getElementById('detailsChevron');
+      if (!container || !body) return;
+
+      const isHidden = body.style.display === 'none';
+      if (isHidden) {
+        body.style.display = 'block';
+        container.classList.add('open');
+        if (label) label.innerText = 'Hide Details';
+        if (chevron) chevron.innerText = '▲';
+      } else {
+        body.style.display = 'none';
+        container.classList.remove('open');
+        if (label) label.innerText = 'Show Full Detail';
+        if (chevron) chevron.innerText = '▼';
+      }
+    }
+
+    function collapseTaskDetails() {
+      const container = document.getElementById('taskDetailsContainer');
+      const body = document.getElementById('taskDetailsBody');
+      const label = document.getElementById('detailsToggleLabel');
+      const chevron = document.getElementById('detailsChevron');
+      if (body && body.style.display !== 'none') {
+        body.style.display = 'none';
+        if (container) container.classList.remove('open');
+        if (label) label.innerText = 'Show Full Detail';
+        if (chevron) chevron.innerText = '▼';
+      }
     }
 
     async function moveTaskStatus(id, newStatus) {
