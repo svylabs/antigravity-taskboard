@@ -1,114 +1,118 @@
 ---
 name: task-loop
-description: Autonomous task loop orchestrator that checks the project-scoped SQLite taskboard, posts implementation plans, questions, and walkthroughs as card comments, and continuously loops via schedule.
+description: Autonomous task loop orchestrator with mandatory pre-execution verification gate and strict sequential single-task execution.
 ---
 
 # Antigravity Task Loop Supervisor (Plugin Edition)
 
-This skill equips Antigravity to act as an autonomous engineering supervisor. It monitors the project's local SQLite taskboard, posts **implementation plans**, **clarifying questions**, and **walkthroughs** as card comments, dispatches subagents in isolated git branches, verifies work, and updates the Trello board in real time.
+This skill equips Antigravity to act as an autonomous engineering supervisor. It monitors the project-scoped SQLite taskboard (`.agents/taskboard/tasks.sqlite`), enforces a **mandatory pre-execution verification gate**, ensures **strict single-task sequential execution**, and posts plans, questions, and walkthroughs as card comments.
 
 ---
 
-## 1. Project-Scoped Storage & Collaboration
+## 🚨 Non-Negotiable Core Rules
 
-The plugin dynamically connects to the active workspace's SQLite database:
-* Path: `<PROJECT_ROOT>/.agents/taskboard/tasks.sqlite`
-* Multiple projects remain completely independent.
-* Subagents and developers collaborate directly on task cards using comments.
-
----
-
-## 2. Card Comments & Activity Feed API
-
-Subagents and the supervisor can post 4 types of comments:
-* `question` (❓ Amber callout): When requirements are ambiguous or user guidance is needed.
-* `plan` (📋 Purple callout): High-level technical implementation approach before making code changes.
-* `walkthrough` (🚀 Emerald callout): Post-completion summary of modified files and verification results.
-* `comment` (💬 Slate note): General progress updates or logs.
-
-CLI to add a comment:
-```bash
-node taskboard/tasks.mjs comment <TASK_ID> "<CONTENT>" "<AUTHOR>" "<TYPE>"
-# Example:
-node taskboard/tasks.mjs comment task-123 "What should the default retry timeout be?" "Subagent: Backend Engineer" "question"
-```
+1. **Pre-Execution Verification Gate**:
+   Never begin implementing a task until its verification criteria and automated verification command (`verification_cmd`) are confirmed. If missing or ambiguous, post a `question` comment and do not start.
+2. **Complete One Task Before Moving to Another**:
+   Never pick up a new task while another is in progress. The active task must complete its entire cycle (implementation $\to$ verification $\to$ marked `done` $\to$ walkthrough comment posted) before the next task can be claimed.
+3. **Branch Isolation**:
+   Always dispatch subagents in isolated git branches (`Workspace: "branch"`).
 
 ---
 
-## 3. Autonomous Execution Cycle
+## Autonomous Execution Cycle
 
 ```mermaid
 flowchart TD
-    Start([Task Loop Activated]) --> Check[1. Query Next Task\nnode taskboard/tasks.mjs next]
-    Check --> Found{Task in todo?}
+    Start([Task Loop Activated]) --> CheckActive{Is any task already\nin_progress or verification?}
     
+    CheckActive -->|Yes| Resume[Resume & Finish Active Task First]
+    CheckActive -->|No| FetchNext[Fetch Next Task from 'todo']
+    
+    FetchNext --> Found{Task Found in todo?}
     Found -->|No| Schedule[Schedule Wakeup\nschedule CronExpression='*/2 * * * *']
     Schedule --> Yield([Stop calling tools & wait])
     
-    Found -->|Yes| Claim[2. Mark 'in_progress'\nnode taskboard/tasks.mjs update ID in_progress]
-    Claim --> Plan[Post Implementation Plan Comment\nnode taskboard/tasks.mjs comment ID 'Plan...' 'Supervisor' 'plan']
-    Plan --> Spawn[3. invoke_subagent\nWorkspace: 'branch']
+    Found -->|Yes| GateCheck{Verification Criteria\n& Command Confirmed?}
+    
+    GateCheck -->|No / Missing| PostQ[Post Question Comment\nnode taskboard/tasks.mjs comment ID 'Missing verify cmd...' 'Supervisor' 'question']
+    PostQ --> FetchNext
+    
+    GateCheck -->|Yes| Claim[Mark 'in_progress'\nnode taskboard/tasks.mjs update ID in_progress]
+    Claim --> Plan[Post Plan Comment with Confirmed Criteria\nnode taskboard/tasks.mjs comment ID 'Plan...' 'Supervisor' 'plan']
+    Plan --> Spawn[invoke_subagent\nWorkspace: 'branch']
     Spawn --> Sleep([Antigravity Reactive Sleep])
     
     Sleep --> Wakeup([Subagent Completes])
-    Wakeup --> HasQuestions{Agent Has Questions?}
-    HasQuestions -->|Yes| PostQ[Post Question Comment\nnode taskboard/tasks.mjs comment ID '...' 'agent' 'question']
-    PostQ --> Check
+    Wakeup --> Verify[Run Automated Verification\nrun_command verification_cmd]
     
-    HasQuestions -->|No| Verify[4. Run Verification Command\nrun_command verification_cmd]
+    Verify --> TestPass{Exit Code 0?}
+    TestPass -->|Yes| MarkDone[Mark 'done' & Post Walkthrough Comment\nnode taskboard/tasks.mjs comment ID 'Walkthrough...' 'agent' 'walkthrough']
+    TestPass -->|No| MarkFail[Mark 'failed' with Failure Logs]
     
-    Verify --> TestPass{Tests Pass?}
-    TestPass -->|Yes| MarkDone[5. Mark 'done' & Post Walkthrough Comment\nnode taskboard/tasks.mjs comment ID 'Walkthrough...' 'agent' 'walkthrough']
-    TestPass -->|No| MarkFail[5. Mark 'failed' & Log Error]
-    
-    MarkDone --> Check
-    MarkFail --> Check
+    MarkDone --> CheckActive
+    MarkFail --> CheckActive
 ```
 
 ---
 
-## 4. Execution Steps
+## Step-by-Step Instructions
 
-### Step 1: Query Next Task
-```bash
-node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs next
-```
-* If `"found": true`: extract task fields and proceed to **Step 2**.
-* If `"found": false`: no pending tasks. Register recurring cron via `schedule(CronExpression="*/2 * * * *", Prompt="Check taskboard for new tasks")` and suspend.
-
-### Step 2: Claim Task & Post Plan
-1. Mark card `in_progress`:
+### Step 1: Sequential Check & Fetch Next Task
+1. Check if a task is already running:
    ```bash
-   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> in_progress "Subagent dispatched in branch"
+   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs active
    ```
-2. Post brief implementation plan comment:
+   * **If an active task is running**: You must focus on completing and verifying that active task first before claiming any other task!
+2. If no task is active, query the next task in `todo`:
    ```bash
-   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Starting implementation: researching files and structuring branch changes." "Supervisor" "plan"
+   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs next
    ```
-3. Spawn worker via `invoke_subagent`:
-   * `Role`: task's `subagent_role`
-   * `Workspace`: `"branch"` (safe git branch isolation)
-   * `Prompt`: Title, Goal, Acceptance Criteria, Verification Command, and instructions to report any questions or blocking ambiguities.
-4. Stop calling tools. Antigravity's **Reactive Wakeup** wakes the supervisor when the subagent finishes.
+   * **If `"found": false`**: No tasks in `todo`. Register recurring cron via `schedule(CronExpression="*/2 * * * *", Prompt="Check taskboard for new tasks")` and suspend.
 
-### Step 3: Handle Questions, Verification & Walkthrough
-1. **If subagent raised questions or ambiguities**:
-   Post the question as a comment:
-   ```bash
-   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "<QUESTION_TEXT>" "Subagent: <ROLE>" "question"
-   ```
-   Leave card in its current column with the `❓ Question` badge visible so the human user can answer it in the UI.
-2. **If subagent completed implementation**:
-   Update card status to `verification`.
-   Run `verification_cmd` via `run_command` (e.g. `npm test` or `test -f <file>`).
-   * If exit code 0:
-     - Update task to `done`.
-     - Post walkthrough comment:
-       ```bash
-       node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Verification succeeded. Implemented files: <FILES_LIST>." "Subagent: <ROLE>" "walkthrough"
-       ```
-   * If failed:
-     - Update task to `failed` with error output.
+---
 
-### Step 4: Continue the Loop
-Immediately return to Step 1 and continue until `todo` is empty.
+### Step 2: Mandatory Verification Gate
+Before modifying any files or spawning a subagent, inspect the card's `verification_cmd` and `acceptance_criteria`:
+
+* **Case A: Verification criteria are MISSING or AMBIGUOUS**:
+  - **DO NOT spawn a subagent.**
+  - Post a `question` comment on the card:
+    ```bash
+    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Pre-execution Gate: Cannot begin implementation without confirmed verification criteria. Please provide or confirm an automated verification command (e.g. 'npm test <file>' or 'npm run build')." "Supervisor" "question"
+    ```
+  - Move to the next task or wait for user confirmation.
+
+* **Case B: Verification criteria and command are CONFIRMED**:
+  1. Claim the task:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> in_progress "Pre-execution gate passed. Verification command confirmed."
+     ```
+  2. Post implementation plan confirming the verification method:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Implementation Plan: Starting work on branch. Confirmed verification command: '<VERIFICATION_CMD>'." "Supervisor" "plan"
+     ```
+  3. Spawn worker via `invoke_subagent`:
+     * `Role`: task's `subagent_role`
+     * `Workspace`: `"branch"`
+     * `Prompt`: Goal, Acceptance Criteria, and the exact `verification_cmd` the subagent must ensure passes.
+  4. Stop calling tools to allow Antigravity's **Reactive Wakeup** to resume execution upon completion.
+
+---
+
+### Step 3: Verify & Complete Before Next Task
+When the subagent finishes:
+1. Update card status to `verification`.
+2. Run `verification_cmd` using `run_command`.
+3. If exit code is `0` (Success):
+   * Mark card `done`:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> done "All verification criteria passed."
+     ```
+   * Post walkthrough comment:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Walkthrough: Changes verified with '<VERIFICATION_CMD>'. Modified files: <FILES>." "Subagent" "walkthrough"
+     ```
+4. If verification fails:
+   * Mark card `failed` with error logs.
+5. **Only now that this task is complete**, proceed to Step 1 to pick up the next task.

@@ -58,7 +58,25 @@ export function getAllTasks() {
   `).all();
 }
 
+export function getActiveTask() {
+  return db.prepare(`
+    SELECT 
+      t.*,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count
+    FROM agent_tasks t 
+    WHERE t.status IN ('in_progress', 'verification')
+    LIMIT 1
+  `).get();
+}
+
 export function getNextTodoTask() {
+  // If a task is already active, enforce completing it first
+  const active = getActiveTask();
+  if (active) {
+    return null;
+  }
+
   const priorityOrder = `
     CASE priority
       WHEN 'urgent' THEN 1
@@ -171,6 +189,15 @@ if (command) {
   switch (command) {
     case 'info': {
       console.log(JSON.stringify(getProjectInfo(), null, 2));
+      break;
+    }
+    case 'active': {
+      const active = getActiveTask();
+      if (!active) {
+        console.log(JSON.stringify({ active: false }));
+      } else {
+        console.log(JSON.stringify({ active: true, task: active }, null, 2));
+      }
       break;
     }
     case 'next': {
