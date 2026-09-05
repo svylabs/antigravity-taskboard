@@ -32,6 +32,7 @@ db.exec(`
     subagent_role TEXT DEFAULT 'Fullstack Engineer',
     execution_logs TEXT,
     order_index INTEGER DEFAULT 0,
+    processed_by_agent INTEGER NOT NULL DEFAULT 0, -- 0 = pending, 1 = processed
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
@@ -42,10 +43,20 @@ db.exec(`
     author TEXT NOT NULL DEFAULT 'agent',
     comment_type TEXT NOT NULL DEFAULT 'comment', -- 'comment', 'question', 'plan', 'walkthrough'
     content TEXT NOT NULL,
+    processed_by_agent INTEGER NOT NULL DEFAULT 0, -- 0 = pending/unread by agent, 1 = processed
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
   );
 `);
+
+// Safe migrations for existing databases
+try {
+  db.exec(`ALTER TABLE agent_tasks ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE task_comments ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
+} catch (e) {}
 
 export function getAllTasks() {
   return db.prepare(`
@@ -71,7 +82,6 @@ export function getActiveTask() {
 }
 
 export function getNextTodoTask() {
-  // If a task is already active, enforce completing it first
   const active = getActiveTask();
   if (active) {
     return null;
@@ -123,15 +133,15 @@ export function addTask({
   const order_index = (maxOrder?.max_order ?? 0) + 1;
 
   db.prepare(`
-    INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index, processed_by_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
   `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index);
 
   return getTaskById(id);
 }
 
 export function updateTask(id, fields) {
-  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'execution_logs', 'order_index'];
+  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'execution_logs', 'order_index', 'processed_by_agent'];
   const setClauses = [];
   const params = [];
 
@@ -170,16 +180,86 @@ export function addComment(taskId, { author = 'agent', comment_type = 'comment',
     throw new Error('Comment content cannot be empty');
   }
   const id = `comment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  
+  // If agent wrote it, it is already processed. If user wrote it, processed_by_agent is 0.
+  const isAgentAuthor = author.toLowerCase().includes('agent') || author.toLowerCase().includes('supervisor');
+  const processed_by_agent = isAgentAuthor ? 1 : 0;
+
   db.prepare(`
-    INSERT INTO task_comments (id, task_id, author, comment_type, content)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(id, taskId, author, comment_type, content.trim());
+    INSERT INTO task_comments (id, task_id, author, comment_type, content, processed_by_agent)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, taskId, author, comment_type, content.trim(), processed_by_agent);
 
   return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
 }
 
 export function deleteComment(id) {
   return db.prepare('DELETE FROM task_comments WHERE id = ?').run(id);
+}
+
+// Token-efficient polling and acknowledgement functions
+export function checkPoll() {
+  // 1. Is there an active running task?
+  const activeTask = getActiveTask();
+  if (activeTask) {
+    return {
+      has_work: true,
+      action: 'monitor_active',
+      task_id: activeTask.id,
+      title: activeTask.title,
+      status: activeTask.status
+    };
+  }
+
+  // 2. Are there unread user comments on any task?
+  const unreadComments = db.prepare(`
+    SELECT c.id, c.task_id, c.content, c.comment_type, t.title as task_title, t.status as task_status
+    FROM task_comments c
+    JOIN agent_tasks t ON t.id = c.task_id
+    WHERE c.processed_by_agent = 0 AND c.author NOT LIKE '%agent%' AND c.author NOT LIKE '%supervisor%'
+    ORDER BY c.created_at ASC
+  `).all();
+
+  if (unreadComments.length > 0) {
+    return {
+      has_work: true,
+      action: 'unread_user_comments',
+      count: unreadComments.length,
+      comments: unreadComments
+    };
+  }
+
+  // 3. Is there a next 'todo' task ready to execute?
+  const nextTask = getNextTodoTask();
+  if (nextTask) {
+    return {
+      has_work: true,
+      action: 'todo_task_available',
+      task: {
+        id: nextTask.id,
+        title: nextTask.title,
+        priority: nextTask.priority,
+        verification_cmd: nextTask.verification_cmd,
+        acceptance_criteria: nextTask.acceptance_criteria
+      }
+    };
+  }
+
+  // 4. Nothing new to do! Ultra-compact response (<10 tokens)
+  return {
+    has_work: false
+  };
+}
+
+export function markTaskProcessed(taskId) {
+  db.prepare(`UPDATE agent_tasks SET processed_by_agent = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?`).run(taskId);
+  db.prepare(`UPDATE task_comments SET processed_by_agent = 1 WHERE task_id = ?`).run(taskId);
+  return { success: true, taskId, processed: true };
+}
+
+export function markCommentProcessed(commentId) {
+  db.prepare(`UPDATE task_comments SET processed_by_agent = 1 WHERE id = ?`).run(commentId);
+  return { success: true, commentId, processed: true };
 }
 
 // CLI handler
@@ -189,6 +269,11 @@ if (command) {
   switch (command) {
     case 'info': {
       console.log(JSON.stringify(getProjectInfo(), null, 2));
+      break;
+    }
+    case 'poll': {
+      // Ultra-lightweight check for loop timers
+      console.log(JSON.stringify(checkPoll()));
       break;
     }
     case 'active': {
@@ -278,8 +363,18 @@ if (command) {
       console.log(JSON.stringify(comments, null, 2));
       break;
     }
+    case 'ack-task': {
+      const [taskId] = args;
+      console.log(JSON.stringify(markTaskProcessed(taskId)));
+      break;
+    }
+    case 'ack-comment': {
+      const [commentId] = args;
+      console.log(JSON.stringify(markCommentProcessed(commentId)));
+      break;
+    }
     default: {
-      console.log(`Supported commands: info, next, list, json, get, update, add, comment, comments.`);
+      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, comment, comments, ack-task, ack-comment.`);
     }
   }
 }
