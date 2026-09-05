@@ -2,6 +2,7 @@
 import http from 'http';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import { 
   getAllTasks, 
@@ -24,7 +25,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const PORT = process.env.TASKBOARD_PORT || 4040;
-const HOST = '0.0.0.0';
+const HOST = process.env.TASKBOARD_HOST || process.env.HOST || '0.0.0.0';
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -198,12 +199,28 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: 'Not found' }));
 });
 
+function getNetworkIp() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
 const info = getProjectInfo();
+const netIp = getNetworkIp();
+
 server.listen(PORT, HOST, () => {
   console.log(`\n=============================================================`);
   console.log(`📋 Antigravity Task Board Plugin`);
-  console.log(`📁 Project: ${info.projectName}`);
+  console.log(`📁 Project:  ${info.projectName}`);
   console.log(`🗄️ Database: ${info.dbPath}`);
-  console.log(`👉 UI: http://${HOST}:${PORT}`);
+  console.log(`🌐 Bound to: http://${HOST}:${PORT}`);
+  console.log(`👉 Local:    http://localhost:${PORT}`);
+  console.log(`👉 Network:  http://${netIp}:${PORT}`);
   console.log(`=============================================================\n`);
 });
