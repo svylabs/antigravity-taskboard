@@ -62,6 +62,12 @@ db.exec(`
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS board_metadata (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 // Safe migrations for existing databases
@@ -76,6 +82,24 @@ try {
 try {
   db.exec(`ALTER TABLE task_subtasks ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
 } catch (e) {}
+
+// Metadata Key-Value API
+export function getMetadata(key) {
+  const row = db.prepare('SELECT value FROM board_metadata WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+
+export function setMetadata(key, value) {
+  if (value === null || value === undefined) {
+    db.prepare('DELETE FROM board_metadata WHERE key = ?').run(key);
+  } else {
+    db.prepare(`
+      INSERT INTO board_metadata (key, value, updated_at) 
+      VALUES (?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP
+    `).run(key, String(value));
+  }
+}
 
 export function getAllTasks() {
   return db.prepare(`
@@ -190,6 +214,7 @@ export function addTask({
     });
   }
 
+  setMetadata('idle_since', null);
   return getTaskById(id);
 }
 
@@ -216,6 +241,7 @@ export function updateTask(id, fields) {
     WHERE id = ?
   `).run(...params);
 
+  setMetadata('idle_since', null);
   return getTaskById(id);
 }
 
@@ -243,6 +269,7 @@ export function addComment(taskId, { author = 'agent', comment_type = 'comment',
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(id, taskId, author, comment_type, content.trim(), processed_by_agent);
 
+  setMetadata('idle_since', null);
   return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
 }
 
@@ -291,6 +318,7 @@ export function addSubtask(taskId, {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
   `).run(id, taskId, title.trim(), description, acceptance_criteria, verification_cmd, status, finalOrder);
 
+  setMetadata('idle_since', null);
   return db.prepare('SELECT * FROM task_subtasks WHERE id = ?').get(id);
 }
 
@@ -317,6 +345,7 @@ export function updateSubtask(subtaskId, fields) {
     WHERE id = ?
   `).run(...params);
 
+  setMetadata('idle_since', null);
   return db.prepare('SELECT * FROM task_subtasks WHERE id = ?').get(subtaskId);
 }
 
@@ -329,6 +358,7 @@ export function checkPoll() {
   // 1. Is there an active running task?
   const activeTask = getActiveTask();
   if (activeTask) {
+    setMetadata('idle_since', null);
     const nextSubtask = getNextSubtask(activeTask.id);
     return {
       has_work: true,
@@ -350,6 +380,7 @@ export function checkPoll() {
   `).all();
 
   if (unreadComments.length > 0) {
+    setMetadata('idle_since', null);
     return {
       has_work: true,
       action: 'unread_user_comments',
@@ -361,6 +392,7 @@ export function checkPoll() {
   // 3. Is there a next 'needs_revision' or 'todo' task ready to execute?
   const nextTask = getNextTodoTask();
   if (nextTask) {
+    setMetadata('idle_since', null);
     const subtasks = getSubtasks(nextTask.id);
     return {
       has_work: true,
@@ -379,9 +411,36 @@ export function checkPoll() {
     };
   }
 
-  // 4. Nothing new to do! Ultra-compact response (<10 tokens)
+  // 4. Nothing new to do! Track idle duration and auto-stop after 1 hour (3600 seconds)
+  const now = Date.now();
+  let idleSinceVal = getMetadata('idle_since');
+  let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
+
+  if (!idleSince) {
+    idleSince = now;
+    setMetadata('idle_since', String(idleSince));
+  }
+
+  const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
+  const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
+
+  if (idleSeconds >= idleTimeout) {
+    return {
+      has_work: false,
+      stop_loop: true,
+      idle_seconds: idleSeconds,
+      idle_minutes: Math.floor(idleSeconds / 60),
+      timeout_seconds: idleTimeout,
+      message: `No tasks or activity for ${Math.floor(idleSeconds / 60)} minutes (timeout: ${Math.floor(idleTimeout / 60)} min). Stopping task loop.`
+    };
+  }
+
   return {
-    has_work: false
+    has_work: false,
+    stop_loop: false,
+    idle_seconds: idleSeconds,
+    idle_minutes: Math.floor(idleSeconds / 60),
+    remaining_seconds: idleTimeout - idleSeconds
   };
 }
 
@@ -408,6 +467,11 @@ if (command) {
     case 'poll': {
       // Ultra-lightweight check for loop timers
       console.log(JSON.stringify(checkPoll()));
+      break;
+    }
+    case 'reset-idle': {
+      setMetadata('idle_since', null);
+      console.log(JSON.stringify({ success: true, message: 'Idle timer reset.' }));
       break;
     }
     case 'active': {

@@ -46,3 +46,8 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
    When a completed task receives user feedback or changes are requested, it enters the `needs_revision` column.
    * Supervisors must prioritize `needs_revision` tasks ahead of standard `todo` tasks to quickly iterate on user requests.
    * Review user comments, acknowledge them (`ack-comment`), formulate an updated implementation plan addressing the feedback, and transition to `in_progress` to implement the requested revisions.
+
+9. **Idle Loop Auto-Termination (1-Hour Inactivity Timeout)**:
+   When the taskboard has had no active tasks, no pending todo/revision tasks, and no unread user comments for a continuous 1 hour (3600 seconds):
+   * The autonomous loop supervisor must terminate execution and cancel any recurring cron/timer schedules.
+   * Notify the user that the loop has stopped due to 1 hour of inactivity to conserve tokens.

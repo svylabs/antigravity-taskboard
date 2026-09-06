@@ -51,8 +51,15 @@ Run the token-saving poll command:
 node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 ```
 
-* **If `{"has_work": false}`**:
-  Nothing new has happened. Set recurring cron via `schedule(CronExpression="*/2 * * * *", Prompt="Check taskboard for new tasks")` and **stop calling tools immediately** to preserve tokens.
+* **If `{"has_work": false, "stop_loop": true}`**:
+  The taskboard has been idle with no active tasks, todo items, revision tasks, or unread comments for a continuous 1 hour (3600 seconds).
+  1. **Stop the loop completely**: Cancel any running cron schedule (`manage_task(Action="kill", TaskId=...)`).
+  2. Do NOT schedule any new timer or cron.
+  3. Output a completion message to the user informing them that the loop stopped after 1 hour of inactivity to conserve resources, and can be resumed anytime.
+  4. **Stop calling tools immediately.**
+
+* **If `{"has_work": false, "stop_loop": false}`**:
+  Nothing new has happened yet, but the 1-hour inactivity timeout has not elapsed. Set recurring cron via `schedule(CronExpression="*/2 * * * *", Prompt="Check taskboard for new tasks")` and **stop calling tools immediately** to preserve tokens.
 
 * **If `action == "unread_user_comments"`**:
   A user replied to a task question or left feedback!
