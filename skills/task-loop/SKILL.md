@@ -85,11 +85,11 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 ---
 
-### Step 2: Verification Gate Confirmation
+### Step 2: Verification Gate Confirmation & Implementation Plan
 Inspect the task's criteria:
-* **Explicit Exemption**: Card states *"no verification required"* or *"none"* $\to$ claim task, post plan comment citing exemption, and spawn subagent.
-* **Automated Command**: `verification_cmd` is specified $\to$ claim task, post plan citing command, and spawn subagent.
-* **Textual Criteria**: `acceptance_criteria` specified $\to$ claim task, post plan summarizing checklist, and spawn subagent.
+* **Explicit Exemption**: Card states *"no verification required"* or *"none"* $\to$ claim task, post structured Markdown plan comment citing exemption, and spawn subagent.
+* **Automated Command**: `verification_cmd` is specified $\to$ claim task, post structured Markdown plan citing command, and spawn subagent.
+* **Textual Criteria**: `acceptance_criteria` specified $\to$ claim task, post structured Markdown plan summarizing checklist, and spawn subagent.
 * **Missing / Ambiguous**:
   - **DO NOT modify code or spawn subagents.**
   - Post a `question` comment:
@@ -97,6 +97,17 @@ Inspect the task's criteria:
     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Pre-execution Gate: No verification criteria provided. Please confirm automated command, textual checklist, or specify 'no verification required'." "Supervisor" "question"
     ```
   - Leave card in `todo` with the `❓ Question` badge and suspend.
+
+#### 📋 Mandatory Plan Comment Formatting
+Plan comments (`comment_type: "plan"`) **must always be structured Markdown** with a header, discrete numbered steps on separate lines, backticked file paths/identifiers, and verification details. Never cram plans into a single run-on sentence.
+```bash
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "### Implementation Plan
+1. **Scope / Setup**: Description of component changes in \`path/to/file.js\`.
+2. **Logic & Data**: Core implementation details and API contracts.
+3. **Integration**: Wire up entry points and register configuration.
+
+**Verification**: [Automated: npm test | Acceptance checklist | Explicit exemption: N/A]" "Supervisor" "plan"
+```
 
 ---
 

@@ -27,9 +27,9 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
 
 5. **Context Preservation (Plans & Walkthroughs)**:
    Always record structured comments on task cards:
-   * **Implementation Plan** (`plan`) before starting coding.
+   * **Implementation Plan** (`plan`) before starting coding: Must use Markdown header (`### Implementation Plan`), numbered lists on discrete lines (`1. **Step**: description with \`file/path\``), and explicit verification notes. Never write single-line run-on plans.
    * **Questions** (`question`) if encountering ambiguities.
-   * **Walkthrough** (`walkthrough`) upon successful verification.
+   * **Walkthrough** (`walkthrough`) upon successful verification: Must use Markdown bullets (`- File changes: ...`, `- Verification: ...`).
 
 6. **Project Scoping**:
    All database operations must target the local project's `.agents/taskboard/tasks.sqlite`. Never touch or overwrite other repositories' taskboards.

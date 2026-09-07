@@ -13,6 +13,7 @@ import {
   getProjectInfo,
   getComments,
   addComment,
+  updateComment,
   deleteComment,
   getSubtasks,
   getNextSubtask,
@@ -130,6 +131,19 @@ const server = http.createServer(async (req, res) => {
     const commentId = commentDeleteMatch[1];
     deleteComment(commentId);
     return sendJson(res, 200, { success: true, deleted: commentId });
+  }
+
+  // REST API: PATCH /api/comments/:id
+  const commentPatchMatch = pathname.match(/^\/api\/comments\/([^/]+)$/);
+  if (commentPatchMatch && req.method === 'PATCH') {
+    const commentId = commentPatchMatch[1];
+    try {
+      const body = await parseBody(req);
+      const updated = updateComment(commentId, body.content);
+      return sendJson(res, 200, { success: true, comment: updated });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
   }
 
   // REST API: GET /api/tasks/:id/subtasks

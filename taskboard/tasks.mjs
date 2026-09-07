@@ -254,6 +254,17 @@ export function getComments(taskId) {
   return db.prepare('SELECT * FROM task_comments WHERE task_id = ? ORDER BY created_at ASC').all(taskId);
 }
 
+export function formatCommentContent(content, comment_type) {
+  if (!content) return '';
+  let text = String(content).trim();
+  if (comment_type === 'plan' || /^(Plan|Implementation Plan):\s*/i.test(text)) {
+    text = text.replace(/^(Plan|Implementation Plan):\s*/i, '### Implementation Plan\n\n');
+    text = text.replace(/:\s*(\d+)[\.\)]\s+/g, ':\n\n$1. ');
+    text = text.replace(/([^\n])\s+(\d+)[\.\)]\s+/g, '$1\n$2. ');
+  }
+  return text;
+}
+
 export function addComment(taskId, { author = 'agent', comment_type = 'comment', content }) {
   if (!content || !content.trim()) {
     throw new Error('Comment content cannot be empty');
@@ -263,13 +274,22 @@ export function addComment(taskId, { author = 'agent', comment_type = 'comment',
   // If agent wrote it, it is already processed. If user wrote it, processed_by_agent is 0.
   const isAgentAuthor = author.toLowerCase().includes('agent') || author.toLowerCase().includes('supervisor');
   const processed_by_agent = isAgentAuthor ? 1 : 0;
+  const formattedContent = formatCommentContent(content, comment_type);
 
   db.prepare(`
     INSERT INTO task_comments (id, task_id, author, comment_type, content, processed_by_agent)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(id, taskId, author, comment_type, content.trim(), processed_by_agent);
+  `).run(id, taskId, author, comment_type, formattedContent, processed_by_agent);
 
   setMetadata('idle_since', null);
+  return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
+}
+
+export function updateComment(id, content) {
+  if (!content || !content.trim()) {
+    throw new Error('Comment content cannot be empty');
+  }
+  db.prepare('UPDATE task_comments SET content = ? WHERE id = ?').run(content.trim(), id);
   return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
 }
 
@@ -598,6 +618,16 @@ if (command) {
       console.log(JSON.stringify(comments, null, 2));
       break;
     }
+    case 'update-comment': {
+      const [commentId, content] = args;
+      if (!commentId || !content) {
+        console.error('Usage: tasks.mjs update-comment <commentId> <content>');
+        process.exit(1);
+      }
+      const updated = updateComment(commentId, content);
+      console.log(`✅ Updated comment ${commentId}:`, JSON.stringify(updated, null, 2));
+      break;
+    }
     case 'ack-task': {
       const [taskId] = args;
       console.log(JSON.stringify(markTaskProcessed(taskId)));
@@ -609,7 +639,7 @@ if (command) {
       break;
     }
     default: {
-      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, comments, ack-task, ack-comment.`);
+      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, ack-task, ack-comment.`);
     }
   }
 }

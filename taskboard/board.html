@@ -1990,22 +1990,39 @@
       alert('Prompt copied! Paste it into Antigravity to run the loop.');
     }
 
+    function normalizeMarkdownText(raw) {
+      if (!raw) return '';
+      let text = String(raw).trim();
+
+      // Normalize common single-line prefixes like "Plan: 1." or "Walkthrough: 1." or "Plan: "
+      text = text.replace(/^(Plan|Implementation Plan|Walkthrough|Pre-execution Gate):\s*/i, (match, title) => {
+        const cleanTitle = title.toLowerCase() === 'plan' ? 'Implementation Plan' : title;
+        return `### ${cleanTitle}\n\n`;
+      });
+
+      // If a numbered list starts directly after a colon or heading without newline
+      text = text.replace(/:\s*(\d+)[\.\)]\s+/g, ':\n\n$1. ');
+
+      // Normalize inline numbered list items that are on a single line: "foo. 2. bar" -> "foo.\n2. bar"
+      text = text.replace(/([^\n])\s+(\d+)[\.\)]\s+/g, '$1\n$2. ');
+
+      return text;
+    }
+
     function renderMarkdown(raw) {
       if (!raw) return '';
+      const normalized = normalizeMarkdownText(raw);
 
       // If marked.js is loaded from CDN, leverage full GFM parsing
       if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
         try {
-          return marked.parse(raw, { breaks: true, gfm: true });
+          return marked.parse(normalized, { breaks: true, gfm: true });
         } catch (e) {
           console.warn('marked parse fallback:', e);
         }
       }
 
-      let text = escapeHtml(raw);
-
-      // Auto-break single-line numbered sequences e.g. "Plan: 1) foo 2) bar"
-      text = text.replace(/(\s+)(\d+[\)\.])\s+/g, '\n$2 ');
+      let text = escapeHtml(normalized);
 
       // Preserve code blocks: ```lang ... ```
       const codeBlocks = [];
