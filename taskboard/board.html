@@ -1241,6 +1241,9 @@
           <div class="pulse-dot"></div>
           <span id="syncText">Syncing SQLite</span>
         </div>
+        <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository code, markdown documents, and assets" style="text-decoration: none;">
+          <span>📁</span><span>Repo Files</span>
+        </a>
         <button class="btn btn-secondary" onclick="copyLoopPrompt()" title="Copy autonomous task loop prompt">
           <span>⚡</span><span>Copy Loop Prompt</span>
         </button>
@@ -2006,6 +2009,12 @@
       // Normalize inline numbered list items that are on a single line: "foo. 2. bar" -> "foo.\n2. bar"
       text = text.replace(/([^\n])\s+(\d+)[\.\)]\s+/g, '$1\n$2. ');
 
+      // Convert file:/// links pointing to repo files into /repo/ links
+      text = text.replace(/\[([^\]]+)\]\(file:\/\/\/[^\)]*?\/(docs|backend|frontend|\.agents|rules|skills|README\.md|package\.json|AGENTS\.md)([^\)]*)\)/g, '[$1](/repo/$2$3)');
+
+      // Convert relative markdown links like [Foo](docs/foo.md) into (/repo/docs/foo.md)
+      text = text.replace(/\[([^\]]+)\]\((docs\/|backend\/|frontend\/|\.agents\/|rules\/|skills\/)([^\)]+)\)/g, '[$1](/repo/$2$3)');
+
       return text;
     }
 
@@ -2016,13 +2025,17 @@
       // If marked.js is loaded from CDN, leverage full GFM parsing
       if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
         try {
-          return marked.parse(normalized, { breaks: true, gfm: true });
+          const parsed = marked.parse(normalized, { breaks: true, gfm: true });
+          return parsed.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
         } catch (e) {
           console.warn('marked parse fallback:', e);
         }
       }
 
       let text = escapeHtml(normalized);
+
+      // Convert markdown links in fallback: [text](url)
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
 
       // Preserve code blocks: ```lang ... ```
       const codeBlocks = [];

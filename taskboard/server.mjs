@@ -21,6 +21,7 @@ import {
   updateSubtask,
   deleteSubtask
 } from './tasks.mjs';
+import { handleRepoRequest } from './repo_viewer.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -77,6 +78,13 @@ const server = http.createServer(async (req, res) => {
     html = html.replace('{{PROJECT_NAME}}', projectName);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end(html);
+  }
+
+  // Serve repository files, docs, and code viewer: /repo/*, /files/*, /view/*
+  if (pathname === '/repo' || pathname.startsWith('/repo/') || 
+      pathname === '/files' || pathname.startsWith('/files/') || 
+      pathname === '/view' || pathname.startsWith('/view/')) {
+    return handleRepoRequest(req, res, pathname, urlObj);
   }
 
   // REST API: GET /api/info

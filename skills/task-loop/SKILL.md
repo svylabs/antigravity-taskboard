@@ -123,10 +123,14 @@ When the subagent finishes:
      ```bash
      node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> done "Verification criteria satisfied."
      ```
-   * Post walkthrough comment:
-     ```bash
-     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Walkthrough: Verified changes against criteria. Modified files: <FILES>." "Subagent" "walkthrough"
-     ```
+    * Post structured walkthrough comment with clickable repository file links:
+      ```bash
+      node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "### Walkthrough
+Verified changes against criteria:
+- Created [backend/src/db/migrator.js](/repo/backend/src/db/migrator.js): core migration runner.
+- Updated [docs/database.md](/repo/docs/database.md): migration documentation.
+- Verification: npm test passed with exit code 0." "Subagent" "walkthrough"
+      ```
 4. If failed:
    * Mark card `failed` with failure logs.
 5. **Only now that this task is complete**, proceed back to Step 1 for the next task.
