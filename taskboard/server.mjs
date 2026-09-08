@@ -19,7 +19,11 @@ import {
   getNextSubtask,
   addSubtask,
   updateSubtask,
-  deleteSubtask
+  deleteSubtask,
+  getAttachments,
+  getAttachment,
+  addAttachment,
+  deleteAttachment
 } from './tasks.mjs';
 import { handleRepoRequest } from './repo_viewer.mjs';
 
@@ -39,10 +43,19 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
-function parseBody(req) {
+function parseBody(req, maxBytes = 15 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     let body = '';
-    req.on('data', chunk => { body += chunk; });
+    let bytes = 0;
+    req.on('data', chunk => { 
+      bytes += chunk.length;
+      if (bytes > maxBytes) {
+        req.destroy();
+        reject(new Error('Payload too large (max 15MB)'));
+        return;
+      }
+      body += chunk; 
+    });
     req.on('end', () => {
       try {
         resolve(body ? JSON.parse(body) : {});
@@ -50,6 +63,7 @@ function parseBody(req) {
         reject(err);
       }
     });
+    req.on('error', reject);
   });
 }
 
@@ -196,6 +210,18 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { success: true, deleted: subtaskId });
   }
 
+  // REST API: GET /api/tasks/:id
+  const taskGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
+  if (taskGetMatch && req.method === 'GET') {
+    const id = taskGetMatch[1];
+    const task = getTaskById(id);
+    if (!task) {
+      return sendJson(res, 404, { success: false, error: 'Task not found' });
+    }
+    task.subtasks = getSubtasks(id);
+    return sendJson(res, 200, { success: true, task });
+  }
+
   // REST API: PATCH /api/tasks/:id
   const patchMatch = pathname.match(/^\/api\/tasks\/([^/]+)$/);
   if (patchMatch && req.method === 'PATCH') {
@@ -215,6 +241,85 @@ const server = http.createServer(async (req, res) => {
     const id = deleteMatch[1];
     deleteTask(id);
     return sendJson(res, 200, { success: true, deleted: id });
+  }
+
+  // REST API: GET /api/tasks/:id/images
+  const taskImagesGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/images$/);
+  if (taskImagesGetMatch && req.method === 'GET') {
+    const taskId = taskImagesGetMatch[1];
+    const attachments = getAttachments(taskId);
+    return sendJson(res, 200, { success: true, attachments });
+  }
+
+  // REST API: POST /api/tasks/:id/images
+  const taskImagesPostMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/images$/);
+  if (taskImagesPostMatch && req.method === 'POST') {
+    const taskId = taskImagesPostMatch[1];
+    try {
+      const body = await parseBody(req);
+      let { fileName, mimeType, dataBase64, data } = body;
+      const rawBase64 = dataBase64 || data;
+      if (!rawBase64) {
+        return sendJson(res, 400, { success: false, error: 'Image data (dataBase64) is required' });
+      }
+
+      let cleanBase64 = rawBase64;
+      const commaIdx = cleanBase64.indexOf(',');
+      if (commaIdx !== -1 && cleanBase64.slice(0, commaIdx).includes('base64')) {
+        const header = cleanBase64.slice(0, commaIdx);
+        if (!mimeType) {
+          const m = header.match(/data:([^;]+)/);
+          if (m) mimeType = m[1];
+        }
+        cleanBase64 = cleanBase64.slice(commaIdx + 1);
+      }
+
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      if (buffer.length === 0) {
+        return sendJson(res, 400, { success: false, error: 'Empty image data' });
+      }
+      if (buffer.length > 10 * 1024 * 1024) {
+        return sendJson(res, 413, { success: false, error: 'Image size exceeds 10MB limit' });
+      }
+
+      const attachment = addAttachment(taskId, {
+        fileName: fileName || `screenshot_${Date.now()}.png`,
+        mimeType: mimeType || 'image/png',
+        buffer
+      });
+      return sendJson(res, 201, { success: true, attachment });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: GET/HEAD /api/images/:id
+  const imageGetMatch = pathname.match(/^\/api\/images\/([^/]+)$/);
+  if (imageGetMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+    const imageId = imageGetMatch[1];
+    const attachment = getAttachment(imageId);
+    if (!attachment) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('Image not found');
+    }
+    res.writeHead(200, {
+      'Content-Type': attachment.mime_type || 'image/png',
+      'Content-Length': attachment.data.length,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+      'Access-Control-Allow-Origin': '*'
+    });
+    if (req.method === 'HEAD') {
+      return res.end();
+    }
+    return res.end(attachment.data);
+  }
+
+  // REST API: DELETE /api/images/:id
+  const imageDeleteMatch = pathname.match(/^\/api\/images\/([^/]+)$/);
+  if (imageDeleteMatch && req.method === 'DELETE') {
+    const imageId = imageDeleteMatch[1];
+    deleteAttachment(imageId);
+    return sendJson(res, 200, { success: true, deleted: imageId });
   }
 
   res.writeHead(404, { 'Content-Type': 'application/json' });

@@ -687,6 +687,222 @@
       align-items: center;
     }
 
+    /* Images & Attachments Section */
+    .attachments-section {
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .attachments-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .attachments-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .attachments-dropzone {
+      border: 2px dashed #CBD5E1;
+      background: #F8FAFC;
+      border-radius: 8px;
+      padding: 14px 18px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .attachments-dropzone:hover, .attachments-dropzone.dragover {
+      border-color: var(--primary);
+      background: #F5F3FF;
+    }
+
+    .attachments-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .attachment-card {
+      background: #FFFFFF;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      position: relative;
+    }
+
+    .attachment-preview {
+      width: 100%;
+      height: 110px;
+      background: #0F172A;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .attachment-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: cover;
+      transition: transform 0.2s;
+    }
+
+    .attachment-preview:hover img {
+      transform: scale(1.05);
+    }
+
+    .attachment-info {
+      padding: 8px 10px;
+      font-size: 11.5px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .attachment-name {
+      font-weight: 600;
+      color: #1E293B;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .attachment-size {
+      color: #64748B;
+      font-size: 10.5px;
+    }
+
+    .attachment-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    .attachment-btn {
+      flex: 1;
+      padding: 3px 6px;
+      font-size: 10.5px;
+      font-weight: 600;
+      border-radius: 4px;
+      border: 1px solid #CBD5E1;
+      background: #F8FAFC;
+      color: #334155;
+      cursor: pointer;
+      text-align: center;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+    }
+
+    .attachment-btn:hover {
+      background: #F1F5F9;
+      color: var(--primary);
+      border-color: #94A3B8;
+    }
+
+    .attachment-del-btn {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(15, 23, 42, 0.65);
+      color: #FFFFFF;
+      border: none;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+    }
+
+    .attachment-del-btn:hover {
+      background: #EF4444;
+    }
+
+    /* Lightbox Modal */
+    .lightbox-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(15, 23, 42, 0.85);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .lightbox-overlay.active {
+      display: flex;
+    }
+
+    .lightbox-img {
+      max-width: 90vw;
+      max-height: 85vh;
+      object-fit: contain;
+      border-radius: 8px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+
+    .lightbox-close {
+      position: absolute;
+      top: 20px;
+      right: 25px;
+      color: #FFFFFF;
+      font-size: 32px;
+      cursor: pointer;
+      background: none;
+      border: none;
+      line-height: 1;
+    }
+
+    /* Formatted Markdown Image Styles */
+    .form-formatted-text img,
+    .comment-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+      margin: 8px 0;
+      cursor: pointer;
+      display: block;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      transition: opacity 0.2s;
+    }
+
+    .form-formatted-text img:hover,
+    .comment-content img:hover {
+      opacity: 0.95;
+    }
+
     /* Discussion / Comments Section */
     .comments-section {
       margin-top: 24px;
@@ -1416,6 +1632,12 @@
     </div>
   </div>
 
+  <!-- Image Lightbox Overlay -->
+  <div class="lightbox-overlay" id="lightboxOverlay" onclick="closeLightbox(event)">
+    <button type="button" class="lightbox-close" onclick="closeLightbox(event)" title="Close">&times;</button>
+    <img class="lightbox-img" id="lightboxImg" src="" alt="Full view" onclick="event.stopPropagation()">
+  </div>
+
   <script>
     let tasks = [];
     let currentTaskId = null;
@@ -1487,6 +1709,7 @@
             <div class="card-footer">
               ${verifyBadge}
               <div class="card-counts">
+                ${(task.attachment_count || 0) > 0 ? `<span title="${task.attachment_count} attachments">🖼️ ${task.attachment_count}</span>` : ''}
                 ${hasComments ? `<span title="${task.comment_count} comments">💬 ${task.comment_count}</span>` : ''}
                 <span>${task.id.slice(-6)}</span>
               </div>
@@ -1726,6 +1949,33 @@
           </div>
         </div>
 
+        <!-- Images & Attachments -->
+        <div class="attachments-section" id="attachmentsSection">
+          <div class="attachments-header">
+            <div class="attachments-title">
+              <span>🖼️ Images & Screenshots</span>
+              <span class="col-count" id="modalAttachmentCount">0</span>
+            </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <button type="button" class="btn btn-secondary" onclick="triggerImageUpload()" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Upload screenshot or image">
+                <span>📷 Upload Image</span>
+              </button>
+              <input type="file" id="attachmentFileInput" accept="image/*" multiple style="display: none;" onchange="handleFileInputChange(event)">
+            </div>
+          </div>
+
+          <!-- Drag and drop zone & paste hint -->
+          <div class="attachments-dropzone" id="attachmentsDropzone" onclick="triggerImageUpload()" ondragover="handleDragOverAttachments(event)" ondragleave="handleDragLeaveAttachments(event)" ondrop="handleDropAttachments(event)">
+            <span style="font-size: 20px;">🖼️</span>
+            <div style="font-size: 12px; color: #64748B;">
+              <span style="font-weight: 600; color: var(--primary);">Click to upload</span>, drag & drop images, or paste from clipboard (<kbd style="background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 11px;">Ctrl+V</kbd> / <kbd style="background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 11px;">⌘+V</kbd>)
+            </div>
+          </div>
+
+          <!-- Attachments Grid -->
+          <div id="attachmentsList" class="attachments-grid"></div>
+        </div>
+
         <!-- Subtasks Checklist -->
         <div class="subtasks-section">
           <div class="subtasks-header">
@@ -1806,6 +2056,7 @@
       `;
 
       document.getElementById('detailModal').classList.add('active');
+      loadAttachments(id);
       loadSubtasks(id);
       loadComments(id, !isBacklog);
 
@@ -2172,6 +2423,233 @@
     function closeDetailModal() {
       document.getElementById('detailModal').classList.remove('active');
       currentTaskId = null;
+      currentAttachments = [];
+    }
+
+    // Attachments & Screenshot Upload
+    let currentAttachments = [];
+
+    function triggerImageUpload() {
+      const input = document.getElementById('attachmentFileInput');
+      if (input) input.click();
+    }
+
+    async function handleFileInputChange(e) {
+      const files = Array.from(e.target.files || []);
+      if (!files.length || !currentTaskId) return;
+      for (const file of files) {
+        await uploadImageFile(currentTaskId, file);
+      }
+      e.target.value = '';
+    }
+
+    function handleDragOverAttachments(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('attachmentsDropzone');
+      if (dropzone) dropzone.classList.add('dragover');
+    }
+
+    function handleDragLeaveAttachments(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('attachmentsDropzone');
+      if (dropzone) dropzone.classList.remove('dragover');
+    }
+
+    async function handleDropAttachments(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('attachmentsDropzone');
+      if (dropzone) dropzone.classList.remove('dragover');
+
+      if (!currentTaskId) return;
+      const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+      if (!files.length) return;
+
+      for (const file of files) {
+        await uploadImageFile(currentTaskId, file);
+      }
+    }
+
+    async function uploadImageFile(taskId, file) {
+      if (!file || !file.type.startsWith('image/')) {
+        alert('Only image files (PNG, JPG, WebP, GIF, SVG) are supported.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image size exceeds 10MB limit.');
+        return;
+      }
+
+      const reader = new FileReader();
+      const base64Promise = new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+
+      try {
+        const dataBase64 = await base64Promise;
+        const res = await fetch(`/api/tasks/${taskId}/images`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            mimeType: file.type,
+            dataBase64
+          })
+        });
+        const result = await res.json();
+        if (result.success) {
+          await loadAttachments(taskId);
+          await fetchTasks(); // refresh badge count on card
+        } else {
+          alert('Upload failed: ' + (result.error || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error('Error uploading image:', err);
+        alert('Upload failed: ' + err.message);
+      }
+    }
+
+    async function loadAttachments(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/images`);
+        const data = await res.json();
+        const list = document.getElementById('attachmentsList');
+        const countBadge = document.getElementById('modalAttachmentCount');
+        if (!list) return;
+
+        if (!data.success || !data.attachments || data.attachments.length === 0) {
+          list.innerHTML = '';
+          currentAttachments = [];
+          if (countBadge) countBadge.innerText = '0';
+          return;
+        }
+
+        currentAttachments = data.attachments;
+        if (countBadge) countBadge.innerText = String(data.attachments.length);
+
+        list.innerHTML = data.attachments.map(att => `
+          <div class="attachment-card" id="att-${att.id}">
+            <div class="attachment-preview" onclick="openLightbox('${att.url}')" title="Click to view full image">
+              <img src="${att.url}" alt="${escapeHtml(att.file_name)}" loading="lazy">
+            </div>
+            <button type="button" class="attachment-del-btn" onclick="deleteAttachmentItem('${att.id}', event)" title="Delete attachment">&times;</button>
+            <div class="attachment-info">
+              <div class="attachment-name" title="${escapeHtml(att.file_name)}">${escapeHtml(att.file_name)}</div>
+              <div class="attachment-size">${formatFileSize(att.file_size)}</div>
+              <div class="attachment-actions">
+                <button type="button" class="attachment-btn" onclick="copyMarkdownLink('${att.markdown}', this)" title="Copy Markdown link">
+                  <span>📋</span><span>Copy</span>
+                </button>
+                <button type="button" class="attachment-btn" onclick="insertImageIntoDescription('${att.markdown}')" title="Insert into task description">
+                  <span>📝</span><span>Desc</span>
+                </button>
+                <button type="button" class="attachment-btn" onclick="insertImageIntoComment('${att.markdown}')" title="Insert into comment">
+                  <span>💬</span><span>Comment</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Error loading attachments:', err);
+      }
+    }
+
+    async function deleteAttachmentItem(id, event) {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      if (!confirm('Are you sure you want to delete this attachment?')) return;
+      try {
+        const res = await fetch(`/api/images/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          if (currentTaskId) {
+            await loadAttachments(currentTaskId);
+            await fetchTasks();
+          }
+        } else {
+          alert('Delete failed: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+      }
+    }
+
+    function copyMarkdownLink(md, btn) {
+      navigator.clipboard.writeText(md);
+      if (btn) {
+        const original = btn.innerHTML;
+        btn.innerHTML = '<span>✅</span><span>Copied!</span>';
+        btn.style.color = '#15803D';
+        btn.style.borderColor = '#86EFAC';
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.style.color = '';
+          btn.style.borderColor = '';
+        }, 1500);
+      }
+    }
+
+    function insertImageIntoDescription(md) {
+      const editDesc = document.getElementById('editTaskDescription');
+      const editMode = document.getElementById('detailsEditMode');
+      if (editMode && editMode.style.display === 'block' && editDesc) {
+        editDesc.value = (editDesc.value ? editDesc.value + '\n\n' : '') + md;
+        editDesc.focus();
+      } else {
+        enterEditMode();
+        setTimeout(() => {
+          const descInput = document.getElementById('editTaskDescription');
+          if (descInput) {
+            descInput.value = (descInput.value ? descInput.value + '\n\n' : '') + md;
+            descInput.focus();
+          }
+        }, 50);
+      }
+    }
+
+    function insertImageIntoComment(md) {
+      const commentInput = document.getElementById('commentInput');
+      if (commentInput) {
+        commentInput.value = (commentInput.value ? commentInput.value + '\n\n' : '') + md;
+        commentInput.focus();
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function openLightbox(url) {
+      const overlay = document.getElementById('lightboxOverlay');
+      const img = document.getElementById('lightboxImg');
+      if (overlay && img) {
+        img.src = url;
+        overlay.classList.add('active');
+      }
+    }
+
+    function closeLightbox(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      const overlay = document.getElementById('lightboxOverlay');
+      const img = document.getElementById('lightboxImg');
+      if (overlay) {
+        overlay.classList.remove('active');
+        if (img) img.src = '';
+      }
     }
 
     function copyLoopPrompt() {
@@ -2213,13 +2691,18 @@
       if (typeof marked !== 'undefined' && typeof marked.parse === 'function') {
         try {
           const parsed = marked.parse(normalized, { breaks: true, gfm: true });
-          return parsed.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
+          return parsed
+            .replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
+            .replace(/<img ([^>]*src="([^"]+)"[^>]*)>/g, '<img $1 onclick="openLightbox(\'$2\')" title="Click to enlarge">');
         } catch (e) {
           console.warn('marked parse fallback:', e);
         }
       }
 
       let text = escapeHtml(normalized);
+
+      // Convert markdown images in fallback: ![alt](url)
+      text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" onclick="openLightbox(\'$2\')" title="Click to enlarge" />');
 
       // Convert markdown links in fallback: [text](url)
       text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
@@ -2373,6 +2856,40 @@
     window.addEventListener('click', (e) => {
       if (e.target.id === 'createModal') closeCreateModal();
       if (e.target.id === 'detailModal') closeDetailModal();
+      if (e.target.id === 'lightboxOverlay') closeLightbox();
+    });
+
+    // Dismiss lightbox on Escape key
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        closeLightbox();
+      }
+    });
+
+    // Global paste handler: automatically uploads images pasted while detail modal is open
+    window.addEventListener('paste', async (e) => {
+      const modal = document.getElementById('detailModal');
+      if (!modal || !modal.classList.contains('active') || !currentTaskId) return;
+
+      const clipboardData = e.clipboardData || window.clipboardData;
+      if (!clipboardData) return;
+
+      const items = clipboardData.items;
+      if (!items) return;
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type && item.type.indexOf('image') !== -1) {
+          const blob = item.getAsFile();
+          if (blob) {
+            e.preventDefault();
+            const fileName = `screenshot_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
+            const file = new File([blob], fileName, { type: blob.type || 'image/png' });
+            await uploadImageFile(currentTaskId, file);
+            break;
+          }
+        }
+      }
     });
   </script>
 </body>

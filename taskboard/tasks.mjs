@@ -63,6 +63,19 @@ db.exec(`
     FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS task_attachments (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    file_size INTEGER NOT NULL,
+    data BLOB NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(task_id) REFERENCES agent_tasks(id) ON DELETE CASCADE
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);
+
   CREATE TABLE IF NOT EXISTS board_metadata (
     key TEXT PRIMARY KEY,
     value TEXT,
@@ -81,6 +94,10 @@ try {
 
 try {
   db.exec(`ALTER TABLE task_subtasks ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
+} catch (e) {}
+
+try {
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);`);
 } catch (e) {}
 
 // Metadata Key-Value API
@@ -108,7 +125,8 @@ export function getAllTasks() {
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
-      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
+      (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
     ORDER BY t.order_index ASC, t.created_at ASC
   `).all();
@@ -121,7 +139,8 @@ export function getActiveTask() {
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
-      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
+      (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
     WHERE t.status IN ('in_progress', 'verification')
     LIMIT 1
@@ -149,7 +168,8 @@ export function getNextTodoTask() {
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
-      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
+      (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
     WHERE t.status IN ('needs_revision', 'todo')
     ORDER BY 
@@ -166,16 +186,22 @@ export function getNextTodoTask() {
 }
 
 export function getTaskById(id) {
-  return db.prepare(`
+  const task = db.prepare(`
     SELECT 
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
-      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
+      (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
     WHERE t.id = ?
   `).get(id);
+
+  if (task) {
+    task.attachments = getAttachments(id);
+  }
+  return task;
 }
 
 export function addTask({
@@ -373,6 +399,82 @@ export function deleteSubtask(subtaskId) {
   return db.prepare('DELETE FROM task_subtasks WHERE id = ?').run(subtaskId);
 }
 
+// Attachments API (SQLite BLOB Storage)
+export function getAttachments(taskId) {
+  const rows = db.prepare(`
+    SELECT id, task_id, file_name, mime_type, file_size, created_at
+    FROM task_attachments
+    WHERE task_id = ?
+    ORDER BY created_at ASC
+  `).all(taskId);
+
+  return rows.map(r => ({
+    ...r,
+    url: `/api/images/${r.id}`,
+    markdown: `![${r.file_name}](/api/images/${r.id})`
+  }));
+}
+
+export function getAttachment(id) {
+  return db.prepare(`
+    SELECT id, task_id, file_name, mime_type, file_size, data, created_at
+    FROM task_attachments
+    WHERE id = ?
+  `).get(id);
+}
+
+export function addAttachment(taskId, { fileName, mimeType, buffer }) {
+  const task = db.prepare('SELECT id FROM agent_tasks WHERE id = ?').get(taskId);
+  if (!task) {
+    throw new Error(`Task ${taskId} not found`);
+  }
+
+  let buf = buffer;
+  if (typeof buffer === 'string') {
+    buf = Buffer.from(buffer, 'base64');
+  } else if (!(buffer instanceof Buffer)) {
+    buf = Buffer.from(buffer);
+  }
+
+  if (!buf || buf.length === 0) {
+    throw new Error('Attachment buffer is empty');
+  }
+
+  const id = `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const cleanFileName = (fileName || `image_${Date.now()}.png`).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const safeMime = mimeType || 'image/png';
+  const fileSize = buf.length;
+
+  db.prepare(`
+    INSERT INTO task_attachments (id, task_id, file_name, mime_type, file_size, data)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(id, taskId, cleanFileName, safeMime, fileSize, buf);
+
+  db.prepare('UPDATE agent_tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(taskId);
+  setMetadata('idle_since', null);
+
+  return {
+    id,
+    task_id: taskId,
+    file_name: cleanFileName,
+    mime_type: safeMime,
+    file_size: fileSize,
+    url: `/api/images/${id}`,
+    markdown: `![${cleanFileName}](/api/images/${id})`,
+    created_at: new Date().toISOString()
+  };
+}
+
+export function deleteAttachment(id) {
+  const row = db.prepare('SELECT task_id FROM task_attachments WHERE id = ?').get(id);
+  db.prepare('DELETE FROM task_attachments WHERE id = ?').run(id);
+  if (row?.task_id) {
+    db.prepare('UPDATE agent_tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(row.task_id);
+  }
+  setMetadata('idle_since', null);
+  return { success: true, id };
+}
+
 // Token-efficient polling and acknowledgement functions
 export function checkPoll() {
   // 1. Is there an active running task?
@@ -380,13 +482,15 @@ export function checkPoll() {
   if (activeTask) {
     setMetadata('idle_since', null);
     const nextSubtask = getNextSubtask(activeTask.id);
+    const attachments = getAttachments(activeTask.id);
     return {
       has_work: true,
       action: 'monitor_active',
       task_id: activeTask.id,
       title: activeTask.title,
       status: activeTask.status,
-      next_subtask: nextSubtask || null
+      next_subtask: nextSubtask || null,
+      attachments
     };
   }
 
@@ -414,6 +518,7 @@ export function checkPoll() {
   if (nextTask) {
     setMetadata('idle_since', null);
     const subtasks = getSubtasks(nextTask.id);
+    const attachments = getAttachments(nextTask.id);
     return {
       has_work: true,
       action: nextTask.status === 'needs_revision' ? 'revision_task_available' : 'todo_task_available',
@@ -426,7 +531,9 @@ export function checkPoll() {
         verification_cmd: nextTask.verification_cmd,
         acceptance_criteria: nextTask.acceptance_criteria,
         subtask_count: nextTask.subtask_count,
-        subtasks
+        attachment_count: nextTask.attachment_count,
+        subtasks,
+        attachments
       }
     };
   }
@@ -528,7 +635,8 @@ if (command) {
             const qBadge = t.question_count > 0 ? ' [❓ QUESTION]' : '';
             const cBadge = t.comment_count > 0 ? ` (${t.comment_count} 💬)` : '';
             const sBadge = t.subtask_count > 0 ? ` [${t.subtask_done_count}/${t.subtask_count} subtasks]` : '';
-            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${sBadge}${qBadge}${cBadge}`);
+            const aBadge = t.attachment_count > 0 ? ` [🖼️ ${t.attachment_count}]` : '';
+            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${sBadge}${aBadge}${qBadge}${cBadge}`);
           }
         }
         console.log('');
@@ -638,8 +746,61 @@ if (command) {
       console.log(JSON.stringify(markCommentProcessed(commentId)));
       break;
     }
+    case 'attachments': {
+      const [taskId] = args;
+      const attachments = getAttachments(taskId);
+      console.log(JSON.stringify(attachments, null, 2));
+      break;
+    }
+    case 'add-attachment': {
+      const [taskId, filePath] = args;
+      if (!taskId || !filePath) {
+        console.error('Usage: tasks.mjs add-attachment <taskId> <filePath>');
+        process.exit(1);
+      }
+      if (!fs.existsSync(filePath)) {
+        console.error(`File not found: ${filePath}`);
+        process.exit(1);
+      }
+      const buffer = fs.readFileSync(filePath);
+      const fileName = path.basename(filePath);
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeMap = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml'
+      };
+      const mimeType = mimeMap[ext] || 'application/octet-stream';
+      const att = addAttachment(taskId, { fileName, mimeType, buffer });
+      console.log(`✅ Attachment added to ${taskId}:`, JSON.stringify(att, null, 2));
+      break;
+    }
+    case 'get-attachment': {
+      const [id, outputPath] = args;
+      const att = getAttachment(id);
+      if (!att) {
+        console.error(`Attachment ${id} not found`);
+        process.exit(1);
+      }
+      if (outputPath) {
+        fs.writeFileSync(outputPath, att.data);
+        console.log(`✅ Saved attachment ${id} (${att.file_name}) to ${outputPath}`);
+      } else {
+        const { data, ...meta } = att;
+        console.log(JSON.stringify({ ...meta, size: data.length }, null, 2));
+      }
+      break;
+    }
+    case 'delete-attachment': {
+      const [id] = args;
+      console.log(JSON.stringify(deleteAttachment(id)));
+      break;
+    }
     default: {
-      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, ack-task, ack-comment.`);
+      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment.`);
     }
   }
 }
