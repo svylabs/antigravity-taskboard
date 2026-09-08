@@ -277,10 +277,10 @@
     }
 
     .task-card.card-verification {
-      background: #FFFBEB;
-      border: 1px solid #FCD34D;
-      border-left: 5px solid #F59E0B;
-      box-shadow: 0 3px 10px rgba(245, 158, 11, 0.12);
+      background: #F0F9FF;
+      border: 1px solid #BAE6FD;
+      border-left: 5px solid #0284C7;
+      box-shadow: 0 3px 10px rgba(2, 132, 199, 0.12);
     }
 
     .task-card.card-done {
@@ -330,9 +330,9 @@
     }
 
     .status-pill-verification {
-      background: #FEF3C7;
-      color: #92400E;
-      border: 1px solid #FDE68A;
+      background: #E0F2FE;
+      color: #0369A1;
+      border: 1px solid #BAE6FD;
     }
 
     .status-dot {
@@ -1473,7 +1473,7 @@
       <button class="col-tab" onclick="scrollToColumn('todo', this)">📋 To Do <span class="tab-count" id="tab-count-todo">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('needs_revision', this)">📝 Revision <span class="tab-count" id="tab-count-needs_revision">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('in_progress', this)">⚡ In Progress <span class="tab-count" id="tab-count-in_progress">0</span></button>
-      <button class="col-tab" onclick="scrollToColumn('verification', this)">✋ Input Required <span class="tab-count" id="tab-count-verification">0</span></button>
+      <button class="col-tab" onclick="scrollToColumn('verification', this)">👀 Pending Review <span class="tab-count" id="tab-count-verification">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('done', this)">✅ Done <span class="tab-count" id="tab-count-done">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('failed', this)">⚠️ Failed <span class="tab-count" id="tab-count-failed">0</span></button>
     </div>
@@ -1517,10 +1517,10 @@
       <div class="card-list" id="list-in_progress" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'in_progress')"></div>
     </div>
 
-    <!-- Input Required -->
+    <!-- Pending Review -->
     <div class="column" data-status="verification">
       <div class="column-header">
-        <span class="col-title">✋ Input Required</span>
+        <span class="col-title">👀 Pending Review</span>
         <span class="col-count" id="count-verification">0</span>
       </div>
       <div class="card-list" id="list-verification" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'verification')"></div>
@@ -1763,7 +1763,7 @@
         return `<span class="status-pill status-pill-in_progress"><span class="status-dot dot-purple"></span>⚡ Agent Working</span>`;
       }
       if (task.status === 'verification') {
-        return `<span class="status-pill status-pill-verification"><span class="status-dot dot-amber"></span>✋ Input Required</span>`;
+        return `<span class="status-pill status-pill-verification"><span class="status-dot dot-blue"></span>👀 Pending Review</span>`;
       }
       return '';
     }
@@ -2053,7 +2053,8 @@
                   <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Post comment and move task to Needs Revision">↩️ Post & Request Revision</button>
                 ` : ''}
                 ${task.status === 'verification' ? `
-                  <button type="button" class="btn btn-secondary" onclick="handlePostAndSubmitInput(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #047857; border-color: #A7F3D0; background: #ECFDF5;" title="Post comment and move task to To Do">↩️ Post & Submit Input</button>
+                  <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Post comment and move task to Needs Revision">↩️ Post & Request Revision</button>
+                  <button type="button" class="btn btn-secondary" onclick="handlePostAndSubmitInput(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #0369A1; border-color: #BAE6FD; background: #F0F9FF;" title="Post comment and move task to To Do">↩️ Post & Move to To Do</button>
                 ` : ''}
               </div>
             </div>
@@ -2071,7 +2072,9 @@
               <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;">📝 Move to Revision</button>
             ` : ''}
             ${task.status === 'verification' ? `
-              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'todo')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #047857; border-color: #A7F3D0; background: #ECFDF5;">📋 Move to To Do</button>
+              <button class="btn btn-primary" onclick="moveTaskStatus('${task.id}', 'done')" style="padding: 7px 14px; font-size: 12px; font-weight: 600; background: #10B981; border-color: #059669;" title="Approve manual verification and mark task Done">✅ Approve & Mark Done</button>
+              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Request changes or report verification issues">📝 Request Revision</button>
+              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'todo')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #475569; border-color: #CBD5E1; background: #F8FAFC;" title="Move back to To Do">📋 Move to To Do</button>
             ` : ''}
             <select class="form-select" style="width: auto; padding: 7px 10px; font-size: 12px; font-weight: 600;" onchange="moveTaskStatus('${task.id}', this.value)">
               <option value="" disabled selected>Move to...</option>
@@ -2079,11 +2082,11 @@
               <option value="todo" ${task.status === 'todo' ? 'disabled' : ''}>📋 To Do</option>
               <option value="needs_revision" ${task.status === 'needs_revision' ? 'disabled' : ''}>📝 Needs Revision</option>
               <option value="in_progress" ${task.status === 'in_progress' ? 'disabled' : ''}>⚡ In Progress</option>
-              <option value="verification" ${task.status === 'verification' ? 'disabled' : ''}>✋ Input Required</option>
+              <option value="verification" ${task.status === 'verification' ? 'disabled' : ''}>👀 Pending Review</option>
               <option value="done" ${task.status === 'done' ? 'disabled' : ''}>✅ Done</option>
               <option value="failed" ${task.status === 'failed' ? 'disabled' : ''}>⚠️ Failed</option>
             </select>
-            ${task.status !== 'done' ? `<button class="btn btn-primary" onclick="moveTaskStatus('${task.id}', 'done')">Mark Done</button>` : ''}
+            ${task.status !== 'done' && task.status !== 'verification' ? `<button class="btn btn-primary" onclick="moveTaskStatus('${task.id}', 'done')">Mark Done</button>` : ''}
           </div>
         </div>
       `;
@@ -3059,10 +3062,26 @@
       if (e.target.id === 'lightboxOverlay') closeLightbox();
     });
 
-    // Dismiss lightbox on Escape key
+    // Dismiss lightbox, task creation modal, or task viewing modal on Escape key
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        closeLightbox();
+        const lightbox = document.getElementById('lightboxOverlay');
+        if (lightbox && lightbox.classList.contains('active')) {
+          closeLightbox();
+          return;
+        }
+
+        const createModal = document.getElementById('createModal');
+        if (createModal && createModal.classList.contains('active')) {
+          closeCreateModal();
+          return;
+        }
+
+        const detailModal = document.getElementById('detailModal');
+        if (detailModal && detailModal.classList.contains('active')) {
+          closeDetailModal();
+          return;
+        }
       }
     });
 

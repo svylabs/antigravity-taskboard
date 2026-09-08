@@ -555,7 +555,7 @@ export function checkPoll() {
     };
   }
 
-  // 3. Is there a task waiting for user input in 'verification' (Input Required)?
+  // 3. Is there a task waiting for user review or manual verification in 'verification' (Pending Review)?
   const waitingTask = db.prepare(`
     SELECT id, title, status FROM agent_tasks WHERE status = 'verification' LIMIT 1
   `).get();
@@ -579,8 +579,8 @@ export function checkPoll() {
       idle_timeout_seconds: 3600,
       stop_loop: stopLoop,
       message: stopLoop 
-        ? `No user input received for task "${waitingTask.title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
-        : `Task "${waitingTask.title}" (${waitingTask.id}) is waiting for user input in Input Required column. Idle for ${idleSeconds}s.`
+        ? `No user review or input received for task "${waitingTask.title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+        : `Task "${waitingTask.title}" (${waitingTask.id}) is in Pending Review column waiting for user verification/review. Idle for ${idleSeconds}s.`
     };
   }
 
@@ -698,7 +698,7 @@ if (command) {
       console.log(`📂 DB: ${dbPath}\n`);
       for (const col of columns) {
         const inCol = tasks.filter(t => t.status === col);
-        const colTitle = col === 'verification' ? 'INPUT REQUIRED' : col.toUpperCase();
+        const colTitle = col === 'verification' ? 'PENDING REVIEW' : col.toUpperCase();
         console.log(`▶ [${colTitle}] (${inCol.length} tasks)`);
         if (inCol.length === 0) {
           console.log('    (empty)');

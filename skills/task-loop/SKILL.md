@@ -71,8 +71,8 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
   3. Resume the task with the user's new instructions.
 
 * **If `action == "waiting_for_user_input"`**:
-  A task is waiting for user response in **`✋ Input Required`**!
-  The supervisor waits for the user to comment or confirm criteria. If 1 hour elapses without user response, the loop terminates.
+  A task is waiting for user review or input in **`👀 Pending Review`**!
+  The supervisor waits for the user to review, manually test, or comment. If 1 hour elapses without user response, the loop terminates.
 
 * **If `action == "revision_task_available"`**:
   A completed task has received user feedback and is in **`Needs Revision`**! Revisions are prioritized ahead of standard `todo` tasks to quickly iterate on user requests.
@@ -85,7 +85,7 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
   A new task is ready. Proceed to **Step 2 (Verification Gate)**.
 
 * **If `action == "monitor_active"`**:
-  A task is already in progress. Focus on finishing its verification and marking it `done`.
+  A task is already in progress. Focus on finishing its verification and moving it to `Pending Review`.
 
 ---
 
@@ -93,14 +93,14 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 Inspect the task's criteria:
 * **Explicit Exemption**: Card states *"no verification required"* or *"none"* $\to$ claim task, post structured Markdown plan comment citing exemption, and spawn subagent.
 * **Automated Command**: `verification_cmd` is specified $\to$ claim task, post structured Markdown plan citing command, and spawn subagent.
-* **Textual Criteria**: `acceptance_criteria` specified $\to$ claim task, post structured Markdown plan summarizing checklist, and spawn subagent.
+* **Textual / Manual Criteria**: `acceptance_criteria` specified $\to$ claim task, post structured Markdown plan summarizing checklist, and spawn subagent.
 * **Missing / Ambiguous**:
   - **DO NOT modify code or spawn subagents.**
   - Post a `question` comment:
     ```bash
     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Pre-execution Gate: No verification criteria provided. Please confirm automated command, textual checklist, or specify 'no verification required'." "Supervisor" "question"
     ```
-  - This automatically transitions the card to `verification` (**`✋ Input Required`**).
+  - This automatically transitions the card to `verification` (**`👀 Pending Review`**).
   - Suspend and wait for the user to provide criteria or clarification.
 
 #### 📋 Mandatory Plan Comment Formatting
@@ -111,30 +111,29 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "###
 2. **Logic & Data**: Core implementation details and API contracts.
 3. **Integration**: Wire up entry points and register configuration.
 
-**Verification**: [Automated: npm test | Acceptance checklist | Explicit exemption: N/A]" "Supervisor" "plan"
+**Verification**: [Automated: npm test | Acceptance checklist | Manual user verification | Explicit exemption: N/A]" "Supervisor" "plan"
 ```
 
 ---
 
-### Step 3: Verify & Complete Before Next Task
+### Step 3: Verify & Transition to Pending Review for User Approval
 When the subagent finishes:
 1. In `in_progress`, evaluate verification:
    * **If automated command**: run it with `run_command` (must exit 0).
-   * **If textual criteria**: evaluate diffs against each item in the checklist.
+   * **If textual / manual criteria**: evaluate diffs against each item in the checklist and document manual testing steps.
    * **If no verification required**: confirm changes are complete.
-2. If verified:
-   * Mark card `done`:
-     ```bash
-     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> done "Verification criteria satisfied."
-     ```
-    * Post structured walkthrough comment with clickable repository file links:
-      ```bash
-      node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "### Walkthrough
+2. Post structured walkthrough comment with clickable repository file links and manual testing steps:
+   ```bash
+   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "### Walkthrough
 Verified changes against criteria:
 - Created [backend/src/db/migrator.js](/repo/backend/src/db/migrator.js): core migration runner.
 - Updated [docs/database.md](/repo/docs/database.md): migration documentation.
 - Verification: npm test passed with exit code 0." "Subagent" "walkthrough"
-      ```
-4. If failed:
+   ```
+3. Transition card status to `verification` (**`👀 Pending Review`**):
+   ```bash
+   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> verification "Implementation complete; awaiting user manual verification and review."
+   ```
+4. If automated verification failed:
    * Mark card `failed` with failure logs.
-5. **Only now that this task is complete**, proceed back to Step 1 for the next task.
+5. While the card is in **`👀 Pending Review`**, the loop pauses and awaits user verification. Once the user approves and marks the task `done` (or requests revision), proceed back to Step 1.

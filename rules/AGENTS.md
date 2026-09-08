@@ -10,18 +10,18 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
    * **Missing/Ambiguous Criteria**: If a task has no verification criteria, no automated command, and does not state *"no verification required"*:
      - **DO NOT modify any code or spawn subagents.**
      - Post a `question` comment on the card asking for verification criteria or proposing a verification plan.
-     - The task automatically moves to `verification` (`✋ Input Required`) until criteria are confirmed by the user.
+     - The task automatically moves to `verification` (`👀 Pending Review`) until criteria are confirmed by the user.
 
 2. **Strict Sequential Execution (One Task at a Time)**:
    Complete one task completely before moving to another.
    * Never run tasks in parallel.
-   * An active task must finish its entire lifecycle—implementation, verification check (automated test or textual criteria review), status updated to `done`, and walkthrough comment posted—before the supervisor may claim the next task.
-   * If a task is waiting for user input in `verification` (`✋ Input Required`), the supervisor pauses and waits for user input.
+   * An active task must finish its lifecycle—implementation, verification check (automated test or textual review), status updated to `verification` (`👀 Pending Review`), and walkthrough comment posted—awaiting user review/verification before transitioning to `done`.
+   * While a task is in `verification` (`👀 Pending Review`), the supervisor pauses and waits for user review or input before claiming the next task.
 
-3. **Verification Before Completion**:
+3. **Verification & Walkthrough Before User Review**:
    * If an automated command exists: execute it and ensure an exit code of `0`.
-   * If textual criteria exist: the agent must evaluate the code diff against every item in the verification criteria and document the validation in the walkthrough comment.
-   * If *"no verification required"*: summarize changes made and proceed to `done`.
+   * If textual criteria or manual verification exist: the agent must evaluate the code diff against every item in the verification criteria and document the validation in the walkthrough comment.
+   * For all tasks upon completing implementation and validation, transition the card to `verification` (`👀 Pending Review`) with a detailed walkthrough for user sign-off and manual testing. The user approves (`done`) or requests revision (`needs_revision`).
 
 4. **Workspace Branch Isolation**:
    Always execute code tasks in isolated branches (`Workspace: "branch"`). Never write untested changes directly to the primary working tree.
