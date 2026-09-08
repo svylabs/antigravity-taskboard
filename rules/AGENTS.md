@@ -12,11 +12,14 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
      - Post a `question` comment on the card asking for verification criteria or proposing a verification plan.
      - The task automatically moves to `verification` (`👀 Pending Review`) until criteria are confirmed by the user.
 
-2. **Strict Sequential Execution (One Task at a Time)**:
-   Complete one task completely before moving to another.
-   * Never run tasks in parallel.
-   * An active task must finish its lifecycle—implementation, verification check (automated test or textual review), status updated to `verification` (`👀 Pending Review`), and walkthrough comment posted—awaiting user review/verification before transitioning to `done`.
-   * While a task is in `verification` (`👀 Pending Review`), the supervisor pauses and waits for user review or input before claiming the next task.
+2. **Scope-Aware Execution & Parallel Conflict Gate**:
+   * **Large Scope Tasks**: Any task with `scope_size: 'large'` (or touching fullstack architectures, migrations, or root configurations) must run strictly **one at a time** in complete isolation. No other task may run while a large task is active.
+   * **Parallel Execution for Small / Medium Tasks**: Tasks with `scope_size: 'small'` or `'medium'` may run in parallel (up to concurrency cap of 2) ONLY when automated scope analysis confirms **zero conflicts**:
+     - **Disjoint Files/Paths**: Candidate task target files/directories must not overlap with any active running tasks.
+     - **Pending Review File Locks**: Files modified by tasks currently waiting in `👀 Pending Review` are locked; any candidate task touching those paths is deferred until the pending review task is approved or revised.
+     - **Database Operations Gate**: Database migrations and schema changes are always strictly sequential.
+   * When conflicts exist or when scope is large, the task must wait until active tasks and pending review locks clear before starting.
+   * While a task is in `verification` (`👀 Pending Review`), it holds locks on its modified paths until user sign-off.
 
 3. **Verification & Walkthrough Before User Review**:
    * If an automated command exists: execute it and ensure an exit code of `0`.

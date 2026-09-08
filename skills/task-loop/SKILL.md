@@ -36,8 +36,14 @@ To prevent burning credits during recurring schedule wakeups:
    * **Textual Criteria** (`acceptance_criteria`, e.g. bullet points of expected behavior, edge cases, and code rules to check against).
    * **Explicit Exemption**: If the card states *"no verification required"* or *"none"*.
    * If criteria are blank and no exemption is given, post a `question` comment and do not start.
-2. **Complete One Task Before Moving to Another**:
-   Never pick up a new task while another is in progress. The active task must complete its entire cycle (implementation $\to$ verification $\to$ marked `done` $\to$ walkthrough comment posted) before the next task can be claimed.
+2. **Scope-Aware Parallel Execution Gate**:
+   * **Large Scope Tasks**: Any task with `scope_size: 'large'` (or touching fullstack architectures, migrations, or root configurations) must run strictly **one at a time** in complete isolation. No other task may run while a large task is active.
+   * **Parallel Execution for Small / Medium Tasks**: Tasks with `scope_size: 'small'` or `'medium'` may run in parallel (up to concurrency cap of 2) ONLY when automated scope analysis confirms **zero conflicts**:
+     - **Disjoint Files/Paths**: Candidate task target files/directories must not overlap with any active running tasks.
+     - **Pending Review File Locks**: Files modified by tasks currently waiting in `👀 Pending Review` are locked; any candidate task touching those paths is deferred until the pending review task is approved or revised.
+     - **Database Operations Gate**: Database migrations and schema changes are always strictly sequential.
+   * When conflicts exist or when scope is large, the task must wait until active tasks and pending review locks clear before starting.
+   * While a task is in `verification` (`👀 Pending Review`), it holds locks on its modified paths until user sign-off.
 3. **Branch Isolation**:
    Always dispatch subagents in isolated git branches (`Workspace: "branch"`).
 
@@ -84,8 +90,13 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 * **If `action == "todo_task_available"`**:
   A new task is ready. Proceed to **Step 2 (Verification Gate)**.
 
+* **If `action == "parallel_candidate_available"`**:
+  A candidate task (`candidate_task`) has been evaluated by the scope engine and cleared for parallel execution alongside running tasks (`active_tasks`)!
+  1. Scope analysis confirmed zero file overlaps, small/medium scope, and no pending review locks.
+  2. Proceed to **Step 2 (Verification Gate)** for the candidate task and dispatch a new subagent in its own isolated branch (`Workspace: "branch"`).
+
 * **If `action == "monitor_active"`**:
-  A task is already in progress. Focus on finishing its verification and moving it to `Pending Review`.
+  Active task(s) are in progress and any candidate task is either deferred due to scope conflict / large scope, or max concurrency (2) is reached. Monitor active task(s) to completion.
 
 ---
 

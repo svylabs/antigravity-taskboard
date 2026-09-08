@@ -30,6 +30,8 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'backlog', -- 'backlog', 'todo', 'in_progress', 'verification', 'done', 'failed'
     priority TEXT NOT NULL DEFAULT 'medium', -- 'low', 'medium', 'high', 'urgent'
     subagent_role TEXT DEFAULT 'Fullstack Engineer',
+    scope TEXT DEFAULT '', -- target paths / files / subsystems
+    scope_size TEXT DEFAULT 'small', -- 'small', 'medium', 'large'
     execution_logs TEXT,
     order_index INTEGER DEFAULT 0,
     processed_by_agent INTEGER NOT NULL DEFAULT 0, -- 0 = pending, 1 = processed
@@ -89,6 +91,14 @@ try {
 } catch (e) {}
 
 try {
+  db.exec(`ALTER TABLE agent_tasks ADD COLUMN scope TEXT DEFAULT '';`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE agent_tasks ADD COLUMN scope_size TEXT DEFAULT 'small';`);
+} catch (e) {}
+
+try {
   db.exec(`ALTER TABLE task_comments ADD COLUMN processed_by_agent INTEGER NOT NULL DEFAULT 0;`);
 } catch (e) {}
 
@@ -132,7 +142,7 @@ export function getAllTasks() {
   `).all();
 }
 
-export function getActiveTask() {
+export function getActiveTasks() {
   return db.prepare(`
     SELECT 
       t.*,
@@ -143,25 +153,16 @@ export function getActiveTask() {
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
     WHERE t.status = 'in_progress'
-    LIMIT 1
-  `).get();
+    ORDER BY t.order_index ASC, t.updated_at ASC
+  `).all();
 }
 
-export function getNextTodoTask() {
-  const active = getActiveTask();
-  if (active) {
-    return null;
-  }
+export function getActiveTask() {
+  const activeTasks = getActiveTasks();
+  return activeTasks.length > 0 ? activeTasks[0] : null;
+}
 
-  const priorityOrder = `
-    CASE priority
-      WHEN 'urgent' THEN 1
-      WHEN 'high' THEN 2
-      WHEN 'medium' THEN 3
-      WHEN 'low' THEN 4
-      ELSE 5
-    END
-  `;
+export function getPendingReviewTasks() {
   return db.prepare(`
     SELECT 
       t.*,
@@ -171,7 +172,39 @@ export function getNextTodoTask() {
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
-    WHERE t.status IN ('needs_revision', 'todo')
+    WHERE t.status = 'verification'
+    ORDER BY t.order_index ASC, t.updated_at ASC
+  `).all();
+}
+
+export function getNextTodoTask(excludeIds = []) {
+  const priorityOrder = `
+    CASE priority
+      WHEN 'urgent' THEN 1
+      WHEN 'high' THEN 2
+      WHEN 'medium' THEN 3
+      WHEN 'low' THEN 4
+      ELSE 5
+    END
+  `;
+  
+  let excludeClause = '';
+  const params = [];
+  if (Array.isArray(excludeIds) && excludeIds.length > 0) {
+    excludeClause = `AND t.id NOT IN (${excludeIds.map(() => '?').join(', ')})`;
+    params.push(...excludeIds);
+  }
+
+  return db.prepare(`
+    SELECT 
+      t.*,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
+      (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
+      (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
+    FROM agent_tasks t 
+    WHERE t.status IN ('needs_revision', 'todo') ${excludeClause}
     ORDER BY 
       CASE t.status 
         WHEN 'needs_revision' THEN 1 
@@ -182,7 +215,7 @@ export function getNextTodoTask() {
       t.order_index ASC, 
       t.created_at ASC 
     LIMIT 1
-  `).get();
+  `).get(...params);
 }
 
 export function getTaskById(id) {
@@ -212,6 +245,8 @@ export function addTask({
   status = 'backlog',
   priority = 'medium',
   subagent_role = 'Fullstack Engineer',
+  scope = '',
+  scope_size = 'small',
   subtasks = null,
   attachments = null,
   images = null
@@ -221,9 +256,9 @@ export function addTask({
   const order_index = (maxOrder?.max_order ?? 0) + 1;
 
   db.prepare(`
-    INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index, processed_by_agent)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-  `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, order_index);
+    INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, processed_by_agent)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+  `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index);
 
   if (subtasks) {
     const subtaskList = Array.isArray(subtasks)
@@ -260,7 +295,7 @@ export function addTask({
 }
 
 export function updateTask(id, fields) {
-  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'execution_logs', 'order_index', 'processed_by_agent'];
+  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'execution_logs', 'order_index', 'processed_by_agent'];
   const setClauses = [];
   const params = [];
 
@@ -517,26 +552,145 @@ export function deleteAttachment(id) {
   return { success: true, id };
 }
 
-// Token-efficient polling and acknowledgement functions
-export function checkPoll() {
-  // 1. Is there an active running task?
-  const activeTask = getActiveTask();
-  if (activeTask) {
-    setMetadata('idle_since', null);
-    const nextSubtask = getNextSubtask(activeTask.id);
-    const attachments = getAttachments(activeTask.id);
+// Scope & Conflict Analysis Engine
+export function extractTaskPaths(task) {
+  const paths = new Set();
+  if (task.scope && typeof task.scope === 'string' && task.scope.trim()) {
+    task.scope.split(/[,;\n]+/)
+      .map(p => p.trim().toLowerCase().replace(/^\.?\//, '').replace(/\/+$/, ''))
+      .filter(Boolean)
+      .forEach(p => paths.add(p));
+  }
+  // Also scan title, description, and acceptance criteria for directory/file patterns
+  const combined = `${task.title || ''} ${task.description || ''} ${task.acceptance_criteria || ''}`;
+  const matches = combined.match(/(?:[a-zA-Z0-9_\-\.]+\/)+[a-zA-Z0-9_\-\.]+/g) || [];
+  matches.forEach(m => {
+    const clean = m.toLowerCase().replace(/^\.?\//, '').replace(/\/+$/, '');
+    if (clean && !clean.startsWith('http') && !clean.includes('localhost') && clean.includes('.')) {
+      paths.add(clean);
+    }
+  });
+  return Array.from(paths);
+}
+
+export function analyzeScopeAndConflict(candidateTask, activeTasks = [], pendingReviewTasks = [], maxConcurrency = 2) {
+  if (!candidateTask) {
+    return { can_run_parallel: false, reason: 'No candidate task provided.' };
+  }
+
+  // 0. Concurrency Cap Gate
+  if (activeTasks.length >= maxConcurrency) {
     return {
-      has_work: true,
-      action: 'monitor_active',
-      task_id: activeTask.id,
-      title: activeTask.title,
-      status: activeTask.status,
-      next_subtask: nextSubtask || null,
-      attachments
+      can_run_parallel: false,
+      conflict_type: 'concurrency_limit',
+      reason: `Max concurrent tasks limit reached (${activeTasks.length}/${maxConcurrency}).`
     };
   }
 
-  // 2. Are there unread user comments on any task?
+  const candidateSize = (candidateTask.scope_size || 'small').toLowerCase();
+
+  // 1. Large Scope Gate (Candidate): If candidate is large, it must run strictly one at a time.
+  if (candidateSize === 'large') {
+    if (activeTasks.length > 0) {
+      return {
+        can_run_parallel: false,
+        conflict_type: 'large_scope',
+        reason: `Candidate task "${candidateTask.title}" (${candidateTask.id}) is large scope. Large tasks must run strictly sequentially. Currently active: ${activeTasks.map(t => t.id).join(', ')}.`
+      };
+    }
+  }
+
+  // 2. Large Scope Gate (Active Tasks): If any active task is large, no other task can start.
+  const activeLarge = activeTasks.find(t => (t.scope_size || 'small').toLowerCase() === 'large');
+  if (activeLarge) {
+    return {
+      can_run_parallel: false,
+      conflict_type: 'active_large_task',
+      reason: `Active task "${activeLarge.title}" (${activeLarge.id}) is large scope. Running strictly sequentially.`
+    };
+  }
+
+  const candidatePaths = extractTaskPaths(candidateTask);
+
+  // Helper to test database migration conflict
+  const isDbMigrationTask = (task, paths) => {
+    return paths.some(p => p.includes('migration') || p.includes('src/db/')) ||
+      /migration|database schema|sqlite/i.test(`${task.title} ${task.description}`);
+  };
+
+  const candidateIsDb = isDbMigrationTask(candidateTask, candidatePaths);
+
+  // 3. Check against active running tasks
+  for (const active of activeTasks) {
+    const activePaths = extractTaskPaths(active);
+    
+    // DB migration check
+    if (candidateIsDb && isDbMigrationTask(active, activePaths)) {
+      return {
+        can_run_parallel: false,
+        conflict_type: 'database_migration',
+        conflicting_task_id: active.id,
+        reason: `Both candidate "${candidateTask.id}" and active task "${active.id}" touch database migrations. Database operations must run strictly sequentially.`
+      };
+    }
+
+    // Path overlap check
+    for (const cp of candidatePaths) {
+      for (const ap of activePaths) {
+        if (cp === ap || cp.startsWith(ap + '/') || ap.startsWith(cp + '/')) {
+          return {
+            can_run_parallel: false,
+            conflict_type: 'file_overlap',
+            conflicting_task_id: active.id,
+            conflict_path: cp,
+            reason: `Scope conflict with active task "${active.id}" on path "${cp}".`
+          };
+        }
+      }
+    }
+  }
+
+  // 4. Check against Pending Review tasks (File Lock)
+  for (const review of pendingReviewTasks) {
+    const reviewPaths = extractTaskPaths(review);
+
+    if (candidateIsDb && isDbMigrationTask(review, reviewPaths)) {
+      return {
+        can_run_parallel: false,
+        conflict_type: 'database_migration_review',
+        conflicting_task_id: review.id,
+        reason: `Candidate touches database migrations while task "${review.id}" is in Pending Review. Migrations must be reviewed and approved before continuing.`
+      };
+    }
+
+    for (const cp of candidatePaths) {
+      for (const rp of reviewPaths) {
+        if (cp === rp || cp.startsWith(rp + '/') || rp.startsWith(cp + '/')) {
+          return {
+            can_run_parallel: false,
+            conflict_type: 'pending_review_lock',
+            conflicting_task_id: review.id,
+            conflict_path: cp,
+            reason: `Path "${cp}" is locked by task "${review.id}" in Pending Review. Must await user verification.`
+          };
+        }
+      }
+    }
+  }
+
+  return {
+    can_run_parallel: true,
+    candidate_size: candidateSize,
+    candidate_paths: candidatePaths,
+    reason: activeTasks.length > 0
+      ? `Zero file or scope conflicts with ${activeTasks.length} active task(s). Cleared for parallel execution.`
+      : `Ready for execution.`
+  };
+}
+
+// Token-efficient polling and acknowledgement functions
+export function checkPoll(maxConcurrency = 2) {
+  // 1. Unread user comments (Always top priority)
   const unreadComments = db.prepare(`
     SELECT c.id, c.task_id, c.content, c.comment_type, t.title as task_title, t.status as task_status
     FROM task_comments c
@@ -555,11 +709,103 @@ export function checkPoll() {
     };
   }
 
-  // 3. Is there a task waiting for user review or manual verification in 'verification' (Pending Review)?
-  const waitingTask = db.prepare(`
-    SELECT id, title, status FROM agent_tasks WHERE status = 'verification' LIMIT 1
-  `).get();
-  if (waitingTask) {
+  // 2. Retrieve active running tasks and pending review tasks
+  const activeTasks = getActiveTasks();
+  const reviewTasks = getPendingReviewTasks();
+
+  // If we have capacity for more tasks (activeTasks.length < maxConcurrency)
+  if (activeTasks.length < maxConcurrency) {
+    const candidateTask = getNextTodoTask();
+    if (candidateTask) {
+      const analysis = analyzeScopeAndConflict(candidateTask, activeTasks, reviewTasks);
+      
+      if (analysis.can_run_parallel) {
+        setMetadata('idle_since', null);
+        const subtasks = getSubtasks(candidateTask.id);
+        const attachments = getAttachments(candidateTask.id);
+        
+        if (activeTasks.length > 0) {
+          return {
+            has_work: true,
+            action: 'parallel_candidate_available',
+            active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
+            pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
+            task: {
+              ...candidateTask,
+              subtasks,
+              attachments
+            },
+            analysis
+          };
+        } else {
+          return {
+            has_work: true,
+            action: candidateTask.status === 'needs_revision' ? 'revision_task_available' : 'todo_task_available',
+            pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title })),
+            task: {
+              ...candidateTask,
+              subtasks,
+              attachments
+            },
+            analysis
+          };
+        }
+      } else {
+        // Candidate task exists but CANNOT run in parallel due to conflict or large scope
+        if (activeTasks.length > 0) {
+          setMetadata('idle_since', null);
+          return {
+            has_work: true,
+            action: 'monitor_active',
+            active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
+            deferred_candidate: candidateTask.id,
+            deferral_reason: analysis.reason
+          };
+        } else if (reviewTasks.length > 0) {
+          // No active tasks, but candidate conflicts with a task in Pending Review!
+          const now = Date.now();
+          let idleSinceVal = getMetadata('idle_since');
+          let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
+          if (!idleSince) {
+            idleSince = now;
+            setMetadata('idle_since', String(now));
+          }
+          const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
+          const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
+          const stopLoop = idleSeconds >= idleTimeout;
+          return {
+            has_work: false,
+            waiting_for_input: true,
+            action: 'waiting_for_user_input',
+            task_id: reviewTasks[0].id,
+            title: reviewTasks[0].title,
+            deferred_candidate: candidateTask.id,
+            deferral_reason: analysis.reason,
+            idle_seconds: idleSeconds,
+            idle_timeout_seconds: idleTimeout,
+            stop_loop: stopLoop,
+            message: stopLoop
+              ? `Waiting for review on "${reviewTasks[0].title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+              : `Candidate "${candidateTask.title}" (${candidateTask.id}) deferred: ${analysis.reason} Idle for ${idleSeconds}s.`
+          };
+        }
+      }
+    }
+  }
+
+  // 3. If active tasks are running (either maxConcurrency reached or no candidate available)
+  if (activeTasks.length > 0) {
+    setMetadata('idle_since', null);
+    return {
+      has_work: true,
+      action: 'monitor_active',
+      active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
+      message: `${activeTasks.length} task(s) currently in progress.`
+    };
+  }
+
+  // 4. If no active tasks and no candidates, but tasks are in Pending Review
+  if (reviewTasks.length > 0) {
     const now = Date.now();
     let idleSinceVal = getMetadata('idle_since');
     let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
@@ -567,78 +813,45 @@ export function checkPoll() {
       idleSince = now;
       setMetadata('idle_since', String(now));
     }
-    const idleSeconds = Math.floor((now - idleSince) / 1000);
-    const stopLoop = idleSeconds >= 3600;
+    const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
+    const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
+    const stopLoop = idleSeconds >= idleTimeout;
     return {
       has_work: false,
       waiting_for_input: true,
       action: 'waiting_for_user_input',
-      task_id: waitingTask.id,
-      title: waitingTask.title,
+      task_id: reviewTasks[0].id,
+      title: reviewTasks[0].title,
       idle_seconds: idleSeconds,
-      idle_timeout_seconds: 3600,
+      idle_timeout_seconds: idleTimeout,
       stop_loop: stopLoop,
-      message: stopLoop 
-        ? `No user review or input received for task "${waitingTask.title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
-        : `Task "${waitingTask.title}" (${waitingTask.id}) is in Pending Review column waiting for user verification/review. Idle for ${idleSeconds}s.`
+      message: stopLoop
+        ? `No user review received for task "${reviewTasks[0].title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+        : `Task "${reviewTasks[0].title}" (${reviewTasks[0].id}) is in Pending Review column waiting for user verification/review. Idle for ${idleSeconds}s.`
     };
   }
 
-  // 4. Is there a next 'needs_revision' or 'todo' task ready to execute?
-  const nextTask = getNextTodoTask();
-  if (nextTask) {
-    setMetadata('idle_since', null);
-    const subtasks = getSubtasks(nextTask.id);
-    const attachments = getAttachments(nextTask.id);
-    return {
-      has_work: true,
-      action: nextTask.status === 'needs_revision' ? 'revision_task_available' : 'todo_task_available',
-      task: {
-        id: nextTask.id,
-        title: nextTask.title,
-        status: nextTask.status,
-        is_revision: nextTask.status === 'needs_revision',
-        priority: nextTask.priority,
-        verification_cmd: nextTask.verification_cmd,
-        acceptance_criteria: nextTask.acceptance_criteria,
-        subtask_count: nextTask.subtask_count,
-        attachment_count: nextTask.attachment_count,
-        subtasks,
-        attachments
-      }
-    };
-  }
-
-  // 5. Nothing new to do! Track idle duration and auto-stop after 1 hour (3600 seconds)
+  // 5. Complete idle
   const now = Date.now();
   let idleSinceVal = getMetadata('idle_since');
   let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
-
   if (!idleSince) {
     idleSince = now;
-    setMetadata('idle_since', String(idleSince));
+    setMetadata('idle_since', String(now));
   }
-
   const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
   const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
-
-  if (idleSeconds >= idleTimeout) {
-    return {
-      has_work: false,
-      stop_loop: true,
-      idle_seconds: idleSeconds,
-      idle_minutes: Math.floor(idleSeconds / 60),
-      timeout_seconds: idleTimeout,
-      message: `No tasks or activity for ${Math.floor(idleSeconds / 60)} minutes (timeout: ${Math.floor(idleTimeout / 60)} min). Stopping task loop.`
-    };
-  }
+  const stopLoop = idleSeconds >= idleTimeout;
 
   return {
     has_work: false,
-    stop_loop: false,
+    action: 'idle',
     idle_seconds: idleSeconds,
-    idle_minutes: Math.floor(idleSeconds / 60),
-    remaining_seconds: idleTimeout - idleSeconds
+    idle_timeout_seconds: idleTimeout,
+    stop_loop: stopLoop,
+    message: stopLoop
+      ? `Taskboard has been idle with no active tasks for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+      : `No active tasks. Idle for ${idleSeconds}s.`
   };
 }
 
@@ -673,12 +886,25 @@ if (command) {
       break;
     }
     case 'active': {
-      const active = getActiveTask();
-      if (!active) {
-        console.log(JSON.stringify({ active: false }));
+      const activeList = getActiveTasks();
+      if (activeList.length === 0) {
+        console.log(JSON.stringify({ active: false, tasks: [] }));
       } else {
-        console.log(JSON.stringify({ active: true, task: active }, null, 2));
+        console.log(JSON.stringify({ active: true, count: activeList.length, tasks: activeList }, null, 2));
       }
+      break;
+    }
+    case 'check-conflict': {
+      const [candidateId] = args;
+      const candidate = getTaskById(candidateId);
+      if (!candidate) {
+        console.log(JSON.stringify({ error: `Task ${candidateId} not found` }));
+        break;
+      }
+      const activeTasks = getActiveTasks().filter(t => t.id !== candidateId);
+      const reviewTasks = getPendingReviewTasks().filter(t => t.id !== candidateId);
+      const result = analyzeScopeAndConflict(candidate, activeTasks, reviewTasks);
+      console.log(JSON.stringify(result, null, 2));
       break;
     }
     case 'next': {
@@ -708,7 +934,9 @@ if (command) {
             const cBadge = t.comment_count > 0 ? ` (${t.comment_count} 💬)` : '';
             const sBadge = t.subtask_count > 0 ? ` [${t.subtask_done_count}/${t.subtask_count} subtasks]` : '';
             const aBadge = t.attachment_count > 0 ? ` [🖼️ ${t.attachment_count}]` : '';
-            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${sBadge}${aBadge}${qBadge}${cBadge}`);
+            const scopeBadge = t.scope ? ` [🏷️ ${t.scope}]` : '';
+            const sizeBadge = t.scope_size && t.scope_size !== 'small' ? ` [${t.scope_size.toUpperCase()}]` : '';
+            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${scopeBadge}${sizeBadge}${sBadge}${aBadge}${qBadge}${cBadge}`);
           }
         }
         console.log('');

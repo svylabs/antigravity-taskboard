@@ -1605,6 +1605,21 @@
           </div>
         </div>
 
+        <div class="form-row-2col">
+          <div class="form-group">
+            <label class="form-label">Scope / Target Paths (Optional &mdash; for parallel execution)</label>
+            <input type="text" class="form-input" id="newScope" placeholder="e.g. docs/, frontend/src/components/">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Scope Size (Large tasks strictly run sequentially)</label>
+            <select class="form-select" id="newScopeSize">
+              <option value="small">Small (Isolated component, docs, bugfix)</option>
+              <option value="medium">Medium (Multi-file feature in single subsystem)</option>
+              <option value="large">Large (Fullstack, migrations, architectural refactor)</option>
+            </select>
+          </div>
+        </div>
+
         <div class="form-row-3col">
           <div class="form-group">
             <label class="form-label">Priority</label>
@@ -1688,7 +1703,11 @@
         const countBadge = document.getElementById(`count-${col}`);
         const colTasks = tasks.filter(t => t.status === col);
         
-        countBadge.innerText = colTasks.length;
+        if (col === 'in_progress' && colTasks.length > 1) {
+          countBadge.innerHTML = `${colTasks.length} <span style="font-size: 10px; background: #8B5CF6; color: white; padding: 1px 6px; border-radius: 10px; margin-left: 4px;" title="${colTasks.length} tasks running in parallel">⚡ Parallel</span>`;
+        } else {
+          countBadge.innerText = colTasks.length;
+        }
         const tabCountBadge = document.getElementById(`tab-count-${col}`);
         if (tabCountBadge) tabCountBadge.innerText = colTasks.length;
         container.innerHTML = '';
@@ -1720,11 +1739,25 @@
           const verifyBadge = getVerificationBadgeHtml(task);
           const statusBadge = getCardStatusBadge(task);
 
+          const sizeStyle = task.scope_size === 'large' 
+            ? 'background: #FEE2E2; color: #991B1B; border-color: #FECACA;'
+            : task.scope_size === 'medium'
+              ? 'background: #FEF3C7; color: #92400E; border-color: #FDE68A;'
+              : 'background: #EEF2FF; color: #4338CA; border-color: #E0E7FF;';
+          const sizeBadge = task.scope_size && task.scope_size !== 'small'
+            ? `<span class="role-badge" style="${sizeStyle} font-size: 10px; font-weight: 700; padding: 1px 6px;">${escapeHtml(task.scope_size.toUpperCase())}</span>`
+            : '';
+          const scopeBadge = task.scope
+            ? `<span class="role-badge" style="background: #F8FAFC; color: #64748B; font-family: monospace; font-size: 10px; padding: 1px 5px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Scope: ${escapeHtml(task.scope)}">🏷️ ${escapeHtml(task.scope)}</span>`
+            : '';
+
           card.innerHTML = `
             <div class="card-badges">
               <span class="badge badge-${task.priority}">${task.priority}</span>
               ${statusBadge}
+              ${sizeBadge}
               <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
+              ${scopeBadge}
             </div>
             <div class="card-title">${escapeHtml(task.title)}</div>
             ${subtaskHtml}
@@ -1833,6 +1866,8 @@
       const subagent_role = document.getElementById('newRole') ? document.getElementById('newRole').value : 'Fullstack Engineer';
       const subtasks = document.getElementById('newSubtasks') ? document.getElementById('newSubtasks').value.trim() : '';
       const status = document.getElementById('newStatus').value;
+      const scope = document.getElementById('newScope') ? document.getElementById('newScope').value.trim() : '';
+      const scope_size = document.getElementById('newScopeSize') ? document.getElementById('newScopeSize').value : 'small';
 
       const images = stagedCreateImages.map(img => ({
         fileName: img.fileName,
@@ -1844,7 +1879,7 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status, images
+          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status, scope, scope_size, images
         })
       });
 
@@ -1867,6 +1902,8 @@
             <span class="badge badge-${task.priority}">${task.priority}</span>
             <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
             <span class="role-badge" style="background: #E2E8F0;">Status: <b>${task.status}</b></span>
+            <span class="role-badge" style="background: ${task.scope_size === 'large' ? '#FEE2E2; color: #991B1B' : task.scope_size === 'medium' ? '#FEF3C7; color: #92400E' : '#EEF2FF; color: #3730A3'}; font-weight: 600;">Size: ${(task.scope_size || 'small').toUpperCase()}</span>
+            ${task.scope ? `<span class="role-badge" style="background: #F1F5F9; color: #475569; font-family: monospace; font-size: 11px;" title="Scope paths: ${escapeHtml(task.scope)}">🏷️ ${escapeHtml(task.scope)}</span>` : ''}
           </div>
           <button type="button" class="btn btn-secondary" onclick="enterEditMode()" id="quickEditBtn" style="padding: 5px 12px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;" title="Edit task title, description, and criteria">
             <span>✏️</span><span>Edit Task</span>
@@ -1899,6 +1936,21 @@
                   <button type="button" onclick="enterEditMode()" style="background: none; border: none; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: underline;">Edit</button>
                 </div>
                 <div class="form-formatted-text" onclick="enterEditMode()" style="cursor: pointer;" title="Click to edit task description">${renderMarkdown(task.description || 'No description provided. Click here or Edit Details to add.')}</div>
+              </div>
+
+              <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 12px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Scope / Target Paths</label>
+                  <div style="font-size: 12px; font-family: monospace; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 6px 10px; border-radius: 6px; color: #334155;">
+                    ${task.scope ? escapeHtml(task.scope) : '<span style="color: #94A3B8; font-style: italic;">Not specified (auto-inferred from title & description)</span>'}
+                  </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Scope Size</label>
+                  <div style="font-size: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 6px 10px; border-radius: 6px; font-weight: 600; color: ${task.scope_size === 'large' ? '#DC2626' : task.scope_size === 'medium' ? '#D97706' : '#2563EB'};">
+                    ${(task.scope_size || 'small').toUpperCase()}
+                  </div>
+                </div>
               </div>
 
               <div class="form-group" style="margin-bottom: 12px;">
@@ -1953,6 +2005,21 @@
                   <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" style="font-size: 12px;">Subagent Role</label>
                     <input type="text" class="form-input" id="editTaskRole" value="${escapeHtml(task.subagent_role || 'Fullstack Engineer')}" style="font-size: 12px;">
+                  </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 10px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 12px;">Scope / Target Paths</label>
+                    <input type="text" class="form-input" id="editTaskScope" value="${escapeHtml(task.scope || '')}" placeholder="e.g. docs/, frontend/src/" style="font-size: 12px; font-family: monospace;">
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 12px;">Scope Size</label>
+                    <select class="form-select" id="editTaskScopeSize" style="font-size: 12px;">
+                      <option value="small" ${task.scope_size === 'small' || !task.scope_size ? 'selected' : ''}>Small (Parallel candidate)</option>
+                      <option value="medium" ${task.scope_size === 'medium' ? 'selected' : ''}>Medium (Parallel candidate)</option>
+                      <option value="large" ${task.scope_size === 'large' ? 'selected' : ''}>Large (Strictly sequential)</option>
+                    </select>
                   </div>
                 </div>
 
@@ -2430,6 +2497,8 @@
       const subagent_role = document.getElementById('editTaskRole').value.trim();
       const acceptance_criteria = document.getElementById('editTaskCriteria').value.trim();
       const verification_cmd = document.getElementById('editTaskCmd').value.trim();
+      const scope = document.getElementById('editTaskScope') ? document.getElementById('editTaskScope').value.trim() : '';
+      const scope_size = document.getElementById('editTaskScopeSize') ? document.getElementById('editTaskScopeSize').value : 'small';
 
       if (!title) {
         alert('Task title is required');
@@ -2453,6 +2522,8 @@
             subagent_role: subagent_role || 'Fullstack Engineer',
             acceptance_criteria,
             verification_cmd,
+            scope,
+            scope_size,
             processed_by_agent: 0
           })
         });
