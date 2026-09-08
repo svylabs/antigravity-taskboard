@@ -277,10 +277,10 @@
     }
 
     .task-card.card-verification {
-      background: #F0F9FF;
-      border: 1px solid #BAE6FD;
-      border-left: 5px solid #0284C7;
-      box-shadow: 0 3px 10px rgba(2, 132, 199, 0.1);
+      background: #FFFBEB;
+      border: 1px solid #FCD34D;
+      border-left: 5px solid #F59E0B;
+      box-shadow: 0 3px 10px rgba(245, 158, 11, 0.12);
     }
 
     .task-card.card-done {
@@ -330,9 +330,9 @@
     }
 
     .status-pill-verification {
-      background: #E0F2FE;
-      color: #0369A1;
-      border: 1px solid #BAE6FD;
+      background: #FEF3C7;
+      color: #92400E;
+      border: 1px solid #FDE68A;
     }
 
     .status-dot {
@@ -1473,7 +1473,7 @@
       <button class="col-tab" onclick="scrollToColumn('todo', this)">📋 To Do <span class="tab-count" id="tab-count-todo">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('needs_revision', this)">📝 Revision <span class="tab-count" id="tab-count-needs_revision">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('in_progress', this)">⚡ In Progress <span class="tab-count" id="tab-count-in_progress">0</span></button>
-      <button class="col-tab" onclick="scrollToColumn('verification', this)">🧪 Verification <span class="tab-count" id="tab-count-verification">0</span></button>
+      <button class="col-tab" onclick="scrollToColumn('verification', this)">✋ Input Required <span class="tab-count" id="tab-count-verification">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('done', this)">✅ Done <span class="tab-count" id="tab-count-done">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('failed', this)">⚠️ Failed <span class="tab-count" id="tab-count-failed">0</span></button>
     </div>
@@ -1517,10 +1517,10 @@
       <div class="card-list" id="list-in_progress" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'in_progress')"></div>
     </div>
 
-    <!-- Verification -->
+    <!-- Input Required -->
     <div class="column" data-status="verification">
       <div class="column-header">
-        <span class="col-title">🧪 Verification</span>
+        <span class="col-title">✋ Input Required</span>
         <span class="col-count" id="count-verification">0</span>
       </div>
       <div class="card-list" id="list-verification" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'verification')"></div>
@@ -1763,7 +1763,7 @@
         return `<span class="status-pill status-pill-in_progress"><span class="status-dot dot-purple"></span>⚡ Agent Working</span>`;
       }
       if (task.status === 'verification') {
-        return `<span class="status-pill status-pill-verification"><span class="status-dot dot-blue"></span>🧪 Verifying</span>`;
+        return `<span class="status-pill status-pill-verification"><span class="status-dot dot-amber"></span>✋ Input Required</span>`;
       }
       return '';
     }
@@ -2052,6 +2052,9 @@
                 ${(task.status === 'done' || task.status === 'failed') ? `
                   <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Post comment and move task to Needs Revision">↩️ Post & Request Revision</button>
                 ` : ''}
+                ${task.status === 'verification' ? `
+                  <button type="button" class="btn btn-secondary" onclick="handlePostAndSubmitInput(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #047857; border-color: #A7F3D0; background: #ECFDF5;" title="Post comment and move task to To Do">↩️ Post & Submit Input</button>
+                ` : ''}
               </div>
             </div>
           </form>
@@ -2067,13 +2070,16 @@
             ${(task.status === 'done' || task.status === 'failed') ? `
               <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;">📝 Move to Revision</button>
             ` : ''}
+            ${task.status === 'verification' ? `
+              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'todo')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #047857; border-color: #A7F3D0; background: #ECFDF5;">📋 Move to To Do</button>
+            ` : ''}
             <select class="form-select" style="width: auto; padding: 7px 10px; font-size: 12px; font-weight: 600;" onchange="moveTaskStatus('${task.id}', this.value)">
               <option value="" disabled selected>Move to...</option>
               <option value="backlog" ${task.status === 'backlog' ? 'disabled' : ''}>📥 Backlog</option>
               <option value="todo" ${task.status === 'todo' ? 'disabled' : ''}>📋 To Do</option>
               <option value="needs_revision" ${task.status === 'needs_revision' ? 'disabled' : ''}>📝 Needs Revision</option>
               <option value="in_progress" ${task.status === 'in_progress' ? 'disabled' : ''}>⚡ In Progress</option>
-              <option value="verification" ${task.status === 'verification' ? 'disabled' : ''}>🧪 Verification</option>
+              <option value="verification" ${task.status === 'verification' ? 'disabled' : ''}>✋ Input Required</option>
               <option value="done" ${task.status === 'done' ? 'disabled' : ''}>✅ Done</option>
               <option value="failed" ${task.status === 'failed' ? 'disabled' : ''}>⚠️ Failed</option>
             </select>
@@ -2246,6 +2252,55 @@
 
       document.getElementById('commentInput').value = '';
       loadComments(currentTaskId, true);
+      fetchTasks();
+
+      // Refresh status badge in modal if task transitioned from verification to todo
+      try {
+        const res = await fetch(`/api/tasks/${currentTaskId}`);
+        if (res.ok) {
+          const { task } = await res.json();
+          if (task) {
+            const badge = document.querySelector('#detailModal .modal-header .status-pill');
+            if (badge) {
+              badge.outerHTML = getCardStatusBadge(task);
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    async function handlePostAndSubmitInput(e, taskId) {
+      if (e) e.preventDefault();
+      const id = taskId || currentTaskId;
+      if (!id) return;
+
+      const content = document.getElementById('commentInput').value.trim();
+      const comment_type = document.getElementById('commentType').value;
+      if (!content) {
+        alert('Please enter your response before submitting input.');
+        return;
+      }
+
+      // 1. Post user comment (server automatically transitions verification -> todo)
+      await fetch(`/api/tasks/${id}/comments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          author: 'User',
+          comment_type,
+          content
+        })
+      });
+
+      // 2. Explicitly ensure status is todo
+      await fetch(`/api/tasks/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'todo', processed_by_agent: 0 })
+      });
+
+      document.getElementById('commentInput').value = '';
+      closeDetailModal();
       fetchTasks();
     }
 

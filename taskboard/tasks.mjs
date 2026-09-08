@@ -142,7 +142,7 @@ export function getActiveTask() {
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
-    WHERE t.status IN ('in_progress', 'verification')
+    WHERE t.status = 'in_progress'
     LIMIT 1
   `).get();
 }
@@ -321,6 +321,25 @@ export function addComment(taskId, { author = 'agent', comment_type = 'comment',
     INSERT INTO task_comments (id, task_id, author, comment_type, content, processed_by_agent)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(id, taskId, author, comment_type, formattedContent, processed_by_agent);
+
+  // If agent posted a question / waiting for user input, move task to 'verification' (Input Required)
+  if (isAgentAuthor && comment_type === 'question') {
+    db.prepare(`
+      UPDATE agent_tasks 
+      SET status = 'verification', updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ? AND status != 'done'
+    `).run(taskId);
+  } else if (!isAgentAuthor) {
+    // If a user replies to a task in 'verification' (Input Required), move task back to 'todo'
+    const task = db.prepare('SELECT status FROM agent_tasks WHERE id = ?').get(taskId);
+    if (task && task.status === 'verification') {
+      db.prepare(`
+        UPDATE agent_tasks 
+        SET status = 'todo', updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(taskId);
+    }
+  }
 
   setMetadata('idle_since', null);
   return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
@@ -536,7 +555,36 @@ export function checkPoll() {
     };
   }
 
-  // 3. Is there a next 'needs_revision' or 'todo' task ready to execute?
+  // 3. Is there a task waiting for user input in 'verification' (Input Required)?
+  const waitingTask = db.prepare(`
+    SELECT id, title, status FROM agent_tasks WHERE status = 'verification' LIMIT 1
+  `).get();
+  if (waitingTask) {
+    const now = Date.now();
+    let idleSinceVal = getMetadata('idle_since');
+    let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
+    if (!idleSince) {
+      idleSince = now;
+      setMetadata('idle_since', String(now));
+    }
+    const idleSeconds = Math.floor((now - idleSince) / 1000);
+    const stopLoop = idleSeconds >= 3600;
+    return {
+      has_work: false,
+      waiting_for_input: true,
+      action: 'waiting_for_user_input',
+      task_id: waitingTask.id,
+      title: waitingTask.title,
+      idle_seconds: idleSeconds,
+      idle_timeout_seconds: 3600,
+      stop_loop: stopLoop,
+      message: stopLoop 
+        ? `No user input received for task "${waitingTask.title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+        : `Task "${waitingTask.title}" (${waitingTask.id}) is waiting for user input in Input Required column. Idle for ${idleSeconds}s.`
+    };
+  }
+
+  // 4. Is there a next 'needs_revision' or 'todo' task ready to execute?
   const nextTask = getNextTodoTask();
   if (nextTask) {
     setMetadata('idle_since', null);
@@ -561,7 +609,7 @@ export function checkPoll() {
     };
   }
 
-  // 4. Nothing new to do! Track idle duration and auto-stop after 1 hour (3600 seconds)
+  // 5. Nothing new to do! Track idle duration and auto-stop after 1 hour (3600 seconds)
   const now = Date.now();
   let idleSinceVal = getMetadata('idle_since');
   let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
@@ -650,7 +698,8 @@ if (command) {
       console.log(`📂 DB: ${dbPath}\n`);
       for (const col of columns) {
         const inCol = tasks.filter(t => t.status === col);
-        console.log(`▶ [${col.toUpperCase()}] (${inCol.length} tasks)`);
+        const colTitle = col === 'verification' ? 'INPUT REQUIRED' : col.toUpperCase();
+        console.log(`▶ [${colTitle}] (${inCol.length} tasks)`);
         if (inCol.length === 0) {
           console.log('    (empty)');
         } else {

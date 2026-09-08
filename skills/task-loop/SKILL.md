@@ -70,6 +70,10 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
      ```
   3. Resume the task with the user's new instructions.
 
+* **If `action == "waiting_for_user_input"`**:
+  A task is waiting for user response in **`✋ Input Required`**!
+  The supervisor waits for the user to comment or confirm criteria. If 1 hour elapses without user response, the loop terminates.
+
 * **If `action == "revision_task_available"`**:
   A completed task has received user feedback and is in **`Needs Revision`**! Revisions are prioritized ahead of standard `todo` tasks to quickly iterate on user requests.
   1. Read the user's feedback/comments on the card.
@@ -96,7 +100,8 @@ Inspect the task's criteria:
     ```bash
     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "Pre-execution Gate: No verification criteria provided. Please confirm automated command, textual checklist, or specify 'no verification required'." "Supervisor" "question"
     ```
-  - Leave card in `todo` with the `❓ Question` badge and suspend.
+  - This automatically transitions the card to `verification` (**`✋ Input Required`**).
+  - Suspend and wait for the user to provide criteria or clarification.
 
 #### 📋 Mandatory Plan Comment Formatting
 Plan comments (`comment_type: "plan"`) **must always be structured Markdown** with a header, discrete numbered steps on separate lines, backticked file paths/identifiers, and verification details. Never cram plans into a single run-on sentence.
@@ -113,12 +118,11 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "###
 
 ### Step 3: Verify & Complete Before Next Task
 When the subagent finishes:
-1. Update card status to `verification`.
-2. Evaluate verification:
+1. In `in_progress`, evaluate verification:
    * **If automated command**: run it with `run_command` (must exit 0).
    * **If textual criteria**: evaluate diffs against each item in the checklist.
    * **If no verification required**: confirm changes are complete.
-3. If verified:
+2. If verified:
    * Mark card `done`:
      ```bash
      node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> done "Verification criteria satisfied."

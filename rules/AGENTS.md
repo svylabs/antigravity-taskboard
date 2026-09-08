@@ -10,12 +10,13 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
    * **Missing/Ambiguous Criteria**: If a task has no verification criteria, no automated command, and does not state *"no verification required"*:
      - **DO NOT modify any code or spawn subagents.**
      - Post a `question` comment on the card asking for verification criteria or proposing a verification plan.
-     - Leave the card in `todo` with the `❓ Question` badge visible until criteria are confirmed.
+     - The task automatically moves to `verification` (`✋ Input Required`) until criteria are confirmed by the user.
 
 2. **Strict Sequential Execution (One Task at a Time)**:
    Complete one task completely before moving to another.
    * Never run tasks in parallel.
    * An active task must finish its entire lifecycle—implementation, verification check (automated test or textual criteria review), status updated to `done`, and walkthrough comment posted—before the supervisor may claim the next task.
+   * If a task is waiting for user input in `verification` (`✋ Input Required`), the supervisor pauses and waits for user input.
 
 3. **Verification Before Completion**:
    * If an automated command exists: execute it and ensure an exit code of `0`.
