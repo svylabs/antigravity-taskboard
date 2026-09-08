@@ -1609,42 +1609,120 @@
 
       document.getElementById('detailTitle').innerText = task.title;
       const content = document.getElementById('detailContent');
+      const isBacklog = task.status === 'backlog';
 
       content.innerHTML = `
-        <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; align-items: center;">
-          <span class="badge badge-${task.priority}">${task.priority}</span>
-          <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
-          <span class="role-badge" style="background: #E2E8F0;">Status: <b>${task.status}</b></span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+            <span class="badge badge-${task.priority}">${task.priority}</span>
+            <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
+            <span class="role-badge" style="background: #E2E8F0;">Status: <b>${task.status}</b></span>
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="enterEditMode()" id="quickEditBtn" style="padding: 5px 12px; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;" title="Edit task title, description, and criteria">
+            <span>✏️</span><span>Edit Task</span>
+          </button>
         </div>
 
         <!-- Collapsible Task Details (Click Down Arrow to show/hide) -->
-        <div class="task-details-collapsible" id="taskDetailsContainer">
+        <div class="task-details-collapsible ${isBacklog ? 'open' : ''}" id="taskDetailsContainer">
           <div class="task-details-header" onclick="toggleTaskDetails()" id="taskDetailsToggle" title="Click down arrow to show full task details">
             <div class="task-details-title-wrap">
-              <span class="details-chevron" id="detailsChevron">▼</span>
+              <span class="details-chevron" id="detailsChevron">${isBacklog ? '▲' : '▼'}</span>
               <span style="font-size: 13px; font-weight: 700; color: #1E293B;">Task Goals & Acceptance Criteria</span>
             </div>
-            <span class="details-toggle-label" id="detailsToggleLabel">Show Full Detail</span>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span class="details-toggle-label" id="detailsToggleLabel">${isBacklog ? 'Hide Details' : 'Show Full Detail'}</span>
+            </div>
           </div>
-          <div class="task-details-body" id="taskDetailsBody" style="display: none;">
-            <div class="form-group" style="margin-bottom: 12px;">
-              <label class="form-label">Goal & Details</label>
-              <div class="form-formatted-text">${renderMarkdown(task.description || 'No description provided')}</div>
-            </div>
-            <div class="form-group" style="margin-bottom: 12px;">
-              <label class="form-label">Acceptance Criteria</label>
-              <div class="form-formatted-text">${renderMarkdown(task.acceptance_criteria || 'None')}</div>
-            </div>
-            <div class="form-group" style="margin-bottom: 12px;">
-              <label class="form-label">Verification Command</label>
-              <div class="cmd-tag" style="font-size: 12px; padding: 6px 10px; max-width: 100%;">${escapeHtml(task.verification_cmd || 'None')}</div>
-            </div>
-            ${task.execution_logs ? `
-              <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label">Execution / Test Logs</label>
-                <div class="log-view">${escapeHtml(task.execution_logs)}</div>
+          <div class="task-details-body" id="taskDetailsBody" style="display: ${isBacklog ? 'block' : 'none'};">
+            
+            <!-- View Mode -->
+            <div id="detailsViewMode">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #F1F5F9;">
+                <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #64748B; font-weight: 700;">Task Specification</span>
+                <button type="button" class="btn btn-secondary" onclick="enterEditMode()" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">✏️ Edit Details</button>
               </div>
-            ` : ''}
+
+              <div class="form-group" style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <label class="form-label" style="margin-bottom: 0;">Goal & Description</label>
+                  <button type="button" onclick="enterEditMode()" style="background: none; border: none; font-size: 11px; color: var(--primary); font-weight: 600; cursor: pointer; text-decoration: underline;">Edit</button>
+                </div>
+                <div class="form-formatted-text" onclick="enterEditMode()" style="cursor: pointer;" title="Click to edit task description">${renderMarkdown(task.description || 'No description provided. Click here or Edit Details to add.')}</div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">Acceptance Criteria</label>
+                <div class="form-formatted-text">${renderMarkdown(task.acceptance_criteria || 'None')}</div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label">Verification Command</label>
+                <div class="cmd-tag" style="font-size: 12px; padding: 6px 10px; max-width: 100%;">${escapeHtml(task.verification_cmd || 'None')}</div>
+              </div>
+
+              ${task.execution_logs ? `
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Execution / Test Logs</label>
+                  <div class="log-view">${escapeHtml(task.execution_logs)}</div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Edit Mode Form -->
+            <div id="detailsEditMode" style="display: none;">
+              <form id="editTaskForm" onsubmit="handleSaveTaskDetails(event)">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #E2E8F0;">
+                  <span style="font-size: 12.5px; font-weight: 700; color: #7C3AED;">✏️ Edit Task Specification</span>
+                  <div style="display: flex; gap: 6px;">
+                    <button type="button" class="btn btn-secondary" onclick="exitEditMode()" style="padding: 4px 10px; font-size: 12px;">Cancel</button>
+                    <button type="submit" class="btn btn-primary" id="saveTaskDetailsBtn" style="padding: 4px 14px; font-size: 12px;">💾 Save</button>
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label" style="font-size: 12px;">Task Title</label>
+                  <input type="text" class="form-input" id="editTaskTitle" value="${escapeHtml(task.title)}" required style="font-size: 13px; font-weight: 600;">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label" style="font-size: 12px;">Goal & Description</label>
+                  <textarea class="form-textarea" id="editTaskDescription" style="min-height: 140px; font-size: 13px; line-height: 1.5;" placeholder="Describe the objective, background context, specific files to modify, or behavior expected...">${escapeHtml(task.description || '')}</textarea>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 12px;">Priority</label>
+                    <select class="form-select" id="editTaskPriority" style="font-size: 12px;">
+                      <option value="low" ${task.priority === 'low' ? 'selected' : ''}>Low</option>
+                      <option value="medium" ${task.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                      <option value="high" ${task.priority === 'high' ? 'selected' : ''}>High</option>
+                      <option value="urgent" ${task.priority === 'urgent' ? 'selected' : ''}>Urgent</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" style="font-size: 12px;">Subagent Role</label>
+                    <input type="text" class="form-input" id="editTaskRole" value="${escapeHtml(task.subagent_role || 'Fullstack Engineer')}" style="font-size: 12px;">
+                  </div>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label" style="font-size: 12px;">Acceptance Criteria (Verification Gate Checklist)</label>
+                  <textarea class="form-textarea" id="editTaskCriteria" style="min-height: 70px; font-size: 12.5px;" placeholder="Specific acceptance criteria, rules, or 'no verification required'...">${escapeHtml(task.acceptance_criteria || '')}</textarea>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label" style="font-size: 12px;">Automated Verification Command</label>
+                  <input type="text" class="form-input" id="editTaskCmd" value="${escapeHtml(task.verification_cmd || '')}" placeholder="e.g. npm test or npm run build" style="font-size: 12px; font-family: monospace;">
+                </div>
+
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                  <button type="button" class="btn btn-secondary" onclick="exitEditMode()" style="padding: 6px 14px; font-size: 12px;">Cancel</button>
+                  <button type="submit" class="btn btn-primary" style="padding: 6px 18px; font-size: 12px;">💾 Save Changes</button>
+                </div>
+              </form>
+            </div>
+
           </div>
         </div>
 
@@ -1704,7 +1782,10 @@
 
         <!-- Action Controls -->
         <div class="modal-footer-actions">
-          <button class="btn btn-secondary" style="color: var(--urgent); border-color: #FECACA;" onclick="deleteTaskItem('${task.id}')">Delete Card</button>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn btn-secondary" style="color: var(--urgent); border-color: #FECACA;" onclick="deleteTaskItem('${task.id}')">Delete Card</button>
+            <button class="btn btn-secondary" onclick="enterEditMode()" style="font-weight: 600;">✏️ Edit Details</button>
+          </div>
           <div class="modal-footer-btns">
             ${(task.status === 'done' || task.status === 'failed') ? `
               <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;">📝 Move to Revision</button>
@@ -1726,12 +1807,14 @@
 
       document.getElementById('detailModal').classList.add('active');
       loadSubtasks(id);
-      loadComments(id, true);
+      loadComments(id, !isBacklog);
 
-      // Auto-hide details when user scrolls down
+      // Auto-hide details when user scrolls down (only if not editing)
       const modalBox = document.querySelector('#detailModal .modal');
       if (modalBox) {
         modalBox.onscroll = () => {
+          const editMode = document.getElementById('detailsEditMode');
+          if (editMode && editMode.style.display === 'block') return;
           if (modalBox.scrollTop > 60) {
             collapseTaskDetails();
           }
@@ -1923,6 +2006,19 @@
       fetchTasks();
     }
 
+    function expandTaskDetails() {
+      const container = document.getElementById('taskDetailsContainer');
+      const body = document.getElementById('taskDetailsBody');
+      const label = document.getElementById('detailsToggleLabel');
+      const chevron = document.getElementById('detailsChevron');
+      if (body && body.style.display === 'none') {
+        body.style.display = 'block';
+        if (container) container.classList.add('open');
+        if (label) label.innerText = 'Hide Details';
+        if (chevron) chevron.innerText = '▲';
+      }
+    }
+
     function toggleTaskDetails() {
       const container = document.getElementById('taskDetailsContainer');
       const body = document.getElementById('taskDetailsBody');
@@ -1937,6 +2033,8 @@
         if (label) label.innerText = 'Hide Details';
         if (chevron) chevron.innerText = '▲';
       } else {
+        // If in edit mode, confirm or exit edit mode
+        exitEditMode();
         body.style.display = 'none';
         container.classList.remove('open');
         if (label) label.innerText = 'Show Full Detail';
@@ -1945,6 +2043,9 @@
     }
 
     function collapseTaskDetails() {
+      const editMode = document.getElementById('detailsEditMode');
+      if (editMode && editMode.style.display === 'block') return; // Never collapse while user is editing!
+
       const container = document.getElementById('taskDetailsContainer');
       const body = document.getElementById('taskDetailsBody');
       const label = document.getElementById('detailsToggleLabel');
@@ -1954,6 +2055,92 @@
         if (container) container.classList.remove('open');
         if (label) label.innerText = 'Show Full Detail';
         if (chevron) chevron.innerText = '▼';
+      }
+    }
+
+    function enterEditMode() {
+      expandTaskDetails();
+      const viewMode = document.getElementById('detailsViewMode');
+      const editMode = document.getElementById('detailsEditMode');
+      if (viewMode && editMode) {
+        viewMode.style.display = 'none';
+        editMode.style.display = 'block';
+        const descArea = document.getElementById('editTaskDescription');
+        if (descArea) {
+          descArea.focus();
+          // Position cursor at end of text
+          const len = descArea.value.length;
+          descArea.setSelectionRange(len, len);
+        }
+      }
+    }
+
+    function exitEditMode() {
+      const viewMode = document.getElementById('detailsViewMode');
+      const editMode = document.getElementById('detailsEditMode');
+      if (viewMode && editMode) {
+        editMode.style.display = 'none';
+        viewMode.style.display = 'block';
+      }
+    }
+
+    async function handleSaveTaskDetails(e) {
+      e.preventDefault();
+      if (!currentTaskId) return;
+
+      const title = document.getElementById('editTaskTitle').value.trim();
+      const description = document.getElementById('editTaskDescription').value.trim();
+      const priority = document.getElementById('editTaskPriority').value;
+      const subagent_role = document.getElementById('editTaskRole').value.trim();
+      const acceptance_criteria = document.getElementById('editTaskCriteria').value.trim();
+      const verification_cmd = document.getElementById('editTaskCmd').value.trim();
+
+      if (!title) {
+        alert('Task title is required');
+        return;
+      }
+
+      const saveBtn = document.getElementById('saveTaskDetailsBtn');
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerText = 'Saving...';
+      }
+
+      try {
+        const res = await fetch(`/api/tasks/${currentTaskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description,
+            priority,
+            subagent_role: subagent_role || 'Fullstack Engineer',
+            acceptance_criteria,
+            verification_cmd,
+            processed_by_agent: 0
+          })
+        });
+
+        const data = await res.json();
+        if (data.success && data.task) {
+          const idx = tasks.findIndex(t => t.id === currentTaskId);
+          if (idx !== -1) {
+            tasks[idx] = { ...tasks[idx], ...data.task };
+          }
+          renderBoard();
+          await openDetailModal(currentTaskId);
+          expandTaskDetails();
+        } else {
+          alert('Failed to save task: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        console.error('Failed to save task:', err);
+        alert('Error saving task: ' + err.message);
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.innerText = '💾 Save';
+        }
       }
     }
 
