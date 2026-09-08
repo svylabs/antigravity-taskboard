@@ -212,7 +212,9 @@ export function addTask({
   status = 'backlog',
   priority = 'medium',
   subagent_role = 'Fullstack Engineer',
-  subtasks = null
+  subtasks = null,
+  attachments = null,
+  images = null
 }) {
   const id = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const maxOrder = db.prepare('SELECT MAX(order_index) as max_order FROM agent_tasks WHERE status = ?').get(status);
@@ -238,6 +240,19 @@ export function addTask({
         });
       }
     });
+  }
+
+  const imageList = attachments || images;
+  if (Array.isArray(imageList) && imageList.length > 0) {
+    for (const img of imageList) {
+      if (img && (img.buffer || img.dataBase64 || img.data)) {
+        addAttachment(id, {
+          fileName: img.fileName || img.file_name || 'image.png',
+          mimeType: img.mimeType || img.mime_type || 'image/png',
+          buffer: img.buffer || img.dataBase64 || img.data
+        });
+      }
+    }
   }
 
   setMetadata('idle_since', null);
@@ -430,8 +445,17 @@ export function addAttachment(taskId, { fileName, mimeType, buffer }) {
   }
 
   let buf = buffer;
+  let safeMime = mimeType || 'image/png';
   if (typeof buffer === 'string') {
-    buf = Buffer.from(buffer, 'base64');
+    let cleanBase64 = buffer;
+    const commaIdx = cleanBase64.indexOf(',');
+    if (commaIdx !== -1 && cleanBase64.slice(0, commaIdx).includes('base64')) {
+      const header = cleanBase64.slice(0, commaIdx);
+      const m = header.match(/data:([^;]+)/);
+      if (m && !mimeType) safeMime = m[1];
+      cleanBase64 = cleanBase64.slice(commaIdx + 1);
+    }
+    buf = Buffer.from(cleanBase64, 'base64');
   } else if (!(buffer instanceof Buffer)) {
     buf = Buffer.from(buffer);
   }
@@ -442,7 +466,6 @@ export function addAttachment(taskId, { fileName, mimeType, buffer }) {
 
   const id = `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const cleanFileName = (fileName || `image_${Date.now()}.png`).replace(/[^a-zA-Z0-9._-]/g, '_');
-  const safeMime = mimeType || 'image/png';
   const fileSize = buf.length;
 
   db.prepare(`

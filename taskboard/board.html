@@ -1566,6 +1566,28 @@
           <textarea class="form-textarea" id="newDescription" style="min-height: 110px; font-size: 13.5px; line-height: 1.5;" placeholder="Describe the objective, background context, specific files to modify, or behavior expected..."></textarea>
         </div>
 
+        <!-- Attach Images / Screenshots during creation -->
+        <div class="form-group" style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0;">Attach Images & Screenshots (Optional)</label>
+            <button type="button" class="btn btn-secondary" onclick="triggerCreateImageUpload()" style="padding: 3px 8px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+              <span>📷 Browse Images</span>
+            </button>
+            <input type="file" id="createAttachmentInput" accept="image/*" multiple style="display: none;" onchange="handleCreateFileInputChange(event)">
+          </div>
+
+          <!-- Drag and drop zone & paste hint -->
+          <div class="attachments-dropzone" id="createDropzone" onclick="triggerCreateImageUpload()" ondragover="handleCreateDragOver(event)" ondragleave="handleCreateDragLeave(event)" ondrop="handleCreateDrop(event)" style="padding: 10px 14px; margin-bottom: 8px;">
+            <span style="font-size: 18px;">🖼️</span>
+            <div style="font-size: 11.5px; color: #64748B;">
+              <span style="font-weight: 600; color: var(--primary);">Click to attach</span>, drag & drop, or paste from clipboard (<kbd style="background: #E2E8F0; padding: 1px 4px; border-radius: 3px; font-size: 10px;">Ctrl+V</kbd> / <kbd style="background: #E2E8F0; padding: 1px 4px; border-radius: 3px; font-size: 10px;">⌘+V</kbd>)
+            </div>
+          </div>
+
+          <!-- Staged images preview grid -->
+          <div id="stagedImagesList" class="attachments-grid" style="margin-bottom: 0; display: none;"></div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Ordered Subtasks (Optional &mdash; one per line for sequential implementation)</label>
           <textarea class="form-textarea" id="newSubtasks" style="min-height: 80px; font-size: 13px;" placeholder="1. Database schema and migrations&#10;2. Implement REST endpoints&#10;3. Add UI components&#10;4. Verify test suite"></textarea>
@@ -1812,16 +1834,21 @@
       const subtasks = document.getElementById('newSubtasks') ? document.getElementById('newSubtasks').value.trim() : '';
       const status = document.getElementById('newStatus').value;
 
+      const images = stagedCreateImages.map(img => ({
+        fileName: img.fileName,
+        mimeType: img.mimeType,
+        dataBase64: img.dataBase64
+      }));
+
       await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status
+          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status, images
         })
       });
 
       closeCreateModal();
-      document.getElementById('createForm').reset();
       fetchTasks();
     }
 
@@ -2418,6 +2445,124 @@
 
     function closeCreateModal() {
       document.getElementById('createModal').classList.remove('active');
+      stagedCreateImages = [];
+      renderStagedCreateImages();
+      const form = document.getElementById('createForm');
+      if (form) form.reset();
+    }
+
+    // Staged Images for New Task Creation
+    let stagedCreateImages = [];
+
+    function triggerCreateImageUpload() {
+      const input = document.getElementById('createAttachmentInput');
+      if (input) input.click();
+    }
+
+    async function handleCreateFileInputChange(e) {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      for (const file of files) {
+        await stageCreateImageFile(file);
+      }
+      e.target.value = '';
+    }
+
+    function handleCreateDragOver(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('createDropzone');
+      if (dropzone) dropzone.classList.add('dragover');
+    }
+
+    function handleCreateDragLeave(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('createDropzone');
+      if (dropzone) dropzone.classList.remove('dragover');
+    }
+
+    async function handleCreateDrop(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const dropzone = document.getElementById('createDropzone');
+      if (dropzone) dropzone.classList.remove('dragover');
+
+      const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+      if (!files.length) return;
+      for (const file of files) {
+        await stageCreateImageFile(file);
+      }
+    }
+
+    async function stageCreateImageFile(file) {
+      if (!file || !file.type.startsWith('image/')) {
+        alert('Only image files (PNG, JPG, WebP, GIF, SVG) are supported.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        alert('Image size exceeds 10MB limit.');
+        return;
+      }
+
+      const reader = new FileReader();
+      const base64Promise = new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+      });
+      reader.readAsDataURL(file);
+
+      const dataBase64 = await base64Promise;
+      stagedCreateImages.push({
+        id: 'staged-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        fileName: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        dataBase64
+      });
+      renderStagedCreateImages();
+    }
+
+    function renderStagedCreateImages() {
+      const list = document.getElementById('stagedImagesList');
+      if (!list) return;
+      if (stagedCreateImages.length === 0) {
+        list.style.display = 'none';
+        list.innerHTML = '';
+        return;
+      }
+
+      list.style.display = 'grid';
+      list.innerHTML = stagedCreateImages.map((img, idx) => `
+        <div class="attachment-card" style="position: relative;">
+          <div class="attachment-preview" onclick="openLightbox('${img.dataBase64}')" title="Click to view full image" style="height: 85px;">
+            <img src="${img.dataBase64}" alt="${escapeHtml(img.fileName)}">
+          </div>
+          <button type="button" class="attachment-del-btn" onclick="removeStagedCreateImage(${idx})" title="Remove image">&times;</button>
+          <div class="attachment-info" style="padding: 6px 8px;">
+            <div class="attachment-name" style="font-size: 11px;" title="${escapeHtml(img.fileName)}">${escapeHtml(img.fileName)}</div>
+            <div class="attachment-size" style="font-size: 10px;">${formatFileSize(img.fileSize)}</div>
+            <button type="button" class="attachment-btn" onclick="insertStagedImageToDescription(${idx})" style="margin-top: 4px; font-size: 10px; padding: 2px 4px;" title="Insert reference into description">
+              <span>📝 Insert in Desc</span>
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function removeStagedCreateImage(idx) {
+      stagedCreateImages.splice(idx, 1);
+      renderStagedCreateImages();
+    }
+
+    function insertStagedImageToDescription(idx) {
+      const img = stagedCreateImages[idx];
+      if (!img) return;
+      const desc = document.getElementById('newDescription');
+      if (desc) {
+        desc.value = (desc.value ? desc.value + '\n\n' : '') + `![${img.fileName}]`;
+        desc.focus();
+      }
     }
 
     function closeDetailModal() {
@@ -2866,10 +3011,15 @@
       }
     });
 
-    // Global paste handler: automatically uploads images pasted while detail modal is open
+    // Global paste handler: automatically handles images pasted while detail modal or create modal is open
     window.addEventListener('paste', async (e) => {
-      const modal = document.getElementById('detailModal');
-      if (!modal || !modal.classList.contains('active') || !currentTaskId) return;
+      const detailModal = document.getElementById('detailModal');
+      const createModal = document.getElementById('createModal');
+
+      const isDetailActive = detailModal && detailModal.classList.contains('active') && currentTaskId;
+      const isCreateActive = createModal && createModal.classList.contains('active');
+
+      if (!isDetailActive && !isCreateActive) return;
 
       const clipboardData = e.clipboardData || window.clipboardData;
       if (!clipboardData) return;
@@ -2885,7 +3035,11 @@
             e.preventDefault();
             const fileName = `screenshot_${new Date().toISOString().replace(/[:.]/g, '-')}.png`;
             const file = new File([blob], fileName, { type: blob.type || 'image/png' });
-            await uploadImageFile(currentTaskId, file);
+            if (isCreateActive) {
+              await stageCreateImageFile(file);
+            } else if (isDetailActive) {
+              await uploadImageFile(currentTaskId, file);
+            }
             break;
           }
         }
