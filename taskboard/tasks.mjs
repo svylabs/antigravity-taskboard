@@ -110,6 +110,11 @@ try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);`);
 } catch (e) {}
 
+// Migration: Migrate any legacy 'needs_revision' task statuses to 'planned'
+try {
+  db.prepare("UPDATE agent_tasks SET status = 'planned' WHERE status = 'needs_revision'").run();
+} catch (e) {}
+
 // Metadata Key-Value API
 export function getMetadata(key) {
   const row = db.prepare('SELECT value FROM board_metadata WHERE key = ?').get(key);
@@ -204,10 +209,10 @@ export function getNextTodoTask(excludeIds = []) {
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
-    WHERE t.status IN ('needs_revision', 'todo') ${excludeClause}
+    WHERE t.status IN ('planned', 'todo') ${excludeClause}
     ORDER BY 
       CASE t.status 
-        WHEN 'needs_revision' THEN 1 
+        WHEN 'planned' THEN 1 
         WHEN 'todo' THEN 2 
         ELSE 3 
       END ASC,
@@ -251,6 +256,7 @@ export function addTask({
   attachments = null,
   images = null
 }) {
+  if (status === 'needs_revision') status = 'planned';
   const id = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const maxOrder = db.prepare('SELECT MAX(order_index) as max_order FROM agent_tasks WHERE status = ?').get(status);
   const order_index = (maxOrder?.max_order ?? 0) + 1;
@@ -295,6 +301,7 @@ export function addTask({
 }
 
 export function updateTask(id, fields) {
+  if (fields.status === 'needs_revision') fields.status = 'planned';
   const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'execution_logs', 'order_index', 'processed_by_agent'];
   const setClauses = [];
   const params = [];
@@ -357,7 +364,19 @@ export function addComment(taskId, { author = 'agent', comment_type = 'comment',
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(id, taskId, author, comment_type, formattedContent, processed_by_agent);
 
-  // If agent posted a question / waiting for user input, move task to 'verification' (Input Required)
+  // If an implementation plan is posted on a 'todo' task, advance task to 'planned'
+  if (comment_type === 'plan') {
+    const task = db.prepare('SELECT status FROM agent_tasks WHERE id = ?').get(taskId);
+    if (task && task.status === 'todo') {
+      db.prepare(`
+        UPDATE agent_tasks 
+        SET status = 'planned', updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `).run(taskId);
+    }
+  }
+
+  // If agent posted a question / waiting for user input, move task to 'verification' (Pending Review)
   if (isAgentAuthor && comment_type === 'question') {
     db.prepare(`
       UPDATE agent_tasks 
@@ -740,7 +759,7 @@ export function checkPoll(maxConcurrency = 2) {
         } else {
           return {
             has_work: true,
-            action: candidateTask.status === 'needs_revision' ? 'revision_task_available' : 'todo_task_available',
+            action: candidateTask.status === 'planned' ? 'planned_task_available' : 'todo_task_available',
             pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title })),
             task: {
               ...candidateTask,
@@ -919,7 +938,7 @@ if (command) {
     case 'list': {
       const { projectName, dbPath } = getProjectInfo();
       const tasks = getAllTasks();
-      const columns = ['backlog', 'todo', 'needs_revision', 'in_progress', 'verification', 'done', 'failed'];
+      const columns = ['backlog', 'todo', 'planned', 'in_progress', 'verification', 'done', 'failed'];
       console.log(`\n================== 📋 KANBAN: [${projectName}] ==================`);
       console.log(`📂 DB: ${dbPath}\n`);
       for (const col of columns) {

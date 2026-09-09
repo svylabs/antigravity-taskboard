@@ -262,11 +262,11 @@
       box-shadow: 0 3px 10px rgba(245, 158, 11, 0.12);
     }
 
-    .task-card.card-needs_revision {
-      background: #FFFBEB;
-      border: 1px solid #FCD34D;
-      border-left: 5px solid #D97706;
-      box-shadow: 0 3px 10px rgba(217, 119, 6, 0.12);
+    .task-card.card-planned, .task-card.card-needs_revision {
+      background: #F5F7FF;
+      border: 1px solid #C7D2FE;
+      border-left: 5px solid #4F46E5;
+      box-shadow: 0 3px 10px rgba(79, 70, 229, 0.12);
     }
 
     .task-card.card-in_progress {
@@ -315,6 +315,12 @@
       color: #B45309;
       border: 1px solid #FDE68A;
       animation: pulse 2.2s infinite;
+    }
+
+    .status-pill-planned {
+      background: #EEF2FF;
+      color: #4338CA;
+      border: 1px solid #C7D2FE;
     }
 
     .status-pill-needs_revision {
@@ -1471,7 +1477,7 @@
     <div class="column-tabs-bar" id="columnTabsBar">
       <button class="col-tab active" onclick="scrollToColumn('backlog', this)">📥 Backlog <span class="tab-count" id="tab-count-backlog">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('todo', this)">📋 To Do <span class="tab-count" id="tab-count-todo">0</span></button>
-      <button class="col-tab" onclick="scrollToColumn('needs_revision', this)">📝 Revision <span class="tab-count" id="tab-count-needs_revision">0</span></button>
+      <button class="col-tab" onclick="scrollToColumn('planned', this)">📋 Planned <span class="tab-count" id="tab-count-planned">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('in_progress', this)">⚡ In Progress <span class="tab-count" id="tab-count-in_progress">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('verification', this)">👀 Pending Review <span class="tab-count" id="tab-count-verification">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('done', this)">✅ Done <span class="tab-count" id="tab-count-done">0</span></button>
@@ -1499,13 +1505,13 @@
       <div class="card-list" id="list-todo" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'todo')"></div>
     </div>
 
-    <!-- Needs Revision -->
-    <div class="column" data-status="needs_revision">
+    <!-- Planned -->
+    <div class="column" data-status="planned">
       <div class="column-header">
-        <span class="col-title">📝 Needs Revision</span>
-        <span class="col-count" id="count-needs_revision">0</span>
+        <span class="col-title">📋 Planned</span>
+        <span class="col-count" id="count-planned">0</span>
       </div>
-      <div class="card-list" id="list-needs_revision" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'needs_revision')"></div>
+      <div class="card-list" id="list-planned" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'planned')"></div>
     </div>
 
     <!-- In Progress -->
@@ -1645,6 +1651,7 @@
             <label class="form-label">Target Column</label>
             <select class="form-select" id="newStatus">
               <option value="todo">📋 To Do (Ready to Run)</option>
+              <option value="planned">📋 Planned (Plan Formulated)</option>
               <option value="backlog">📥 Backlog (Draft / Triage)</option>
             </select>
           </div>
@@ -1697,7 +1704,7 @@
     }
 
     function renderBoard() {
-      const columns = ['backlog', 'todo', 'needs_revision', 'in_progress', 'verification', 'done', 'failed'];
+      const columns = ['backlog', 'todo', 'planned', 'in_progress', 'verification', 'done', 'failed'];
       columns.forEach(col => {
         const container = document.getElementById(`list-${col}`);
         const countBadge = document.getElementById(`count-${col}`);
@@ -1777,7 +1784,7 @@
 
     function getCardStateClass(task) {
       if (task.question_count > 0) return 'card-waiting';
-      if (task.status === 'needs_revision') return 'card-needs_revision';
+      if (task.status === 'planned' || task.status === 'needs_revision') return 'card-planned';
       if (task.status === 'in_progress') return 'card-in_progress';
       if (task.status === 'verification') return 'card-verification';
       if (task.status === 'done') return 'card-done';
@@ -1789,8 +1796,8 @@
       if (task.question_count > 0) {
         return `<span class="status-pill status-pill-waiting"><span class="status-dot dot-amber"></span>❓ Waiting for You</span>`;
       }
-      if (task.status === 'needs_revision') {
-        return `<span class="status-pill status-pill-needs_revision"><span class="status-dot dot-amber"></span>📝 Needs Revision</span>`;
+      if (task.status === 'planned' || task.status === 'needs_revision') {
+        return `<span class="status-pill status-pill-planned"><span class="status-dot" style="background:#4F46E5;"></span>📋 Planned</span>`;
       }
       if (task.status === 'in_progress') {
         return `<span class="status-pill status-pill-in_progress"><span class="status-dot dot-purple"></span>⚡ Agent Working</span>`;
@@ -2117,10 +2124,10 @@
               <div style="display: flex; gap: 8px; align-items: center;">
                 <button type="submit" class="btn btn-primary" style="padding: 6px 14px; font-size: 12px;">Post</button>
                 ${(task.status === 'done' || task.status === 'failed') ? `
-                  <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Post comment and move task to Needs Revision">↩️ Post & Request Revision</button>
+                  <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;" title="Post comment and move task to Planned">↩️ Post & Move to Planned</button>
                 ` : ''}
                 ${task.status === 'verification' ? `
-                  <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Post comment and move task to Needs Revision">↩️ Post & Request Revision</button>
+                  <button type="button" class="btn btn-secondary" onclick="handlePostAndRequestRevision(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;" title="Post comment and move task to Planned">↩️ Post & Move to Planned</button>
                   <button type="button" class="btn btn-secondary" onclick="handlePostAndSubmitInput(event, '${task.id}')" style="padding: 6px 14px; font-size: 12px; font-weight: 600; color: #0369A1; border-color: #BAE6FD; background: #F0F9FF;" title="Post comment and move task to To Do">↩️ Post & Move to To Do</button>
                 ` : ''}
               </div>
@@ -2136,18 +2143,18 @@
           </div>
           <div class="modal-footer-btns">
             ${(task.status === 'done' || task.status === 'failed') ? `
-              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;">📝 Move to Revision</button>
+              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'planned')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;">📋 Move to Planned</button>
             ` : ''}
             ${task.status === 'verification' ? `
               <button class="btn btn-primary" onclick="moveTaskStatus('${task.id}', 'done')" style="padding: 7px 14px; font-size: 12px; font-weight: 600; background: #10B981; border-color: #059669;" title="Approve manual verification and mark task Done">✅ Approve & Mark Done</button>
-              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'needs_revision')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #B45309; border-color: #FDE68A; background: #FEF3C7;" title="Request changes or report verification issues">📝 Request Revision</button>
+              <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'planned')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;" title="Request changes or report verification issues">📋 Request Revision (Planned)</button>
               <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'todo')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #475569; border-color: #CBD5E1; background: #F8FAFC;" title="Move back to To Do">📋 Move to To Do</button>
             ` : ''}
             <select class="form-select" style="width: auto; padding: 7px 10px; font-size: 12px; font-weight: 600;" onchange="moveTaskStatus('${task.id}', this.value)">
               <option value="" disabled selected>Move to...</option>
               <option value="backlog" ${task.status === 'backlog' ? 'disabled' : ''}>📥 Backlog</option>
               <option value="todo" ${task.status === 'todo' ? 'disabled' : ''}>📋 To Do</option>
-              <option value="needs_revision" ${task.status === 'needs_revision' ? 'disabled' : ''}>📝 Needs Revision</option>
+              <option value="planned" ${task.status === 'planned' ? 'disabled' : ''}>📋 Planned</option>
               <option value="in_progress" ${task.status === 'in_progress' ? 'disabled' : ''}>⚡ In Progress</option>
               <option value="verification" ${task.status === 'verification' ? 'disabled' : ''}>👀 Pending Review</option>
               <option value="done" ${task.status === 'done' ? 'disabled' : ''}>✅ Done</option>
@@ -2397,11 +2404,11 @@
         })
       });
 
-      // 2. Move task to needs_revision
+      // 2. Move task to planned
       await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'needs_revision', processed_by_agent: 0 })
+        body: JSON.stringify({ status: 'planned', processed_by_agent: 0 })
       });
 
       document.getElementById('commentInput').value = '';

@@ -46,10 +46,10 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
    * Never skip subtasks or attempt to implement multiple subtasks concurrently.
    * Only transition the parent task to `verification` and `done` after all child subtasks have reached `done`.
 
-8. **Intermediary Revision State (`needs_revision`)**:
-   When a completed task receives user feedback or changes are requested, it enters the `needs_revision` column.
-   * Supervisors must prioritize `needs_revision` tasks ahead of standard `todo` tasks to quickly iterate on user requests.
-   * Review user comments, acknowledge them (`ack-comment`), formulate an updated implementation plan addressing the feedback, and transition to `in_progress` to implement the requested revisions.
+8. **Planned State & Revision Feedback Loop (`planned`)**:
+   * **Plan Formulation**: When a task in `todo` is claimed for planning, the agent formulates a structured implementation plan and posts it as a `plan` comment. Creating the plan automatically advances the task from `todo` to **`Planned` (`planned`)**.
+   * **Execution from Planned**: Tasks in `planned` have confirmed technical approaches and verification criteria, and are prioritized for execution into `in_progress`.
+   * **Revision Feedback**: When a completed or reviewed task receives user change requests or feedback, it returns to the `planned` column with comments flagged for the agent. The agent acknowledges comments (`ack-comment`), updates the implementation plan, and executes the revisions.
 
 9. **Idle Loop Auto-Termination (1-Hour Inactivity Timeout)**:
    When the taskboard has had no active tasks, no pending todo/revision tasks, and no unread user comments for a continuous 1 hour (3600 seconds):

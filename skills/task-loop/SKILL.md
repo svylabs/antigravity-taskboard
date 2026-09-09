@@ -80,20 +80,22 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
   A task is waiting for user review or input in **`👀 Pending Review`**!
   The supervisor waits for the user to review, manually test, or comment. If 1 hour elapses without user response, the loop terminates.
 
-* **If `action == "revision_task_available"`**:
-  A completed task has received user feedback and is in **`Needs Revision`**! Revisions are prioritized ahead of standard `todo` tasks to quickly iterate on user requests.
-  1. Read the user's feedback/comments on the card.
-  2. Acknowledge unread comments (`ack-comment <COMMENT_ID>`).
-  3. Formulate an updated plan addressing the feedback.
-  4. Claim the task (`status: 'in_progress'`) and dispatch subagent to implement requested changes.
+* **If `action == "planned_task_available"`**:
+  A task is in **`📋 Planned`** with its technical approach and verification criteria established!
+  1. Check for any unread user comments on the card (`ack-comment <COMMENT_ID>`).
+  2. Transition task status to `in_progress`:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> in_progress
+     ```
+  3. Dispatch subagent in an isolated workspace branch (`Workspace: "branch"`) to implement the plan.
 
 * **If `action == "todo_task_available"`**:
-  A new task is ready. Proceed to **Step 2 (Verification Gate)**.
+  A new task is in **`📋 To Do`**. Proceed to **Step 2 (Verification Gate & Plan Creation)** to formulate the technical plan. Posting the plan comment automatically moves the task to **`Planned`**.
 
 * **If `action == "parallel_candidate_available"`**:
   A candidate task (`candidate_task`) has been evaluated by the scope engine and cleared for parallel execution alongside running tasks (`active_tasks`)!
   1. Scope analysis confirmed zero file overlaps, small/medium scope, and no pending review locks.
-  2. Proceed to **Step 2 (Verification Gate)** for the candidate task and dispatch a new subagent in its own isolated branch (`Workspace: "branch"`).
+  2. If the candidate task is in `planned`, move to `in_progress` and dispatch subagent. If in `todo`, formulate plan first.
 
 * **If `action == "monitor_active"`**:
   Active task(s) are in progress and any candidate task is either deferred due to scope conflict / large scope, or max concurrency (2) is reached. Monitor active task(s) to completion.
@@ -102,9 +104,9 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 ### Step 2: Verification Gate Confirmation & Implementation Plan
 Inspect the task's criteria:
-* **Explicit Exemption**: Card states *"no verification required"* or *"none"* $\to$ claim task, post structured Markdown plan comment citing exemption, and spawn subagent.
-* **Automated Command**: `verification_cmd` is specified $\to$ claim task, post structured Markdown plan citing command, and spawn subagent.
-* **Textual / Manual Criteria**: `acceptance_criteria` specified $\to$ claim task, post structured Markdown plan summarizing checklist, and spawn subagent.
+* **Explicit Exemption**: Card states *"no verification required"* or *"none"* $\to$ post structured Markdown plan comment citing exemption. Posting the plan automatically advances the card to **`Planned`**.
+* **Automated Command**: `verification_cmd` is specified $\to$ post structured Markdown plan citing command. Posting the plan automatically advances the card to **`Planned`**.
+* **Textual / Manual Criteria**: `acceptance_criteria` specified $\to$ post structured Markdown plan summarizing checklist. Posting the plan automatically advances the card to **`Planned`**.
 * **Missing / Ambiguous**:
   - **DO NOT modify code or spawn subagents.**
   - Post a `question` comment:

@@ -96,7 +96,7 @@ const TOOLS = [
         task_id: { type: 'string', description: 'ID of the task' },
         status: { 
           type: 'string', 
-          enum: ['backlog', 'todo', 'needs_revision', 'in_progress', 'verification', 'done', 'failed'],
+          enum: ['backlog', 'todo', 'planned', 'in_progress', 'verification', 'done', 'failed'],
           description: 'New status for the task'
         },
         logs: { type: 'string', description: 'Optional execution logs or test output' }
