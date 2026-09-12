@@ -58,14 +58,14 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 ```
 
 * **If `{"has_work": false, "stop_loop": true}`**:
-  The taskboard has been idle with no active tasks, todo items, revision tasks, or unread comments for a continuous 1 hour (3600 seconds).
+  The taskboard has been idle with no active tasks, todo items, revision tasks, or unread comments for a continuous 8 hours (28,800 seconds).
   1. **Stop the loop completely**: Cancel any running cron schedule (`manage_task(Action="kill", TaskId=...)`).
   2. Do NOT schedule any new timer or cron.
-  3. Output a completion message to the user informing them that the loop stopped after 1 hour of inactivity to conserve resources, and can be resumed anytime.
+  3. Output a completion message to the user informing them that the loop stopped after 8 hours of inactivity to conserve resources, and can be resumed anytime.
   4. **Stop calling tools immediately.**
 
 * **If `{"has_work": false, "stop_loop": false}`**:
-  Nothing new has happened yet, but the 1-hour inactivity timeout has not elapsed. Set recurring cron via `schedule(CronExpression="*/2 * * * *", Prompt="Check taskboard for new tasks")` and **stop calling tools immediately** to preserve tokens.
+  Nothing new has happened yet, but the 8-hour inactivity timeout has not elapsed. Maintain the standing recurring cron via `schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop")` and **stop calling tools immediately** to preserve tokens.
 
 * **If `action == "unread_user_comments"`**:
   A user replied to a task question or left feedback!
@@ -78,7 +78,7 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 * **If `action == "waiting_for_user_input"`**:
   A task is waiting for user review or input in **`👀 Pending Review`**!
-  The supervisor waits for the user to review, manually test, or comment. If 1 hour elapses without user response, the loop terminates.
+  The supervisor waits for the user to review, manually test, or comment. If 8 hours elapse without user response, the loop terminates.
 
 * **If `action == "planned_task_available"`**:
   A task is in **`📋 Planned`** with its technical approach and verification criteria established!
@@ -102,7 +102,9 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 ---
 
-### Step 2: Verification Gate Confirmation & Implementation Plan
+### Step 2: Verification Gate Confirmation & Implementation Plan (Just-in-Time)
+Formulate the technical plan for the single candidate task **just-in-time**. Never batch-plan or mass-plan multiple `todo` tasks upfront, as active tasks or preceding tasks will drift the codebase and invalidate upfront plans. Once a task is advanced to `planned`, it is prioritized for immediate execution into `in_progress`.
+
 Inspect the task's criteria:
 * **Explicit Exemption**: Card states *"no verification required"* or *"none"* $\to$ post structured Markdown plan comment citing exemption. Posting the plan automatically advances the card to **`Planned`**.
 * **Automated Command**: `verification_cmd` is specified $\to$ post structured Markdown plan citing command. Posting the plan automatically advances the card to **`Planned`**.
@@ -149,4 +151,4 @@ Verified changes against criteria:
    ```
 4. If automated verification failed:
    * Mark card `failed` with failure logs.
-5. While the card is in **`👀 Pending Review`**, the loop pauses and awaits user verification. Once the user approves and marks the task `done` (or requests revision), proceed back to Step 1.
+5. While the card is in **`👀 Pending Review`**, keep the standing 1-minute recurring cron active (`schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop", IsDaemon=false)`). The supervisor pauses code execution to allow user manual testing, but the background cron continues checking every 60s so user feedback, comments, approvals (`done`), or moves back to `todo`/`planned` are detected and picked up autonomously within 1 minute. Once the user approves or requests revision, proceed back to Step 1.

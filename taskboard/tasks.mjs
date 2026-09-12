@@ -1,7 +1,38 @@
 #!/usr/bin/env node
-import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+
+let Database;
+try {
+  const mod = await import('better-sqlite3');
+  Database = mod.default || mod;
+} catch (e) {
+  const { DatabaseSync } = await import('node:sqlite');
+  Database = class NodeSqliteWrapper {
+    constructor(filePath) {
+      this._db = new DatabaseSync(filePath);
+    }
+    pragma(sql) {
+      try {
+        this._db.exec(`PRAGMA ${sql};`);
+      } catch (err) {}
+    }
+    exec(sql) {
+      return this._db.exec(sql);
+    }
+    prepare(sql) {
+      const stmt = this._db.prepare(sql);
+      return {
+        run: (...args) => stmt.run(...args),
+        get: (...args) => stmt.get(...args),
+        all: (...args) => stmt.all(...args),
+      };
+    }
+    close() {
+      return this._db.close();
+    }
+  };
+}
 
 export function getProjectInfo() {
   const projectDir = process.cwd();
@@ -790,7 +821,7 @@ export function checkPoll(maxConcurrency = 2) {
             setMetadata('idle_since', String(now));
           }
           const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
-          const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
+          const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '28800', 10);
           const stopLoop = idleSeconds >= idleTimeout;
           return {
             has_work: false,
@@ -804,7 +835,7 @@ export function checkPoll(maxConcurrency = 2) {
             idle_timeout_seconds: idleTimeout,
             stop_loop: stopLoop,
             message: stopLoop
-              ? `Waiting for review on "${reviewTasks[0].title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+              ? `Waiting for review on "${reviewTasks[0].title}" for 8 hours (${idleSeconds}s). Autonomous loop stopping.`
               : `Candidate "${candidateTask.title}" (${candidateTask.id}) deferred: ${analysis.reason} Idle for ${idleSeconds}s.`
           };
         }
@@ -833,7 +864,7 @@ export function checkPoll(maxConcurrency = 2) {
       setMetadata('idle_since', String(now));
     }
     const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
-    const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
+    const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '28800', 10);
     const stopLoop = idleSeconds >= idleTimeout;
     return {
       has_work: false,
@@ -845,7 +876,7 @@ export function checkPoll(maxConcurrency = 2) {
       idle_timeout_seconds: idleTimeout,
       stop_loop: stopLoop,
       message: stopLoop
-        ? `No user review received for task "${reviewTasks[0].title}" for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+        ? `No user review received for task "${reviewTasks[0].title}" for 8 hours (${idleSeconds}s). Autonomous loop stopping.`
         : `Task "${reviewTasks[0].title}" (${reviewTasks[0].id}) is in Pending Review column waiting for user verification/review. Idle for ${idleSeconds}s.`
     };
   }
@@ -859,7 +890,7 @@ export function checkPoll(maxConcurrency = 2) {
     setMetadata('idle_since', String(now));
   }
   const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
-  const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '3600', 10);
+  const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '28800', 10);
   const stopLoop = idleSeconds >= idleTimeout;
 
   return {
@@ -869,7 +900,7 @@ export function checkPoll(maxConcurrency = 2) {
     idle_timeout_seconds: idleTimeout,
     stop_loop: stopLoop,
     message: stopLoop
-      ? `Taskboard has been idle with no active tasks for 1 hour (${idleSeconds}s). Autonomous loop stopping.`
+      ? `Taskboard has been idle with no active tasks for 8 hours (${idleSeconds}s). Autonomous loop stopping.`
       : `No active tasks. Idle for ${idleSeconds}s.`
   };
 }

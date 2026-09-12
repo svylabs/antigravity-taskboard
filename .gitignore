@@ -11,3 +11,5 @@ tasks.sqlite*
 .DS_Store
 *.log
 .env
+.server.json
+*.server.json

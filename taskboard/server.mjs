@@ -30,8 +30,202 @@ import { handleRepoRequest } from './repo_viewer.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = process.env.TASKBOARD_PORT || 4040;
-const HOST = process.env.TASKBOARD_HOST || process.env.HOST || '0.0.0.0';
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const opts = {};
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--port' || args[i] === '-p') {
+      opts.port = parseInt(args[i + 1], 10);
+      i++;
+    } else if (args[i] === '--host' || args[i] === '-h') {
+      opts.host = args[i + 1];
+      i++;
+    }
+  }
+  return opts;
+}
+
+const cliOpts = parseArgs();
+const REQUESTED_PORT = cliOpts.port || (process.env.TASKBOARD_PORT ? parseInt(process.env.TASKBOARD_PORT, 10) : 4040);
+const HOST = cliOpts.host || process.env.TASKBOARD_HOST || process.env.HOST || '0.0.0.0';
+let ACTIVE_PORT = REQUESTED_PORT;
+
+const PRIMARY_REGISTRY_DIR = path.join(os.homedir(), '.agy-taskboard-sessions');
+const PRIMARY_REGISTRY_FILE = path.join(PRIMARY_REGISTRY_DIR, 'registry.json');
+const FALLBACK_REGISTRY_FILE = path.join(os.tmpdir(), 'antigravity-taskboard-registry.json');
+const LOCAL_SERVER_FILE = path.join(__dirname, '.server.json');
+
+function getRegistryFilePath() {
+  try {
+    if (!fs.existsSync(PRIMARY_REGISTRY_DIR)) {
+      fs.mkdirSync(PRIMARY_REGISTRY_DIR, { recursive: true });
+    }
+    const testPath = path.join(PRIMARY_REGISTRY_DIR, `.access-test-${process.pid}`);
+    fs.writeFileSync(testPath, '1');
+    fs.unlinkSync(testPath);
+    return PRIMARY_REGISTRY_FILE;
+  } catch {
+    return FALLBACK_REGISTRY_FILE;
+  }
+}
+
+function readCentralRegistry() {
+  try {
+    if (fs.existsSync(PRIMARY_REGISTRY_FILE)) {
+      return JSON.parse(fs.readFileSync(PRIMARY_REGISTRY_FILE, 'utf8'));
+    }
+  } catch {}
+  try {
+    if (fs.existsSync(FALLBACK_REGISTRY_FILE)) {
+      return JSON.parse(fs.readFileSync(FALLBACK_REGISTRY_FILE, 'utf8'));
+    }
+  } catch {}
+  return {};
+}
+
+function writeCentralRegistry(registry) {
+  const filePath = getRegistryFilePath();
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(registry, null, 2), 'utf8');
+  } catch {}
+  if (filePath !== PRIMARY_REGISTRY_FILE) {
+    try {
+      fs.writeFileSync(PRIMARY_REGISTRY_FILE, JSON.stringify(registry, null, 2), 'utf8');
+    } catch {}
+  }
+}
+
+function updateProjectRegistration(projectName, projectDir, dbPath, port, pid) {
+  const registry = readCentralRegistry();
+  registry[projectName] = {
+    projectName,
+    projectDir,
+    dbPath,
+    port,
+    url: `http://localhost:${port}`,
+    pid,
+    updatedAt: new Date().toISOString()
+  };
+  writeCentralRegistry(registry);
+
+  try {
+    fs.writeFileSync(LOCAL_SERVER_FILE, JSON.stringify({
+      projectName,
+      projectDir,
+      dbPath,
+      port,
+      url: `http://localhost:${port}`,
+      pid,
+      updatedAt: new Date().toISOString()
+    }, null, 2), 'utf8');
+  } catch {}
+}
+
+function cleanupRegistration(projectName) {
+  try {
+    const registry = readCentralRegistry();
+    if (registry[projectName]) {
+      delete registry[projectName];
+      writeCentralRegistry(registry);
+    }
+    if (fs.existsSync(LOCAL_SERVER_FILE)) {
+      fs.unlinkSync(LOCAL_SERVER_FILE);
+    }
+  } catch {}
+}
+
+function getActiveProjects(currentProjectName, currentPort) {
+  const registry = readCentralRegistry();
+  const list = [];
+  let changed = false;
+
+  for (const [name, p] of Object.entries(registry)) {
+    // If the project directory was deleted from disk, clean up from registry
+    if (p.projectDir && !fs.existsSync(p.projectDir)) {
+      delete registry[name];
+      changed = true;
+      continue;
+    }
+
+    let isAlive = true;
+    if (p.pid && p.pid !== process.pid) {
+      try {
+        process.kill(p.pid, 0);
+      } catch (e) {
+        if (e.code === 'ESRCH') {
+          isAlive = false;
+        } else {
+          // EPERM or other error means process exists but running under different permission
+          isAlive = true;
+        }
+      }
+    }
+
+    list.push({
+      projectName: p.projectName || name,
+      port: p.port,
+      url: p.url || `http://localhost:${p.port}`,
+      projectDir: p.projectDir,
+      status: isAlive ? 'online' : 'offline',
+      isAlive,
+      isCurrent: (p.projectName || name) === currentProjectName || p.port === currentPort
+    });
+  }
+
+  if (changed) {
+    writeCentralRegistry(registry);
+  }
+
+  if (!list.some(p => p.isCurrent)) {
+    list.unshift({
+      projectName: currentProjectName,
+      port: currentPort,
+      url: `http://localhost:${currentPort}`,
+      status: 'online',
+      isAlive: true,
+      isCurrent: true
+    });
+  }
+
+  return list;
+}
+
+function isPortAvailable(port, host = '0.0.0.0') {
+  return new Promise(resolve => {
+    const tester = http.createServer();
+    tester.once('error', () => resolve(false));
+    tester.once('listening', () => {
+      tester.close(() => resolve(true));
+    });
+    tester.listen(port, host);
+  });
+}
+
+async function findAvailablePort(startPort, host, projectInfo) {
+  const isFree = await isPortAvailable(startPort, host);
+  if (isFree) return startPort;
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${startPort}/api/info`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.projectName === projectInfo.projectName && data.dbPath === projectInfo.dbPath) {
+        console.log(`ℹ️ Taskboard for "${projectInfo.projectName}" is already running on port ${startPort}.`);
+        return startPort;
+      }
+    }
+  } catch {}
+
+  console.log(`⚠️ Port ${startPort} is already in use. Searching for next free port for "${projectInfo.projectName}"...`);
+  for (let port = 4041; port <= 4099; port++) {
+    const free = await isPortAvailable(port, host);
+    if (free) {
+      console.log(`✅ Discovered free port ${port} for project "${projectInfo.projectName}".`);
+      return port;
+    }
+  }
+  throw new Error('No available port found in range 4040-4099');
+}
 
 function sendJson(res, statusCode, data) {
   res.writeHead(statusCode, {
@@ -89,7 +283,8 @@ const server = http.createServer(async (req, res) => {
     }
     let html = fs.readFileSync(htmlPath, 'utf-8');
     const { projectName } = getProjectInfo();
-    html = html.replace('{{PROJECT_NAME}}', projectName);
+    html = html.replace(/\{\{PROJECT_NAME\}\}/g, projectName);
+    html = html.replace(/\{\{PROJECT_PORT\}\}/g, String(ACTIVE_PORT));
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     return res.end(html);
   }
@@ -103,7 +298,24 @@ const server = http.createServer(async (req, res) => {
 
   // REST API: GET /api/info
   if (pathname === '/api/info' && req.method === 'GET') {
-    return sendJson(res, 200, { success: true, ...getProjectInfo() });
+    return sendJson(res, 200, { 
+      success: true, 
+      ...getProjectInfo(),
+      port: ACTIVE_PORT,
+      url: `http://localhost:${ACTIVE_PORT}`
+    });
+  }
+
+  // REST API: GET /api/projects - Multi-project registry
+  if (pathname === '/api/projects' && req.method === 'GET') {
+    const info = getProjectInfo();
+    const projects = getActiveProjects(info.projectName, ACTIVE_PORT);
+    return sendJson(res, 200, {
+      success: true,
+      currentProject: info.projectName,
+      currentPort: ACTIVE_PORT,
+      projects
+    });
   }
 
   // REST API: GET /api/tasks
@@ -338,16 +550,32 @@ function getNetworkIp() {
   return 'localhost';
 }
 
-const info = getProjectInfo();
-const netIp = getNetworkIp();
+async function startServer() {
+  const info = getProjectInfo();
+  ACTIVE_PORT = await findAvailablePort(REQUESTED_PORT, HOST, info);
+  const netIp = getNetworkIp();
 
-server.listen(PORT, HOST, () => {
-  console.log(`\n=============================================================`);
-  console.log(`📋 Antigravity Task Board Plugin`);
-  console.log(`📁 Project:  ${info.projectName}`);
-  console.log(`🗄️ Database: ${info.dbPath}`);
-  console.log(`🌐 Bound to: http://${HOST}:${PORT}`);
-  console.log(`👉 Local:    http://localhost:${PORT}`);
-  console.log(`👉 Network:  http://${netIp}:${PORT}`);
-  console.log(`=============================================================\n`);
+  server.listen(ACTIVE_PORT, HOST, () => {
+    updateProjectRegistration(info.projectName, info.projectDir, info.dbPath, ACTIVE_PORT, process.pid);
+    console.log(`\n=============================================================`);
+    console.log(`📋 Antigravity Task Board Plugin`);
+    console.log(`📁 Project:  ${info.projectName}`);
+    console.log(`🗄️ Database: ${info.dbPath}`);
+    console.log(`🌐 Bound to: http://${HOST}:${ACTIVE_PORT}`);
+    console.log(`👉 Local:    http://localhost:${ACTIVE_PORT}`);
+    console.log(`👉 Network:  http://${netIp}:${ACTIVE_PORT}`);
+    console.log(`=============================================================\n`);
+  });
+
+  const onExit = () => {
+    cleanupRegistration(info.projectName);
+    process.exit(0);
+  };
+  process.on('SIGINT', onExit);
+  process.on('SIGTERM', onExit);
+}
+
+startServer().catch(err => {
+  console.error(`❌ Failed to start taskboard server:`, err);
+  process.exit(1);
 });

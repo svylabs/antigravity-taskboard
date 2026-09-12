@@ -100,6 +100,85 @@
       letter-spacing: 0.5px;
     }
 
+    .port-pill {
+      font-size: 11px;
+      font-weight: 700;
+      background: #EEF2FF;
+      color: #4F46E5;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-family: monospace;
+      border: 1px solid #E0E7FF;
+    }
+
+    .project-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 10px;
+    }
+
+    .project-select {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .btn-agent-start {
+      background: linear-gradient(135deg, #10B981, #059669) !important;
+      color: #FFFFFF !important;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
+      border: none !important;
+      font-weight: 700 !important;
+    }
+
+    .btn-agent-start:hover {
+      background: linear-gradient(135deg, #059669, #047857) !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+    }
+
+    .toast-container {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      z-index: 10000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      background: #0F172A;
+      color: #FFFFFF;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: all 0.2s ease;
+    }
+
+    @keyframes toastIn {
+      from { transform: translateY(-12px) scale(0.95); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
     .brand-subtitle {
       font-size: 12px;
       color: var(--text-muted);
@@ -1453,12 +1532,21 @@
           <div class="brand-title">
             <span>Agent Task Board</span>
             <span class="project-pill" id="projectBadge">{{PROJECT_NAME}}</span>
+            <span class="port-pill" id="portBadge">:{{PROJECT_PORT}}</span>
           </div>
           <div class="brand-subtitle">Autonomous loop with live plans, walkthroughs & questions</div>
         </div>
       </div>
 
       <div class="header-actions">
+        <!-- Multi-Project Switcher -->
+        <div class="project-switcher" id="projectSwitcherContainer">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">PROJECT:</span>
+          <select id="projectSelect" class="project-select" onchange="if(this.value) window.location.href = this.value;" title="Switch active project workspace">
+            <option value="http://localhost:{{PROJECT_PORT}}" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}})</option>
+          </select>
+        </div>
+
         <div class="sync-badge">
           <div class="pulse-dot"></div>
           <span id="syncText">Syncing SQLite</span>
@@ -1466,8 +1554,8 @@
         <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository code, markdown documents, and assets" style="text-decoration: none;">
           <span>📁</span><span>Repo Files</span>
         </a>
-        <button class="btn btn-secondary" onclick="copyLoopPrompt()" title="Copy autonomous task loop prompt">
-          <span>⚡</span><span>Copy Loop Prompt</span>
+        <button class="btn btn-agent-start" id="btnStartAgent" onclick="copyLoopPrompt()" title="Start or resume the autonomous agent loop in Antigravity">
+          <span>▶</span><span>Start Agent</span>
         </button>
         <button class="btn btn-primary" onclick="openCreateModal()">+ New Task</button>
       </div>
@@ -2933,10 +3021,71 @@
       }
     }
 
+    function showToast(message, type = 'info') {
+      let container = document.getElementById('toastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'toastContainer';
+        container.className = 'toast-container';
+        document.body.appendChild(container);
+      }
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : '⚡'}</span><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
     function copyLoopPrompt() {
-      const prompt = "Run the task loop continuously on the taskboard. Stop the loop if there are no tasks for one hour.";
-      navigator.clipboard.writeText(prompt);
-      alert('Prompt copied! Paste it into Antigravity to run the loop.');
+      const prompt = "Run the task loop continuously on the taskboard. Stop the loop if there are no tasks for 8 hours.";
+      navigator.clipboard.writeText(prompt).then(() => {
+        showToast('Prompt copied! Paste into Antigravity to run the loop.', 'success');
+        const btn = document.getElementById('btnStartAgent');
+        if (btn) {
+          const orig = btn.innerHTML;
+          btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+          btn.style.background = '#059669';
+          setTimeout(() => {
+            btn.innerHTML = orig;
+            btn.style.background = '';
+          }, 3000);
+        }
+      }).catch(() => {
+        alert('Prompt: ' + prompt);
+      });
+    }
+
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.currentPort) {
+          const portBadge = document.getElementById('portBadge');
+          if (portBadge) portBadge.textContent = `:${data.currentPort}`;
+        }
+
+        const select = document.getElementById('projectSelect');
+        if (!select) return;
+
+        const projects = data.projects || [];
+        if (projects.length === 0) {
+          select.innerHTML = `<option value="http://localhost:{{PROJECT_PORT}}" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}})</option>`;
+          return;
+        }
+
+        select.innerHTML = projects.map(p => {
+          const indicator = p.isAlive ? '●' : '○';
+          const tag = p.isCurrent ? ' [Current]' : (p.isAlive ? '' : ' [Offline]');
+          return `<option value="${p.url}" ${p.isCurrent ? 'selected' : ''} ${!p.isAlive && !p.isCurrent ? 'disabled' : ''}>${indicator} ${p.projectName} (:${p.port})${tag}</option>`;
+        }).join('');
+      } catch (e) {
+        // silent fail
+      }
     }
 
     function normalizeMarkdownText(raw) {
@@ -3092,9 +3241,11 @@
       return isNaN(d) ? dateStr : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    // Initial load & 3-second auto-sync
+    // Initial load & auto-sync
     fetchTasks();
+    loadProjects();
     setInterval(fetchTasks, 3000);
+    setInterval(loadProjects, 10000);
 
     function scrollToColumn(status, btn) {
       const col = document.querySelector(`.column[data-status="${status}"]`);
