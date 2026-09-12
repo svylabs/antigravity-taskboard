@@ -3,6 +3,7 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { 
   getAllTasks, 
@@ -70,29 +71,44 @@ function getRegistryFilePath() {
 }
 
 function readCentralRegistry() {
+  let reg = {};
   try {
     if (fs.existsSync(PRIMARY_REGISTRY_FILE)) {
-      return JSON.parse(fs.readFileSync(PRIMARY_REGISTRY_FILE, 'utf8'));
+      reg = JSON.parse(fs.readFileSync(PRIMARY_REGISTRY_FILE, 'utf8'));
+      return reg;
     }
   } catch {}
   try {
     if (fs.existsSync(FALLBACK_REGISTRY_FILE)) {
-      return JSON.parse(fs.readFileSync(FALLBACK_REGISTRY_FILE, 'utf8'));
+      reg = JSON.parse(fs.readFileSync(FALLBACK_REGISTRY_FILE, 'utf8'));
+      return reg;
     }
   } catch {}
-  return {};
+  try {
+    const altFallback = path.join(os.tmpdir(), 'agy-taskboard-sessions.json');
+    if (fs.existsSync(altFallback)) {
+      reg = JSON.parse(fs.readFileSync(altFallback, 'utf8'));
+      return reg;
+    }
+  } catch {}
+  return reg;
 }
 
 function writeCentralRegistry(registry) {
-  const filePath = getRegistryFilePath();
+  const content = JSON.stringify(registry, null, 2);
   try {
-    fs.writeFileSync(filePath, JSON.stringify(registry, null, 2), 'utf8');
+    if (!fs.existsSync(PRIMARY_REGISTRY_DIR)) {
+      fs.mkdirSync(PRIMARY_REGISTRY_DIR, { recursive: true });
+    }
+    fs.writeFileSync(PRIMARY_REGISTRY_FILE, content, 'utf8');
   } catch {}
-  if (filePath !== PRIMARY_REGISTRY_FILE) {
-    try {
-      fs.writeFileSync(PRIMARY_REGISTRY_FILE, JSON.stringify(registry, null, 2), 'utf8');
-    } catch {}
-  }
+  try {
+    fs.writeFileSync(FALLBACK_REGISTRY_FILE, content, 'utf8');
+  } catch {}
+  try {
+    const altFallback = path.join(os.tmpdir(), 'agy-taskboard-sessions.json');
+    fs.writeFileSync(altFallback, content, 'utf8');
+  } catch {}
 }
 
 function updateProjectRegistration(projectName, projectDir, dbPath, port, pid) {
@@ -134,29 +150,151 @@ function cleanupRegistration(projectName) {
   } catch {}
 }
 
-function getActiveProjects(currentProjectName, currentPort) {
+// Reliable HTTP ping check for project liveness
+async function pingProjectPort(port, expectedProjectName) {
+  if (!port) return false;
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 400);
+    const res = await fetch(`http://127.0.0.1:${port}/api/info`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    if (res.ok) {
+      const data = await res.json();
+      if (!expectedProjectName || data.projectName === expectedProjectName) {
+        return true;
+      }
+    }
+  } catch {}
+  return false;
+}
+
+// Workspace auto-discovery to find sibling taskboard projects
+function discoverWorkspaceProjects(currentProjectDir) {
+  const discovered = [];
+  const visited = new Set();
+
+  const candidateRoots = [];
+  let curr = currentProjectDir;
+  for (let i = 0; i < 3; i++) {
+    const parent = path.dirname(curr);
+    if (parent && parent !== curr && !candidateRoots.includes(parent)) {
+      candidateRoots.push(parent);
+    }
+    curr = parent;
+  }
+
+  function scanDir(dir, depth = 0, maxDepth = 2) {
+    if (depth > maxDepth) return;
+    if (visited.has(dir)) return;
+    visited.add(dir);
+
+    try {
+      const entries = fs.readdirSync(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+        const name = entry.name;
+        if (name.startsWith('.') || ['node_modules', 'dist', 'build', 'out', '.next', 'cache', 'scratch', 'temp', 'tmp'].includes(name)) continue;
+        const fullPath = path.join(dir, name);
+
+        if (fullPath.includes('/.agents') || fullPath.endsWith('/taskboard')) continue;
+
+        const hasTaskboardDb = fs.existsSync(path.join(fullPath, '.agents/taskboard/tasks.sqlite'));
+        const hasDirectDb = fs.existsSync(path.join(fullPath, 'tasks.sqlite'));
+        const hasPlugin = fs.existsSync(path.join(fullPath, '.agents/plugins/antigravity-taskboard'));
+        const hasPluginServer = fs.existsSync(path.join(fullPath, 'taskboard/server.mjs')) && fs.existsSync(path.join(fullPath, 'taskboard/board.html'));
+        const hasLocalServer = fs.existsSync(path.join(fullPath, '.agents/taskboard/server.mjs'));
+
+        if (hasTaskboardDb || hasDirectDb || hasPlugin || hasPluginServer || hasLocalServer) {
+          const projectName = name;
+          const dbPath = hasTaskboardDb 
+            ? path.join(fullPath, '.agents/taskboard/tasks.sqlite')
+            : (hasDirectDb ? path.join(fullPath, 'tasks.sqlite') : null);
+
+          let savedPort = null;
+          try {
+            const sPath = path.join(fullPath, '.agents/taskboard/.server.json');
+            if (fs.existsSync(sPath)) {
+              const conf = JSON.parse(fs.readFileSync(sPath, 'utf8'));
+              if (conf.port) savedPort = conf.port;
+            }
+          } catch {}
+
+          discovered.push({
+            projectName,
+            projectDir: fullPath,
+            dbPath,
+            savedPort
+          });
+        }
+
+        scanDir(fullPath, depth + 1, maxDepth);
+      }
+    } catch {}
+  }
+
+  for (const r of candidateRoots) {
+    scanDir(r, 0, 2);
+  }
+
+  return discovered;
+}
+
+async function getActiveProjects(currentProjectName, currentPort) {
   const registry = readCentralRegistry();
-  const list = [];
+  const info = getProjectInfo();
   let changed = false;
 
+  // Run workspace discovery to identify sibling projects
+  const discovered = discoverWorkspaceProjects(info.projectDir);
+  for (const disc of discovered) {
+    if (!registry[disc.projectName]) {
+      let port = disc.savedPort;
+      if (!port) {
+        const usedPorts = new Set(Object.values(registry).map(p => p.port));
+        usedPorts.add(currentPort);
+        let candidate = 4040;
+        while (usedPorts.has(candidate)) {
+          candidate += 2;
+        }
+        port = candidate;
+      }
+      registry[disc.projectName] = {
+        projectName: disc.projectName,
+        projectDir: disc.projectDir,
+        dbPath: disc.dbPath,
+        port,
+        url: `http://localhost:${port}`,
+        pid: null,
+        updatedAt: new Date().toISOString()
+      };
+      changed = true;
+    }
+  }
+
+  const list = [];
+
   for (const [name, p] of Object.entries(registry)) {
-    // If the project directory was deleted from disk, clean up from registry
-    if (p.projectDir && !fs.existsSync(p.projectDir)) {
+    if (name.startsWith('.') || (p.projectName && p.projectName.startsWith('.')) || (p.projectDir && (p.projectDir.includes('/.agents') || !fs.existsSync(p.projectDir)))) {
       delete registry[name];
       changed = true;
       continue;
     }
 
-    let isAlive = true;
-    if (p.pid && p.pid !== process.pid) {
-      try {
-        process.kill(p.pid, 0);
-      } catch (e) {
-        if (e.code === 'ESRCH') {
-          isAlive = false;
-        } else {
-          // EPERM or other error means process exists but running under different permission
-          isAlive = true;
+    const isCurrent = (p.projectName || name) === currentProjectName || p.port === currentPort;
+    let isAlive = false;
+
+    if (isCurrent) {
+      isAlive = true;
+    } else {
+      isAlive = await pingProjectPort(p.port, p.projectName || name);
+      if (!isAlive && p.pid) {
+        try {
+          process.kill(p.pid, 0);
+        } catch (e) {
+          if (e.code === 'ESRCH') {
+            p.pid = null;
+            changed = true;
+          }
         }
       }
     }
@@ -168,7 +306,7 @@ function getActiveProjects(currentProjectName, currentPort) {
       projectDir: p.projectDir,
       status: isAlive ? 'online' : 'offline',
       isAlive,
-      isCurrent: (p.projectName || name) === currentProjectName || p.port === currentPort
+      isCurrent
     });
   }
 
@@ -181,11 +319,19 @@ function getActiveProjects(currentProjectName, currentPort) {
       projectName: currentProjectName,
       port: currentPort,
       url: `http://localhost:${currentPort}`,
+      projectDir: info.projectDir,
       status: 'online',
       isAlive: true,
       isCurrent: true
     });
   }
+
+  list.sort((a, b) => {
+    if (a.isCurrent) return -1;
+    if (b.isCurrent) return 1;
+    if (a.isAlive !== b.isAlive) return a.isAlive ? -1 : 1;
+    return a.projectName.localeCompare(b.projectName);
+  });
 
   return list;
 }
@@ -309,13 +455,171 @@ const server = http.createServer(async (req, res) => {
   // REST API: GET /api/projects - Multi-project registry
   if (pathname === '/api/projects' && req.method === 'GET') {
     const info = getProjectInfo();
-    const projects = getActiveProjects(info.projectName, ACTIVE_PORT);
+    const projects = await getActiveProjects(info.projectName, ACTIVE_PORT);
     return sendJson(res, 200, {
       success: true,
       currentProject: info.projectName,
       currentPort: ACTIVE_PORT,
       projects
     });
+  }
+
+  // REST API: POST /api/projects/start - Auto-boot an offline project taskboard server
+  if (pathname === '/api/projects/start' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const targetName = body.projectName;
+      if (!targetName) {
+        return sendJson(res, 400, { success: false, error: 'Project name is required' });
+      }
+
+      const registry = readCentralRegistry();
+      let project = registry[targetName];
+
+      if (!project) {
+        const info = getProjectInfo();
+        const discList = discoverWorkspaceProjects(info.projectDir);
+        const match = discList.find(p => p.projectName === targetName);
+        if (match) {
+          project = {
+            projectName: match.projectName,
+            projectDir: match.projectDir,
+            dbPath: match.dbPath,
+            port: match.savedPort || (ACTIVE_PORT === 4040 ? 4042 : 4040),
+            url: `http://localhost:${match.savedPort || (ACTIVE_PORT === 4040 ? 4042 : 4040)}`,
+            pid: null,
+            updatedAt: new Date().toISOString()
+          };
+          registry[targetName] = project;
+        }
+      }
+
+      if (!project || !project.projectDir || !fs.existsSync(project.projectDir)) {
+        return sendJson(res, 404, { success: false, error: `Project directory for "${targetName}" not found` });
+      }
+
+      function resolveServerScript(pDir) {
+        const candidates = [
+          path.join(pDir, '.agents', 'taskboard', 'server.mjs'),
+          path.join(pDir, '.agents', 'plugins', 'antigravity-taskboard', 'taskboard', 'server.mjs'),
+          path.join(pDir, 'taskboard', 'server.mjs'),
+          path.join(pDir, 'server.mjs')
+        ];
+        for (const cand of candidates) {
+          if (fs.existsSync(cand)) return cand;
+        }
+        const tbDir = path.join(pDir, '.agents', 'taskboard');
+        if (fs.existsSync(tbDir)) {
+          try {
+            fs.copyFileSync(path.join(__dirname, 'server.mjs'), path.join(tbDir, 'server.mjs'));
+            fs.copyFileSync(path.join(__dirname, 'board.html'), path.join(tbDir, 'board.html'));
+            fs.copyFileSync(path.join(__dirname, 'repo_viewer.mjs'), path.join(tbDir, 'repo_viewer.mjs'));
+            if (fs.existsSync(path.join(__dirname, 'tasks.mjs')) && !fs.existsSync(path.join(tbDir, 'tasks.mjs'))) {
+              fs.copyFileSync(path.join(__dirname, 'tasks.mjs'), path.join(tbDir, 'tasks.mjs'));
+            }
+            return path.join(tbDir, 'server.mjs');
+          } catch {}
+        }
+        return null;
+      }
+
+      const scriptPath = resolveServerScript(project.projectDir);
+      if (!scriptPath) {
+        return sendJson(res, 500, { success: false, error: `No taskboard server script found for "${targetName}"` });
+      }
+
+      const targetPort = project.port || 4042;
+      const isAlreadyUp = await pingProjectPort(targetPort, project.projectName);
+      if (isAlreadyUp) {
+        return sendJson(res, 200, {
+          success: true,
+          projectName: project.projectName,
+          port: targetPort,
+          url: `http://localhost:${targetPort}`,
+          alreadyRunning: true
+        });
+      }
+
+      const assignedPort = await findAvailablePort(targetPort, HOST, project);
+
+      const doraNodeModules = path.resolve(__dirname, '../../node_modules');
+      const nodePath = [
+        path.join(project.projectDir, 'node_modules'),
+        doraNodeModules,
+        process.env.NODE_PATH || ''
+      ].filter(Boolean).join(':');
+
+      function ensureDependencies(targetDir) {
+        const targetNm = path.join(targetDir, 'node_modules');
+        const targetSqlite = path.join(targetNm, 'better-sqlite3');
+        if (!fs.existsSync(targetSqlite)) {
+          const knownSources = [
+            path.resolve(__dirname, '../../node_modules/better-sqlite3'),
+            path.resolve(__dirname, '../node_modules/better-sqlite3'),
+            path.resolve(__dirname, 'node_modules/better-sqlite3'),
+            '/Users/sg/Documents/workspace/svylabs/vindoralabs/doraapp/node_modules/better-sqlite3',
+            '/Users/sg/Documents/workspace/svylabs/antigravity-taskboard/node_modules/better-sqlite3'
+          ];
+          for (const src of knownSources) {
+            if (fs.existsSync(src)) {
+              try {
+                if (!fs.existsSync(targetNm)) {
+                  fs.mkdirSync(targetNm, { recursive: true });
+                }
+                fs.symlinkSync(src, targetSqlite, 'dir');
+                break;
+              } catch (e) {
+                try {
+                  fs.cpSync(src, targetSqlite, { recursive: true });
+                  break;
+                } catch {}
+              }
+            }
+          }
+        }
+      }
+
+      ensureDependencies(project.projectDir);
+
+      console.log(`🚀 Auto-booting taskboard for "${project.projectName}" on port ${assignedPort}...`);
+      const child = spawn(process.execPath, [scriptPath, '--port', String(assignedPort)], {
+        cwd: project.projectDir,
+        detached: true,
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          TASKBOARD_PORT: String(assignedPort),
+          NODE_PATH: nodePath
+        }
+      });
+      child.unref();
+
+      let launched = false;
+      for (let i = 0; i < 25; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        if (await pingProjectPort(assignedPort, project.projectName)) {
+          launched = true;
+          break;
+        }
+      }
+
+      project.port = assignedPort;
+      project.url = `http://localhost:${assignedPort}`;
+      project.pid = child.pid;
+      project.updatedAt = new Date().toISOString();
+      writeCentralRegistry(registry);
+
+      return sendJson(res, 200, {
+        success: true,
+        projectName: project.projectName,
+        port: assignedPort,
+        url: `http://localhost:${assignedPort}`,
+        launched
+      });
+    } catch (e) {
+      console.error('Failed to start project taskboard:', e);
+      return sendJson(res, 500, { success: false, error: e.message });
+    }
   }
 
   // REST API: GET /api/tasks

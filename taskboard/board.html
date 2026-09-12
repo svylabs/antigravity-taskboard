@@ -1542,7 +1542,7 @@
         <!-- Multi-Project Switcher -->
         <div class="project-switcher" id="projectSwitcherContainer">
           <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">PROJECT:</span>
-          <select id="projectSelect" class="project-select" onchange="if(this.value) window.location.href = this.value;" title="Switch active project workspace">
+          <select id="projectSelect" class="project-select" onchange="switchProject(this.value)" title="Switch active project workspace">
             <option value="http://localhost:{{PROJECT_PORT}}" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}})</option>
           </select>
         </div>
@@ -3074,17 +3074,71 @@
 
         const projects = data.projects || [];
         if (projects.length === 0) {
-          select.innerHTML = `<option value="http://localhost:{{PROJECT_PORT}}" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}})</option>`;
+          select.innerHTML = `<option value="{{PROJECT_NAME}}" data-url="http://localhost:{{PROJECT_PORT}}" data-alive="1" data-current="1" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}}) [Current]</option>`;
           return;
         }
 
         select.innerHTML = projects.map(p => {
           const indicator = p.isAlive ? '●' : '○';
-          const tag = p.isCurrent ? ' [Current]' : (p.isAlive ? '' : ' [Offline]');
-          return `<option value="${p.url}" ${p.isCurrent ? 'selected' : ''} ${!p.isAlive && !p.isCurrent ? 'disabled' : ''}>${indicator} ${p.projectName} (:${p.port})${tag}</option>`;
+          let tag = '';
+          if (p.isCurrent) {
+            tag = ' [Current]';
+          } else if (p.isAlive) {
+            tag = '';
+          } else {
+            tag = ' [Offline - Click to Start]';
+          }
+          return `<option value="${p.projectName}" data-url="${p.url}" data-alive="${p.isAlive ? '1' : '0'}" data-current="${p.isCurrent ? '1' : '0'}" data-port="${p.port}" ${p.isCurrent ? 'selected' : ''}>${indicator} ${p.projectName} (:${p.port})${tag}</option>`;
         }).join('');
       } catch (e) {
         // silent fail
+      }
+    }
+
+    async function switchProject(projectName) {
+      const select = document.getElementById('projectSelect');
+      if (!select) return;
+      const selectedOption = select.selectedOptions[0];
+      if (!selectedOption) return;
+
+      const isCurrent = selectedOption.getAttribute('data-current') === '1';
+      if (isCurrent) return;
+
+      const isAlive = selectedOption.getAttribute('data-alive') === '1';
+      const targetUrl = selectedOption.getAttribute('data-url');
+
+      if (isAlive && targetUrl) {
+        showToast(`Switching to ${projectName}...`, 'info');
+        window.location.href = targetUrl;
+        return;
+      }
+
+      // Project is offline: launch it automatically!
+      const targetPort = selectedOption.getAttribute('data-port') || '...';
+      showToast(`🚀 Starting taskboard for "${projectName}" on port ${targetPort}...`, 'info');
+      select.disabled = true;
+
+      try {
+        const res = await fetch('/api/projects/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ projectName })
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+          showToast(`✨ Launched "${projectName}" on port ${data.port}! Redirecting...`, 'success');
+          setTimeout(() => {
+            window.location.href = data.url;
+          }, 400);
+        } else {
+          showToast(`Failed to start "${projectName}": ${data.error || 'Server error'}`, 'error');
+          select.disabled = false;
+          await loadProjects();
+        }
+      } catch (e) {
+        showToast(`Error starting "${projectName}": ${e.message}`, 'error');
+        select.disabled = false;
+        await loadProjects();
       }
     }
 
