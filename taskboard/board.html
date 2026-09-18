@@ -250,6 +250,299 @@
       background: #F8FAFC;
     }
 
+    /* Audio Alert Controls & Notifications */
+    .btn-audio-toggle {
+      position: relative;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 7px 12px;
+      font-size: 12.5px;
+      gap: 6px;
+    }
+
+    .btn-audio-toggle.is-playing {
+      background: #FEF2F2 !important;
+      border-color: #F87171 !important;
+      color: #DC2626 !important;
+      animation: alertPulse 1s infinite alternate ease-in-out;
+    }
+
+    .btn-audio-toggle.is-muted {
+      opacity: 0.6;
+      background: #F8FAFC;
+    }
+
+    @keyframes alertPulse {
+      from { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+      to { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+    }
+
+    .audio-pulse-ring {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #EF4444;
+      display: inline-block;
+      animation: pulse 1.2s infinite;
+    }
+
+    /* Audio Popover */
+    .audio-popover-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.2);
+      backdrop-filter: blur(2px);
+      z-index: 10001;
+      display: none;
+      align-items: flex-start;
+      justify-content: flex-end;
+      padding: 70px 28px 0 0;
+    }
+
+    .audio-popover-overlay.active {
+      display: flex;
+    }
+
+    .audio-popover-card {
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      width: 360px;
+      box-shadow: 0 20px 40px -10px rgba(0,0,0,0.18);
+      overflow: hidden;
+      animation: popIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes popIn {
+      from { transform: scale(0.94) translateY(-8px); opacity: 0; }
+      to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+
+    .audio-popover-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      background: #FAF5FF;
+    }
+
+    .audio-popover-body {
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .audio-setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Switch Component */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #CBD5E1;
+      transition: .25s ease;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .25s ease;
+      border-radius: 50%;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    input:checked + .slider {
+      background-color: var(--primary);
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+
+    .volume-range {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      outline: none;
+      -webkit-appearance: none;
+      background: #E2E8F0;
+    }
+
+    .volume-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--primary);
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(124, 58, 237, 0.4);
+    }
+
+    .audio-trigger-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #F8FAFC;
+      border: 1px solid #F1F5F9;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      margin-bottom: 6px;
+    }
+
+    .audio-trigger-item:hover {
+      background: #F1F5F9;
+    }
+
+    .audio-trigger-item input[type="checkbox"] {
+      margin-top: 3px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .audio-rules-box {
+      background: #F0F9FF;
+      border: 1px solid #BAE6FD;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    /* Floating Attention Alert Banner */
+    .attention-banner-bar {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      max-width: 480px;
+      background: #0F172A;
+      color: #FFFFFF;
+      border-radius: 14px;
+      box-shadow: 0 16px 36px rgba(0,0,0,0.3);
+      padding: 14px 18px;
+      border: 1px solid #334155;
+      animation: bannerSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes bannerSlideUp {
+      from { transform: translateY(30px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .attention-banner-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .attention-pulse-icon {
+      font-size: 22px;
+      animation: iconWiggle 1s infinite ease-in-out;
+    }
+
+    @keyframes iconWiggle {
+      0%, 100% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-12deg) scale(1.1); }
+      75% { transform: rotate(12deg) scale(1.1); }
+    }
+
+    .attention-banner-text {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .attention-banner-title {
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #F8FAFC;
+    }
+
+    .attention-banner-sub {
+      font-size: 11.5px;
+      color: #94A3B8;
+      margin-top: 2px;
+    }
+
+    .attention-banner-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn-sm {
+      padding: 5px 10px !important;
+      font-size: 11.5px !important;
+      border-radius: 7px !important;
+    }
+
+    .btn-danger {
+      background: #EF4444 !important;
+      color: #FFFFFF !important;
+      border: none !important;
+    }
+
+    .btn-danger:hover {
+      background: #DC2626 !important;
+    }
+
+    /* Autoplay Unlock Notice */
+    .audio-unlock-banner {
+      position: fixed;
+      top: 72px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 10002;
+      background: linear-gradient(135deg, #7C3AED, #6D28D9);
+      color: #FFFFFF;
+      padding: 10px 20px;
+      border-radius: 30px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: bouncePrompt 2s infinite;
+    }
+
+    @keyframes bouncePrompt {
+      0%, 20%, 50%, 80%, 100% { transform: translateX(-50%) translateY(0); }
+      40% { transform: translateX(-50%) translateY(-6px); }
+      60% { transform: translateX(-50%) translateY(-3px); }
+    }
+
     /* Board Area */
     .board-container {
       flex: 1;
@@ -1044,6 +1337,12 @@
       border: 1px solid #E2E8F0;
     }
 
+    .comment-type-permission {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-left: 4px solid #EF4444;
+    }
+
     .comment-meta {
       display: flex;
       align-items: center;
@@ -1070,6 +1369,7 @@
     .comment-tag-question { background: #FEF3C7; color: #B45309; }
     .comment-tag-plan { background: #F3E8FF; color: #7C3AED; }
     .comment-tag-walkthrough { background: #D1FAE5; color: #047857; }
+    .comment-tag-permission { background: #FEE2E2; color: #B91C1C; }
     .comment-tag-comment { background: #E2E8F0; color: #475569; }
 
     .comment-content {
@@ -1551,6 +1851,14 @@
           <div class="pulse-dot"></div>
           <span id="syncText">Syncing SQLite</span>
         </div>
+        <button class="btn btn-audio-toggle" id="btnAudioToggle" onclick="toggleAudioPopover(event)" title="Sound alert settings (5s initial beep, 5m reminders)">
+          <span id="audioIcon">🔊</span>
+          <span id="audioLabel">Sound Alerts</span>
+          <span id="audioPulseRing" class="audio-pulse-ring" style="display: none;"></span>
+        </button>
+        <a href="/done" class="btn btn-secondary" title="View all completed tasks categorized by label, scope, and role" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
+          <span>🏆</span><span>Done Archive</span>
+        </a>
         <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository code, markdown documents, and assets" style="text-decoration: none;">
           <span>📁</span><span>Repo Files</span>
         </a>
@@ -1568,10 +1876,138 @@
       <button class="col-tab" onclick="scrollToColumn('planned', this)">📋 Planned <span class="tab-count" id="tab-count-planned">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('in_progress', this)">⚡ In Progress <span class="tab-count" id="tab-count-in_progress">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('verification', this)">👀 Pending Review <span class="tab-count" id="tab-count-verification">0</span></button>
-      <button class="col-tab" onclick="scrollToColumn('done', this)">✅ Done <span class="tab-count" id="tab-count-done">0</span></button>
+      <button class="col-tab" onclick="scrollToColumn('done', this)">✅ Done (≤5d) <span class="tab-count" id="tab-count-done">0</span></button>
       <button class="col-tab" onclick="scrollToColumn('failed', this)">⚠️ Failed <span class="tab-count" id="tab-count-failed">0</span></button>
     </div>
   </header>
+
+  <!-- Autoplay Unlock Prompt Banner (shown if browser blocked audio before user click) -->
+  <div class="audio-unlock-banner" id="audioUnlockBanner" style="display: none;" onclick="unlockAudioAndPlay()">
+    <span>🔊 <b>Attention Alert:</b> Click anywhere to enable sound alerts for pending reviews!</span>
+  </div>
+
+  <!-- Audio Alert Settings Popover -->
+  <div class="audio-popover-overlay" id="audioPopoverOverlay" onclick="closeAudioPopover(event)">
+    <div class="audio-popover-card" onclick="event.stopPropagation()">
+      <div class="audio-popover-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 18px;">🔊</span>
+          <div>
+            <div style="font-weight: 700; font-size: 14px; color: var(--text-main);">Sound Alert Settings</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Initial 5s beep & 5-minute reminder beeps</div>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeAudioPopover()">&times;</button>
+      </div>
+
+      <div class="audio-popover-body">
+        <!-- Master Toggle -->
+        <div class="audio-setting-row">
+          <div>
+            <div style="font-size: 13px; font-weight: 600;">Enable Sound Notifications</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Play audio when tasks need attention</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="audioMasterToggle" checked onchange="handleAudioMasterToggle(this.checked)">
+            <span class="slider round"></span>
+          </label>
+        </div>
+
+        <!-- Volume Slider -->
+        <div class="audio-setting-row" style="flex-direction: column; align-items: stretch; gap: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-size: 12px; font-weight: 600;">Volume</span>
+            <span id="audioVolumeValue" style="font-size: 12px; font-weight: 700; color: var(--primary);">70%</span>
+          </div>
+          <input type="range" id="audioVolumeSlider" min="0" max="100" value="70" class="volume-range" oninput="handleVolumeChange(this.value)">
+        </div>
+
+        <!-- Trigger Events -->
+        <div style="margin-top: 4px;">
+          <div style="font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Alert Triggers</div>
+          
+          <label class="audio-trigger-item">
+            <input type="checkbox" id="triggerVerification" checked onchange="saveAudioTriggers()">
+            <div>
+              <span style="font-weight: 600; font-size: 12.5px;">👀 Pending Review</span>
+              <span style="display: block; font-size: 11px; color: var(--text-muted);">When agent completes work & seeks approval</span>
+            </div>
+          </label>
+
+          <label class="audio-trigger-item">
+            <input type="checkbox" id="triggerPlanned" checked onchange="saveAudioTriggers()">
+            <div>
+              <span style="font-weight: 600; font-size: 12.5px;">📋 Plan Created</span>
+              <span style="display: block; font-size: 11px; color: var(--text-muted);">When implementation plan is ready for review</span>
+            </div>
+          </label>
+
+          <label class="audio-trigger-item">
+            <input type="checkbox" id="triggerQuestion" checked onchange="saveAudioTriggers()">
+            <div>
+              <span style="font-weight: 600; font-size: 12.5px;">❓ Questions / Waiting for You</span>
+              <span style="display: block; font-size: 11px; color: var(--text-muted);">When agent requests clarifying answers</span>
+            </div>
+          </label>
+
+          <label class="audio-trigger-item">
+            <input type="checkbox" id="triggerPermission" checked onchange="saveAudioTriggers()">
+            <div>
+              <span style="font-weight: 600; font-size: 12.5px;">⚠️ Permission Requested</span>
+              <span style="display: block; font-size: 11px; color: var(--text-muted);">When agent needs sandbox bypass or tool approval</span>
+            </div>
+          </label>
+        </div>
+
+        <!-- Reminder Rules Info -->
+        <div class="audio-rules-box">
+          <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #1E293B; font-size: 12px;">
+            <span>⏱️</span><span>Reminder Rules</span>
+          </div>
+          <div style="font-size: 11.5px; color: #475569; margin-top: 4px; line-height: 1.45;">
+            • <b>First alert:</b> 5 seconds beep when entering review<br>
+            • <b>Reminders:</b> 2 seconds beep every 5 minutes until acted on<br>
+            • <b>Auto-stop:</b> Silences when approved, revised, moved, or commented
+          </div>
+        </div>
+
+        <!-- Preview / Test Buttons -->
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button type="button" class="btn btn-secondary" onclick="testAudio(5)" style="flex: 1; font-size: 11.5px; justify-content: center;">
+            ▶ Test 5s Beep
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="testAudio(2)" style="flex: 1; font-size: 11.5px; justify-content: center;">
+            ▶ Test 2s Beep
+          </button>
+          <button type="button" class="btn btn-secondary" id="btnStopTestAudio" onclick="stopAudio()" style="font-size: 11.5px; display: none; color: #EF4444; border-color: #FECACA;">
+            ⏹ Stop
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Attention Alert Banner -->
+  <div class="attention-banner-bar" id="attentionBannerBar" style="display: none;">
+    <div class="attention-banner-content">
+      <div class="attention-pulse-icon">🔔</div>
+      <div class="attention-banner-text">
+        <div class="attention-banner-title" id="attentionBannerTitle">Task Pending Review</div>
+        <div class="attention-banner-sub" id="attentionBannerSub">First alert (5s beep) • Reminding every 5 mins</div>
+      </div>
+      <div class="attention-banner-actions">
+        <button class="btn btn-sm btn-danger" id="btnBannerStopSound" onclick="stopCurrentBeep()" title="Stop sound immediately">
+          🛑 Stop Sound
+        </button>
+        <button class="btn btn-sm btn-secondary" onclick="snoozeCurrentAlert(5)" title="Snooze reminders for 5 minutes">
+          ⏰ Snooze 5m
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="openCurrentAttentionTask()" title="Review task card">
+          👀 Review
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Kanban Columns -->
   <div class="board-container" id="board">
@@ -1622,9 +2058,15 @@
 
     <!-- Done -->
     <div class="column" data-status="done">
-      <div class="column-header">
-        <span class="col-title">✅ Done</span>
-        <span class="col-count" id="count-done">0</span>
+      <div class="column-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <span class="col-title" title="Showing tasks completed within the last 5 days">✅ Done (≤5d)</span>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <a href="/done" class="btn btn-sm btn-secondary" style="padding: 2px 7px; font-size: 11px; text-decoration: none; display: inline-flex; align-items: center; gap: 3px;" title="View all completed tasks in the Archive">
+            <span>Archive</span>
+            <span>↗</span>
+          </a>
+          <span class="col-count" id="count-done">0</span>
+        </div>
       </div>
       <div class="card-list" id="list-done" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event, 'done')"></div>
     </div>
@@ -1663,18 +2105,18 @@
         <!-- Attach Images / Screenshots during creation -->
         <div class="form-group" style="margin-bottom: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label class="form-label" style="margin-bottom: 0;">Attach Images & Screenshots (Optional)</label>
-            <button type="button" class="btn btn-secondary" onclick="triggerCreateImageUpload()" style="padding: 3px 8px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
-              <span>📷 Browse Images</span>
+            <label class="form-label" style="margin-bottom: 0;">Attachments & Files (Images, JSON, Plist, etc.)</label>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="triggerCreateImageUpload()" style="font-size: 11px; padding: 2px 8px;">
+              <span>📎 Attach Files</span>
             </button>
-            <input type="file" id="createAttachmentInput" accept="image/*" multiple style="display: none;" onchange="handleCreateFileInputChange(event)">
+            <input type="file" id="createAttachmentInput" multiple style="display: none;" onchange="handleCreateFileInputChange(event)">
           </div>
 
           <!-- Drag and drop zone & paste hint -->
           <div class="attachments-dropzone" id="createDropzone" onclick="triggerCreateImageUpload()" ondragover="handleCreateDragOver(event)" ondragleave="handleCreateDragLeave(event)" ondrop="handleCreateDrop(event)" style="padding: 10px 14px; margin-bottom: 8px;">
-            <span style="font-size: 18px;">🖼️</span>
+            <span style="font-size: 18px;">📎</span>
             <div style="font-size: 11.5px; color: #64748B;">
-              <span style="font-weight: 600; color: var(--primary);">Click to attach</span>, drag & drop, or paste from clipboard (<kbd style="background: #E2E8F0; padding: 1px 4px; border-radius: 3px; font-size: 10px;">Ctrl+V</kbd> / <kbd style="background: #E2E8F0; padding: 1px 4px; border-radius: 3px; font-size: 10px;">⌘+V</kbd>)
+              <span style="font-weight: 600; color: var(--primary);">Click to attach</span>, drag & drop files (Images, JSON, Plist, etc.), or paste screenshot (<kbd style="background: #E2E8F0; padding: 1px 4px; border-radius: 3px; font-size: 10px;">Ctrl+V</kbd> / <kbd style="background: #E2E8F0; padding: 1px 4px; border-radius: 3px; font-size: 10px;">⌘+V</kbd>)
             </div>
           </div>
 
@@ -1775,6 +2217,559 @@
     let currentTaskId = null;
     let draggedTaskId = null;
 
+    // Web Audio Synthesizer for Taskboard Attention Alerts
+    class TaskboardAudio {
+      constructor() {
+        this.audioCtx = null;
+        this.currentOscillator = null;
+        this.currentGain = null;
+        this.stopTimeout = null;
+        this.isPlaying = false;
+        this.volume = parseFloat(localStorage.getItem('tb_audio_vol') || '0.7');
+        this.enabled = localStorage.getItem('tb_audio_enabled') !== 'false';
+        this.onStateChange = null;
+      }
+
+      ensureContext() {
+        if (!this.audioCtx) {
+          const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtxClass) {
+            this.audioCtx = new AudioCtxClass();
+          }
+        }
+        if (this.audioCtx && this.audioCtx.state === 'suspended') {
+          this.audioCtx.resume().catch(() => {});
+        }
+        return this.audioCtx;
+      }
+
+      isContextSuspended() {
+        return this.audioCtx && this.audioCtx.state === 'suspended';
+      }
+
+      playBeep(durationSeconds = 5, reason = 'alert') {
+        if (!this.enabled) return false;
+        const ctx = this.ensureContext();
+        if (!ctx) return false;
+
+        if (ctx.state === 'suspended') {
+          return false;
+        }
+
+        this.stop();
+
+        this.isPlaying = true;
+        if (this.onStateChange) this.onStateChange(true, durationSeconds, reason);
+
+        const now = ctx.currentTime;
+        const masterGain = ctx.createGain();
+        masterGain.gain.setValueAtTime(this.volume, now);
+        masterGain.connect(ctx.destination);
+        this.currentGain = masterGain;
+
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+
+        const beepLen = 0.22;
+        const pauseLen = 0.13;
+        const cycle = beepLen + pauseLen;
+        const count = Math.max(1, Math.floor(durationSeconds / cycle));
+
+        const env = ctx.createGain();
+        env.gain.setValueAtTime(0, now);
+
+        let t = now;
+        for (let i = 0; i < count; i++) {
+          const freq = (i % 2 === 0) ? 880 : 784;
+          osc.frequency.setValueAtTime(freq, t);
+
+          env.gain.setValueAtTime(0, t);
+          env.gain.linearRampToValueAtTime(1, t + 0.015);
+          env.gain.setValueAtTime(1, t + beepLen - 0.015);
+          env.gain.linearRampToValueAtTime(0, t + beepLen);
+
+          t += cycle;
+        }
+
+        osc.connect(env);
+        env.connect(masterGain);
+
+        osc.start(now);
+        osc.stop(now + durationSeconds);
+        this.currentOscillator = osc;
+
+        this.stopTimeout = setTimeout(() => {
+          this.stop();
+        }, durationSeconds * 1000);
+
+        return true;
+      }
+
+      stop() {
+        if (this.stopTimeout) {
+          clearTimeout(this.stopTimeout);
+          this.stopTimeout = null;
+        }
+        if (this.currentOscillator) {
+          try {
+            this.currentOscillator.stop();
+            this.currentOscillator.disconnect();
+          } catch (e) {}
+          this.currentOscillator = null;
+        }
+        if (this.currentGain) {
+          try {
+            this.currentGain.disconnect();
+          } catch (e) {}
+          this.currentGain = null;
+        }
+        const wasPlaying = this.isPlaying;
+        this.isPlaying = false;
+        if (wasPlaying && this.onStateChange) {
+          this.onStateChange(false, 0, null);
+        }
+      }
+
+      setVolume(vol) {
+        this.volume = Math.max(0, Math.min(1, vol));
+        localStorage.setItem('tb_audio_vol', String(this.volume));
+        if (this.currentGain && this.audioCtx) {
+          this.currentGain.gain.setValueAtTime(this.volume, this.audioCtx.currentTime);
+        }
+      }
+
+      setEnabled(enabled) {
+        this.enabled = !!enabled;
+        localStorage.setItem('tb_audio_enabled', String(this.enabled));
+        if (!this.enabled) {
+          this.stop();
+        }
+      }
+    }
+
+    // Manager for tracking pending review, plan created, and 5-minute reminder beeps
+    class AttentionAlertManager {
+      constructor(audio) {
+        this.audio = audio;
+        this.FIRST_BEEP_SECS = 5;
+        this.REMINDER_BEEP_SECS = 2;
+        this.REMINDER_INTERVAL_MS = 5 * 60 * 1000;
+
+        this.triggerVerification = localStorage.getItem('tb_trig_verif') !== 'false';
+        this.triggerPlanned = localStorage.getItem('tb_trig_planned') !== 'false';
+        this.triggerQuestion = localStorage.getItem('tb_trig_question') !== 'false';
+        this.triggerPermission = localStorage.getItem('tb_trig_permission') !== 'false';
+
+        this.state = this.loadState();
+        this.currentAttentionTaskId = null;
+        this.lastBeepReason = null;
+        this.titleFlashingInterval = null;
+        this.originalTitle = document.title || 'Agent Task Board';
+
+        this.audio.onStateChange = (isPlaying, duration, reason) => {
+          this.updateAudioUI(isPlaying, duration, reason);
+        };
+
+        // Periodic check for 5-minute reminders
+        setInterval(() => {
+          this.evaluateReminders();
+        }, 3000);
+      }
+
+      loadState() {
+        try {
+          const data = localStorage.getItem('tb_attention_state');
+          return data ? JSON.parse(data) : {};
+        } catch {
+          return {};
+        }
+      }
+
+      saveState() {
+        try {
+          localStorage.setItem('tb_attention_state', JSON.stringify(this.state));
+        } catch {}
+      }
+
+      isAttentionTask(task) {
+        if (!task || task.status === 'done' || task.status === 'failed') return false;
+        if (this.triggerVerification && task.status === 'verification') return true;
+        if (this.triggerPlanned && task.status === 'planned') return true;
+        if (this.triggerQuestion && (task.question_count || 0) > 0) return true;
+        if (this.triggerPermission && (task.permission_count || 0) > 0) return true;
+        return false;
+      }
+
+      checkAttention(tasksList) {
+        const now = Date.now();
+        const activeMap = {};
+
+        tasksList.forEach(t => {
+          if (this.isAttentionTask(t)) {
+            activeMap[t.id] = t;
+          }
+        });
+
+        let stateChanged = false;
+        for (const id of Object.keys(this.state)) {
+          if (!activeMap[id]) {
+            delete this.state[id];
+            stateChanged = true;
+            if (this.currentAttentionTaskId === id) {
+              this.audio.stop();
+              this.hideBanner();
+              this.currentAttentionTaskId = null;
+            }
+          }
+        }
+
+        let newlyEnteredTask = null;
+        for (const [id, task] of Object.entries(activeMap)) {
+          const existing = this.state[id];
+          const permCount = task.permission_count || 0;
+          const questCount = task.question_count || 0;
+          if (!existing || existing.status !== task.status || (existing.permissionCount || 0) !== permCount || (existing.questionCount || 0) !== questCount) {
+            this.state[id] = {
+              id: task.id,
+              title: task.title,
+              status: task.status,
+              questionCount: questCount,
+              permissionCount: permCount,
+              commentCount: task.comment_count || 0,
+              updatedAt: task.updated_at,
+              enteredAt: now,
+              firstAlertPlayed: false,
+              lastAlertAt: 0,
+              remindersCount: 0,
+              snoozedUntil: null,
+              acknowledged: false
+            };
+            stateChanged = true;
+            if (!newlyEnteredTask) {
+              newlyEnteredTask = this.state[id];
+            }
+          }
+        }
+
+        if (stateChanged) {
+          this.saveState();
+        }
+
+        if (newlyEnteredTask && !newlyEnteredTask.firstAlertPlayed) {
+          this.triggerFirstAlert(newlyEnteredTask);
+        } else {
+          this.evaluateReminders();
+        }
+      }
+
+      triggerFirstAlert(taskItem) {
+        const now = Date.now();
+        this.currentAttentionTaskId = taskItem.id;
+        this.lastBeepReason = 'first_alert';
+
+        const played = this.audio.playBeep(this.FIRST_BEEP_SECS, 'first_alert');
+        if (!played && this.audio.enabled && this.audio.isContextSuspended()) {
+          this.showUnlockPrompt();
+        } else if (played) {
+          this.hideUnlockPrompt();
+        }
+
+        taskItem.firstAlertPlayed = true;
+        taskItem.lastAlertAt = now;
+        this.saveState();
+
+        this.showBanner(taskItem, 'first_alert');
+        this.startTitleFlashing(taskItem);
+      }
+
+      evaluateReminders() {
+        const now = Date.now();
+        const attentionIds = Object.keys(this.state);
+        if (attentionIds.length === 0) {
+          this.stopTitleFlashing();
+          this.hideBanner();
+          return;
+        }
+
+        for (const id of attentionIds) {
+          const item = this.state[id];
+          if (item.acknowledged) continue;
+          if (item.snoozedUntil && now < item.snoozedUntil) continue;
+
+          if (!item.firstAlertPlayed) {
+            this.triggerFirstAlert(item);
+            return;
+          }
+
+          const elapsed = now - (item.lastAlertAt || item.enteredAt || now);
+          if (elapsed >= this.REMINDER_INTERVAL_MS) {
+            this.currentAttentionTaskId = item.id;
+            this.lastBeepReason = 'reminder';
+
+            const played = this.audio.playBeep(this.REMINDER_BEEP_SECS, 'reminder');
+            if (!played && this.audio.enabled && this.audio.isContextSuspended()) {
+              this.showUnlockPrompt();
+            }
+
+            item.lastAlertAt = now;
+            item.remindersCount = (item.remindersCount || 0) + 1;
+            this.saveState();
+
+            this.showBanner(item, 'reminder');
+            this.startTitleFlashing(item);
+            return;
+          }
+        }
+      }
+
+      taskActedOn(taskId) {
+        if (this.state[taskId]) {
+          delete this.state[taskId];
+          this.saveState();
+        }
+        if (this.currentAttentionTaskId === taskId) {
+          this.audio.stop();
+          this.hideBanner();
+          this.currentAttentionTaskId = null;
+        }
+        if (Object.keys(this.state).length === 0) {
+          this.stopTitleFlashing();
+        }
+      }
+
+      snooze(taskId, minutes = 5) {
+        if (this.state[taskId]) {
+          this.state[taskId].snoozedUntil = Date.now() + minutes * 60 * 1000;
+          this.saveState();
+        }
+        this.audio.stop();
+        this.hideBanner();
+        this.stopTitleFlashing();
+        showToast(`⏰ Reminders snoozed for ${minutes} minutes.`, 'info');
+      }
+
+      acknowledge(taskId) {
+        if (this.state[taskId]) {
+          this.state[taskId].acknowledged = true;
+          this.saveState();
+        }
+        this.audio.stop();
+        this.hideBanner();
+        this.stopTitleFlashing();
+        showToast(`🔕 Alert silenced for this task.`, 'info');
+      }
+
+      updateAudioUI(isPlaying, duration, reason) {
+        const btn = document.getElementById('btnAudioToggle');
+        const ring = document.getElementById('audioPulseRing');
+        const label = document.getElementById('audioLabel');
+        const icon = document.getElementById('audioIcon');
+        const stopTestBtn = document.getElementById('btnStopTestAudio');
+        const bannerStopBtn = document.getElementById('btnBannerStopSound');
+
+        if (isPlaying) {
+          if (btn) {
+            btn.classList.add('is-playing');
+            btn.title = 'Sound alert is playing! Click to stop.';
+          }
+          if (ring) ring.style.display = 'inline-block';
+          if (label) label.innerText = `Beeping (${duration}s)`;
+          if (icon) icon.innerText = '🔔';
+          if (stopTestBtn) stopTestBtn.style.display = 'inline-flex';
+          if (bannerStopBtn) bannerStopBtn.style.display = 'inline-flex';
+        } else {
+          if (btn) {
+            btn.classList.remove('is-playing');
+            btn.classList.toggle('is-muted', !this.audio.enabled);
+            btn.title = 'Sound alert settings (5s initial beep, 5m reminders)';
+          }
+          if (ring) ring.style.display = 'none';
+          if (label) label.innerText = this.audio.enabled ? 'Sound Alerts' : 'Muted';
+          if (icon) icon.innerText = this.audio.enabled ? '🔊' : '🔇';
+          if (stopTestBtn) stopTestBtn.style.display = 'none';
+        }
+      }
+
+      showBanner(taskItem, type = 'first_alert') {
+        const banner = document.getElementById('attentionBannerBar');
+        const titleEl = document.getElementById('attentionBannerTitle');
+        const subEl = document.getElementById('attentionBannerSub');
+        if (!banner || !titleEl || !subEl) return;
+
+        let statusText = 'Pending Review';
+        if (taskItem.status === 'planned') statusText = 'Plan Created';
+        else if (taskItem.permissionCount > 0) statusText = '⚠️ Permission Requested';
+        else if (taskItem.questionCount > 0) statusText = 'Waiting for You';
+
+        titleEl.innerText = `${statusText}: ${taskItem.title}`;
+        if (type === 'first_alert') {
+          subEl.innerText = `Initial 5s alert • Will remind every 5 minutes until acted on`;
+        } else {
+          const count = taskItem.remindersCount || 1;
+          subEl.innerText = `5m Reminder #${count} (2s beep) • Please review or snooze`;
+        }
+
+        banner.style.display = 'block';
+      }
+
+      hideBanner() {
+        const banner = document.getElementById('attentionBannerBar');
+        if (banner) banner.style.display = 'none';
+      }
+
+      showUnlockPrompt() {
+        const banner = document.getElementById('audioUnlockBanner');
+        if (banner) banner.style.display = 'flex';
+      }
+
+      hideUnlockPrompt() {
+        const banner = document.getElementById('audioUnlockBanner');
+        if (banner) banner.style.display = 'none';
+      }
+
+      startTitleFlashing(taskItem) {
+        if (this.titleFlashingInterval) return;
+        let flag = false;
+        let text = 'PENDING REVIEW';
+        if (taskItem.status === 'planned') text = 'PLAN CREATED';
+        else if (taskItem.permissionCount > 0) text = 'PERMISSION REQUIRED';
+        else if (taskItem.questionCount > 0) text = 'QUESTION';
+
+        this.titleFlashingInterval = setInterval(() => {
+          document.title = flag ? `(🔔 ${text}) ${this.originalTitle}` : this.originalTitle;
+          flag = !flag;
+        }, 1500);
+      }
+
+      stopTitleFlashing() {
+        if (this.titleFlashingInterval) {
+          clearInterval(this.titleFlashingInterval);
+          this.titleFlashingInterval = null;
+        }
+        document.title = this.originalTitle;
+      }
+    }
+
+    const attentionAudio = new TaskboardAudio();
+    const attentionManager = new AttentionAlertManager(attentionAudio);
+
+    function toggleAudioPopover(event) {
+      if (attentionAudio && attentionAudio.isPlaying) {
+        attentionAudio.stop();
+        return;
+      }
+      const overlay = document.getElementById('audioPopoverOverlay');
+      if (overlay) overlay.classList.toggle('active');
+      attentionAudio.ensureContext();
+      syncAudioPopoverControls();
+    }
+
+    function closeAudioPopover() {
+      const overlay = document.getElementById('audioPopoverOverlay');
+      if (overlay) overlay.classList.remove('active');
+    }
+
+    function syncAudioPopoverControls() {
+      const masterToggle = document.getElementById('audioMasterToggle');
+      if (masterToggle) masterToggle.checked = attentionAudio.enabled;
+
+      const volSlider = document.getElementById('audioVolumeSlider');
+      if (volSlider) volSlider.value = Math.round(attentionAudio.volume * 100);
+
+      const volVal = document.getElementById('audioVolumeValue');
+      if (volVal) volVal.innerText = `${Math.round(attentionAudio.volume * 100)}%`;
+
+      const tVerif = document.getElementById('triggerVerification');
+      if (tVerif) tVerif.checked = attentionManager.triggerVerification;
+
+      const tPlan = document.getElementById('triggerPlanned');
+      if (tPlan) tPlan.checked = attentionManager.triggerPlanned;
+
+      const tQuest = document.getElementById('triggerQuestion');
+      if (tQuest) tQuest.checked = attentionManager.triggerQuestion;
+
+      const tPerm = document.getElementById('triggerPermission');
+      if (tPerm) tPerm.checked = attentionManager.triggerPermission;
+    }
+
+    function handleAudioMasterToggle(checked) {
+      attentionAudio.setEnabled(checked);
+      attentionManager.updateAudioUI(false);
+      showToast(checked ? 'Sound notifications enabled.' : 'Sound notifications muted.', 'info');
+    }
+
+    function handleVolumeChange(val) {
+      const vol = parseInt(val, 10) / 100;
+      attentionAudio.setVolume(vol);
+      const valEl = document.getElementById('audioVolumeValue');
+      if (valEl) valEl.innerText = `${val}%`;
+    }
+
+    function saveAudioTriggers() {
+      const v = document.getElementById('triggerVerification')?.checked ?? true;
+      const p = document.getElementById('triggerPlanned')?.checked ?? true;
+      const q = document.getElementById('triggerQuestion')?.checked ?? true;
+      const perm = document.getElementById('triggerPermission')?.checked ?? true;
+      attentionManager.triggerVerification = v;
+      attentionManager.triggerPlanned = p;
+      attentionManager.triggerQuestion = q;
+      attentionManager.triggerPermission = perm;
+      localStorage.setItem('tb_trig_verif', String(v));
+      localStorage.setItem('tb_trig_planned', String(p));
+      localStorage.setItem('tb_trig_question', String(q));
+      localStorage.setItem('tb_trig_permission', String(perm));
+      showToast('Audio trigger preferences saved.', 'info');
+    }
+
+    function testAudio(durationSeconds) {
+      attentionAudio.ensureContext();
+      attentionAudio.playBeep(durationSeconds, 'test');
+    }
+
+    function stopAudio() {
+      attentionAudio.stop();
+    }
+
+    function stopCurrentBeep() {
+      attentionAudio.stop();
+    }
+
+    function snoozeCurrentAlert(minutes = 5) {
+      if (attentionManager.currentAttentionTaskId) {
+        attentionManager.snooze(attentionManager.currentAttentionTaskId, minutes);
+      } else {
+        attentionAudio.stop();
+        attentionManager.hideBanner();
+      }
+    }
+
+    function openCurrentAttentionTask() {
+      attentionAudio.stop();
+      if (attentionManager.currentAttentionTaskId) {
+        openDetailModal(attentionManager.currentAttentionTaskId);
+      }
+    }
+
+    function unlockAudioAndPlay() {
+      attentionAudio.ensureContext();
+      attentionManager.hideUnlockPrompt();
+      if (attentionManager.currentAttentionTaskId && attentionManager.state[attentionManager.currentAttentionTaskId]) {
+        attentionManager.triggerFirstAlert(attentionManager.state[attentionManager.currentAttentionTaskId]);
+      } else {
+        attentionAudio.playBeep(2, 'test');
+      }
+    }
+
+    // Auto-resume AudioContext on first user interaction anywhere
+    ['click', 'keydown', 'touchstart'].forEach(evt => {
+      window.addEventListener(evt, () => {
+        if (attentionAudio) {
+          attentionAudio.ensureContext();
+          if (attentionManager) attentionManager.hideUnlockPrompt();
+        }
+      }, { once: true, passive: true });
+    });
+
     async function fetchTasks() {
       try {
         const res = await fetch('/api/tasks');
@@ -1785,6 +2780,7 @@
             document.getElementById('projectBadge').innerText = data.project;
           }
           renderBoard();
+          attentionManager.checkAttention(tasks);
         }
       } catch (err) {
         console.error('Failed to sync tasks:', err);
@@ -1796,10 +2792,28 @@
       columns.forEach(col => {
         const container = document.getElementById(`list-${col}`);
         const countBadge = document.getElementById(`count-${col}`);
-        const colTasks = tasks.filter(t => t.status === col);
+        let colTasks = tasks.filter(t => t.status === col);
+        let olderDoneCount = 0;
+        let totalDoneCount = 0;
+
+        if (col === 'done') {
+          totalDoneCount = colTasks.length;
+          const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+          const now = Date.now();
+          colTasks = colTasks.filter(t => {
+            const rawTime = t.updated_at || t.created_at;
+            if (!rawTime) return true;
+            const tDate = new Date(rawTime.endsWith('Z') ? rawTime : rawTime.replace(' ', 'T') + 'Z');
+            const ageMs = now - tDate.getTime();
+            return isNaN(ageMs) || ageMs <= FIVE_DAYS_MS;
+          });
+          olderDoneCount = totalDoneCount - colTasks.length;
+        }
         
         if (col === 'in_progress' && colTasks.length > 1) {
           countBadge.innerHTML = `${colTasks.length} <span style="font-size: 10px; background: #8B5CF6; color: white; padding: 1px 6px; border-radius: 10px; margin-left: 4px;" title="${colTasks.length} tasks running in parallel">⚡ Parallel</span>`;
+        } else if (col === 'done' && olderDoneCount > 0) {
+          countBadge.innerHTML = `${colTasks.length} <span style="font-size: 10px; color: var(--text-muted); font-weight: 500;" title="${olderDoneCount} older completed tasks hidden (>5 days)">/ ${totalDoneCount}</span>`;
         } else {
           countBadge.innerText = colTasks.length;
         }
@@ -1867,10 +2881,28 @@
           `;
           container.appendChild(card);
         });
+
+        if (col === 'done') {
+          const archiveBox = document.createElement('div');
+          archiveBox.className = 'done-archive-footer';
+          archiveBox.style.cssText = 'margin-top: 8px; padding: 10px 12px; background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 8px; text-align: center;';
+          archiveBox.innerHTML = `
+            <div style="font-size: 11.5px; font-weight: 600; color: #475569; display: flex; align-items: center; justify-content: center; gap: 5px;">
+              <span>📦</span>
+              <span>${olderDoneCount > 0 ? `${olderDoneCount} older task${olderDoneCount === 1 ? '' : 's'} archived (>5d)` : 'Showing completed tasks ≤5 days'}</span>
+            </div>
+            <a href="/done" class="btn btn-sm btn-secondary" style="margin-top: 6px; width: 100%; justify-content: center; text-decoration: none; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; background: white;">
+              <span>View All Done Tasks (${totalDoneCount})</span>
+              <span>→</span>
+            </a>
+          `;
+          container.appendChild(archiveBox);
+        }
       });
     }
 
     function getCardStateClass(task) {
+      if (task.permission_count > 0 && task.status !== 'done' && task.status !== 'failed') return 'card-waiting';
       if (task.question_count > 0) return 'card-waiting';
       if (task.status === 'planned' || task.status === 'needs_revision') return 'card-planned';
       if (task.status === 'in_progress') return 'card-in_progress';
@@ -1881,6 +2913,9 @@
     }
 
     function getCardStatusBadge(task) {
+      if (task.permission_count > 0 && task.status !== 'done' && task.status !== 'failed') {
+        return `<span class="status-pill" style="background:#FEE2E2; color:#B91C1C; border-color:#FECACA;"><span class="status-dot" style="background:#EF4444;"></span>⚠️ Permission Needed</span>`;
+      }
       if (task.question_count > 0) {
         return `<span class="status-pill status-pill-waiting"><span class="status-dot dot-amber"></span>❓ Waiting for You</span>`;
       }
@@ -1939,6 +2974,7 @@
 
       const task = tasks.find(t => t.id === draggedTaskId);
       if (task && task.status !== targetStatus) {
+        attentionManager.taskActedOn(draggedTaskId);
         task.status = targetStatus;
         renderBoard();
         await fetch(`/api/tasks/${draggedTaskId}`, {
@@ -2004,6 +3040,19 @@
             <span>✏️</span><span>Edit Task</span>
           </button>
         </div>
+
+        ${(attentionManager.state[task.id] && task.status !== 'done' && task.status !== 'failed') ? `
+          <div style="background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #92400E; font-weight: 600;">
+              <span>🔔 Attention Active:</span>
+              <span>${task.status === 'verification' ? 'Pending Review' : task.status === 'planned' ? 'Plan Created' : (task.permission_count > 0 ? 'Permission Requested' : 'Waiting for You')} (reminding every 5m)</span>
+            </div>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.snooze('${task.id}', 5)" style="background: white; font-size: 11px;">⏰ Snooze 5m</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.acknowledge('${task.id}')" style="background: white; font-size: 11px;">🔕 Silence</button>
+            </div>
+          </div>
+        ` : ''}
 
         <!-- Collapsible Task Details (Click Down Arrow to show/hide) -->
         <div class="task-details-collapsible ${isBacklog ? 'open' : ''}" id="taskDetailsContainer">
@@ -2142,22 +3191,22 @@
         <div class="attachments-section" id="attachmentsSection">
           <div class="attachments-header">
             <div class="attachments-title">
-              <span>🖼️ Images & Screenshots</span>
+              <span>📎 Attachments & Files</span>
               <span class="col-count" id="modalAttachmentCount">0</span>
             </div>
             <div style="display: flex; gap: 8px; align-items: center;">
-              <button type="button" class="btn btn-secondary" onclick="triggerImageUpload()" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Upload screenshot or image">
-                <span>📷 Upload Image</span>
+              <button type="button" class="btn btn-secondary" onclick="triggerImageUpload()" style="padding: 4px 10px; font-size: 11.5px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Upload file or screenshot">
+                <span>📎 Upload File</span>
               </button>
-              <input type="file" id="attachmentFileInput" accept="image/*" multiple style="display: none;" onchange="handleFileInputChange(event)">
+              <input type="file" id="attachmentFileInput" multiple style="display: none;" onchange="handleFileInputChange(event)">
             </div>
           </div>
 
           <!-- Drag and drop zone & paste hint -->
           <div class="attachments-dropzone" id="attachmentsDropzone" onclick="triggerImageUpload()" ondragover="handleDragOverAttachments(event)" ondragleave="handleDragLeaveAttachments(event)" ondrop="handleDropAttachments(event)">
-            <span style="font-size: 20px;">🖼️</span>
+            <span style="font-size: 20px;">📎</span>
             <div style="font-size: 12px; color: #64748B;">
-              <span style="font-weight: 600; color: var(--primary);">Click to upload</span>, drag & drop images, or paste from clipboard (<kbd style="background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 11px;">Ctrl+V</kbd> / <kbd style="background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 11px;">⌘+V</kbd>)
+              <span style="font-weight: 600; color: var(--primary);">Click to upload</span>, drag & drop files (Images, JSON, Plist, etc.), or paste screenshot (<kbd style="background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 11px;">Ctrl+V</kbd> / <kbd style="background: #E2E8F0; padding: 1px 5px; border-radius: 4px; font-size: 11px;">⌘+V</kbd>)
             </div>
           </div>
 
@@ -2206,6 +3255,7 @@
               <select class="form-select" id="commentType" style="width: auto; padding: 6px 10px; font-size: 12px;">
                 <option value="comment">💬 Comment</option>
                 <option value="question">❓ Question</option>
+                <option value="permission">⚠️ Permission Request</option>
                 <option value="plan">📋 Implementation Plan</option>
                 <option value="walkthrough">🚀 Walkthrough</option>
               </select>
@@ -2415,6 +3465,7 @@
         })
       });
 
+      attentionManager.taskActedOn(currentTaskId);
       document.getElementById('commentInput').value = '';
       loadComments(currentTaskId, true);
       fetchTasks();
@@ -2445,6 +3496,8 @@
         alert('Please enter your response before submitting input.');
         return;
       }
+
+      attentionManager.taskActedOn(id);
 
       // 1. Post user comment (server automatically transitions verification -> todo)
       await fetch(`/api/tasks/${id}/comments`, {
@@ -2480,6 +3533,8 @@
         alert('Please enter your revision feedback before requesting revision.');
         return;
       }
+
+      attentionManager.taskActedOn(id);
 
       // 1. Post user comment
       await fetch(`/api/tasks/${id}/comments`, {
@@ -2647,6 +3702,7 @@
     }
 
     async function moveTaskStatus(id, newStatus) {
+      attentionManager.taskActedOn(id);
       await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -2658,6 +3714,7 @@
 
     async function deleteTaskItem(id) {
       if (!confirm('Are you sure you want to delete this task?')) return;
+      attentionManager.taskActedOn(id);
       await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       closeDetailModal();
       fetchTasks();
@@ -2675,8 +3732,29 @@
       if (form) form.reset();
     }
 
-    // Staged Images for New Task Creation
+    // Staged Attachments & Files for New Task Creation
     let stagedCreateImages = [];
+
+    function getFileIcon(fileName, mimeType) {
+      const ext = (fileName || '').split('.').pop().toLowerCase();
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext) || (mimeType && mimeType.startsWith('image/'))) {
+        return '🖼️';
+      }
+      if (ext === 'json') return '{ }';
+      if (ext === 'plist') return '📋';
+      if (['xml', 'html', 'xhtml'].includes(ext)) return '🌐';
+      if (['yml', 'yaml', 'toml', 'ini', 'cfg', 'conf', 'env'].includes(ext)) return '⚙️';
+      if (['txt', 'md', 'rtf', 'log'].includes(ext)) return '📝';
+      if (['js', 'mjs', 'ts', 'jsx', 'tsx', 'py', 'swift', 'go', 'rs', 'c', 'cpp', 'h', 'java', 'kt', 'rb', 'php', 'sh'].includes(ext)) return '💻';
+      if (['pdf'].includes(ext)) return '📕';
+      if (['zip', 'tar', 'gz', 'bz2', '7z', 'rar'].includes(ext)) return '📦';
+      return '📄';
+    }
+
+    function isImageAttachment(fileName, mimeType) {
+      if (mimeType && mimeType.startsWith('image/')) return true;
+      return /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i.test(fileName || '');
+    }
 
     function triggerCreateImageUpload() {
       const input = document.getElementById('createAttachmentInput');
@@ -2712,7 +3790,7 @@
       const dropzone = document.getElementById('createDropzone');
       if (dropzone) dropzone.classList.remove('dragover');
 
-      const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+      const files = Array.from(e.dataTransfer.files || []);
       if (!files.length) return;
       for (const file of files) {
         await stageCreateImageFile(file);
@@ -2720,12 +3798,9 @@
     }
 
     async function stageCreateImageFile(file) {
-      if (!file || !file.type.startsWith('image/')) {
-        alert('Only image files (PNG, JPG, WebP, GIF, SVG) are supported.');
-        return;
-      }
+      if (!file) return;
       if (file.size > 10 * 1024 * 1024) {
-        alert('Image size exceeds 10MB limit.');
+        alert('File size exceeds 10MB limit.');
         return;
       }
 
@@ -2740,7 +3815,7 @@
       stagedCreateImages.push({
         id: 'staged-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
         fileName: file.name,
-        mimeType: file.type,
+        mimeType: file.type || 'application/octet-stream',
         fileSize: file.size,
         dataBase64
       });
@@ -2757,12 +3832,24 @@
       }
 
       list.style.display = 'grid';
-      list.innerHTML = stagedCreateImages.map((img, idx) => `
+      list.innerHTML = stagedCreateImages.map((img, idx) => {
+        const isImg = isImageAttachment(img.fileName, img.mimeType);
+        const ext = (img.fileName || '').split('.').pop().toUpperCase();
+        const icon = getFileIcon(img.fileName, img.mimeType);
+
+        return `
         <div class="attachment-card" style="position: relative;">
+          ${isImg ? `
           <div class="attachment-preview" onclick="openLightbox('${img.dataBase64}')" title="Click to view full image" style="height: 85px;">
             <img src="${img.dataBase64}" alt="${escapeHtml(img.fileName)}">
           </div>
-          <button type="button" class="attachment-del-btn" onclick="removeStagedCreateImage(${idx})" title="Remove image">&times;</button>
+          ` : `
+          <div class="attachment-preview" style="height: 85px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1F5F9; color: #475569; user-select: none;">
+            <span style="font-size: 26px;">${icon}</span>
+            <span style="font-size: 11px; margin-top: 4px; color: #64748B; font-family: monospace; font-weight: 700;">${escapeHtml(ext)}</span>
+          </div>
+          `}
+          <button type="button" class="attachment-del-btn" onclick="removeStagedCreateImage(${idx})" title="Remove attachment">&times;</button>
           <div class="attachment-info" style="padding: 6px 8px;">
             <div class="attachment-name" style="font-size: 11px;" title="${escapeHtml(img.fileName)}">${escapeHtml(img.fileName)}</div>
             <div class="attachment-size" style="font-size: 10px;">${formatFileSize(img.fileSize)}</div>
@@ -2771,7 +3858,8 @@
             </button>
           </div>
         </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function removeStagedCreateImage(idx) {
@@ -2782,9 +3870,11 @@
     function insertStagedImageToDescription(idx) {
       const img = stagedCreateImages[idx];
       if (!img) return;
+      const isImg = isImageAttachment(img.fileName, img.mimeType);
       const desc = document.getElementById('newDescription');
       if (desc) {
-        desc.value = (desc.value ? desc.value + '\n\n' : '') + `![${img.fileName}]`;
+        const ref = isImg ? `![${img.fileName}]` : `[📎 ${img.fileName}]`;
+        desc.value = (desc.value ? desc.value + '\n\n' : '') + ref;
         desc.focus();
       }
     }
@@ -2833,7 +3923,7 @@
       if (dropzone) dropzone.classList.remove('dragover');
 
       if (!currentTaskId) return;
-      const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+      const files = Array.from(e.dataTransfer.files || []);
       if (!files.length) return;
 
       for (const file of files) {
@@ -2842,12 +3932,9 @@
     }
 
     async function uploadImageFile(taskId, file) {
-      if (!file || !file.type.startsWith('image/')) {
-        alert('Only image files (PNG, JPG, WebP, GIF, SVG) are supported.');
-        return;
-      }
+      if (!file) return;
       if (file.size > 10 * 1024 * 1024) {
-        alert('Image size exceeds 10MB limit.');
+        alert('File size exceeds 10MB limit.');
         return;
       }
 
@@ -2860,12 +3947,12 @@
 
       try {
         const dataBase64 = await base64Promise;
-        const res = await fetch(`/api/tasks/${taskId}/images`, {
+        const res = await fetch(`/api/tasks/${taskId}/attachments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             fileName: file.name,
-            mimeType: file.type,
+            mimeType: file.type || 'application/octet-stream',
             dataBase64
           })
         });
@@ -2877,14 +3964,14 @@
           alert('Upload failed: ' + (result.error || 'Unknown error'));
         }
       } catch (err) {
-        console.error('Error uploading image:', err);
+        console.error('Error uploading file:', err);
         alert('Upload failed: ' + err.message);
       }
     }
 
     async function loadAttachments(taskId) {
       try {
-        const res = await fetch(`/api/tasks/${taskId}/images`);
+        const res = await fetch(`/api/tasks/${taskId}/attachments`);
         const data = await res.json();
         const list = document.getElementById('attachmentsList');
         const countBadge = document.getElementById('modalAttachmentCount');
@@ -2900,29 +3987,47 @@
         currentAttachments = data.attachments;
         if (countBadge) countBadge.innerText = String(data.attachments.length);
 
-        list.innerHTML = data.attachments.map(att => `
+        list.innerHTML = data.attachments.map(att => {
+          const isImg = isImageAttachment(att.file_name, att.mime_type);
+          const ext = (att.file_name || '').split('.').pop().toUpperCase();
+          const icon = getFileIcon(att.file_name, att.mime_type);
+          const downloadUrl = `/api/attachments/${att.id}?download=1`;
+          const viewUrl = isImg ? `/api/images/${att.id}` : `/api/attachments/${att.id}`;
+
+          return `
           <div class="attachment-card" id="att-${att.id}">
-            <div class="attachment-preview" onclick="openLightbox('${att.url}')" title="Click to view full image">
-              <img src="${att.url}" alt="${escapeHtml(att.file_name)}" loading="lazy">
+            ${isImg ? `
+            <div class="attachment-preview" onclick="openLightbox('${viewUrl}')" title="Click to view full image">
+              <img src="${viewUrl}" alt="${escapeHtml(att.file_name)}" loading="lazy">
             </div>
+            ` : `
+            <a class="attachment-preview" href="${viewUrl}" target="_blank" title="Click to view/open file" style="text-decoration: none; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #F1F5F9; color: #475569; user-select: none;">
+              <span style="font-size: 28px;">${icon}</span>
+              <span style="font-size: 11px; margin-top: 4px; color: #64748B; font-family: monospace; font-weight: 700;">${escapeHtml(ext)}</span>
+            </a>
+            `}
             <button type="button" class="attachment-del-btn" onclick="deleteAttachmentItem('${att.id}', event)" title="Delete attachment">&times;</button>
             <div class="attachment-info">
               <div class="attachment-name" title="${escapeHtml(att.file_name)}">${escapeHtml(att.file_name)}</div>
-              <div class="attachment-size">${formatFileSize(att.file_size)}</div>
+              <div class="attachment-size" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>${formatFileSize(att.file_size)}</span>
+                <a href="${downloadUrl}" download="${escapeHtml(att.file_name)}" style="font-size: 10.5px; color: var(--primary); text-decoration: none; font-weight: 600;" title="Download file">⬇ Download</a>
+              </div>
               <div class="attachment-actions">
-                <button type="button" class="attachment-btn" onclick="copyMarkdownLink('${att.markdown}', this)" title="Copy Markdown link">
+                <button type="button" class="attachment-btn" onclick="copyMarkdownLink('${escapeHtml(att.markdown)}', this)" title="Copy Markdown link">
                   <span>📋</span><span>Copy</span>
                 </button>
-                <button type="button" class="attachment-btn" onclick="insertImageIntoDescription('${att.markdown}')" title="Insert into task description">
+                <button type="button" class="attachment-btn" onclick="insertImageIntoDescription('${escapeHtml(att.markdown)}')" title="Insert into task description">
                   <span>📝</span><span>Desc</span>
                 </button>
-                <button type="button" class="attachment-btn" onclick="insertImageIntoComment('${att.markdown}')" title="Insert into comment">
+                <button type="button" class="attachment-btn" onclick="insertImageIntoComment('${escapeHtml(att.markdown)}')" title="Insert into comment">
                   <span>💬</span><span>Comment</span>
                 </button>
               </div>
             </div>
           </div>
-        `).join('');
+          `;
+        }).join('');
       } catch (err) {
         console.error('Error loading attachments:', err);
       }
@@ -2935,7 +4040,7 @@
       }
       if (!confirm('Are you sure you want to delete this attachment?')) return;
       try {
-        const res = await fetch(`/api/images/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/attachments/${id}`, { method: 'DELETE' });
         const data = await res.json();
         if (data.success) {
           if (currentTaskId) {

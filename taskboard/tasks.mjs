@@ -1,6 +1,24 @@
 #!/usr/bin/env node
 import path from 'path';
 import fs from 'fs';
+import { spawn } from 'child_process';
+
+export function playSystemNotificationSound() {
+  if (process.env.TASKBOARD_DISABLE_SOUND === '1') return;
+  try {
+    if (process.platform === 'darwin') {
+      const pingSound = '/System/Library/Sounds/Ping.aiff';
+      if (fs.existsSync(pingSound)) {
+        const p = spawn('afplay', [pingSound], { detached: true, stdio: 'ignore' });
+        p.unref();
+        return;
+      }
+    }
+    if (process.stdout && process.stdout.isTTY) {
+      process.stdout.write('\x07');
+    }
+  } catch {}
+}
 
 let Database;
 try {
@@ -170,6 +188,7 @@ export function getAllTasks() {
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'permission') as permission_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
@@ -184,6 +203,7 @@ export function getActiveTasks() {
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'permission') as permission_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
@@ -204,6 +224,7 @@ export function getPendingReviewTasks() {
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'permission') as permission_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
@@ -236,6 +257,7 @@ export function getNextTodoTask(excludeIds = []) {
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'permission') as permission_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
@@ -260,6 +282,7 @@ export function getTaskById(id) {
       t.*,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id) as comment_count,
       (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'question') as question_count,
+      (SELECT COUNT(*) FROM task_comments c WHERE c.task_id = t.id AND c.comment_type = 'permission') as permission_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id) as subtask_count,
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
@@ -355,6 +378,10 @@ export function updateTask(id, fields) {
     WHERE id = ?
   `).run(...params);
 
+  if (fields.status === 'verification' || fields.status === 'planned') {
+    playSystemNotificationSound();
+  }
+
   setMetadata('idle_since', null);
   return getTaskById(id);
 }
@@ -426,8 +453,46 @@ export function addComment(taskId, { author = 'agent', comment_type = 'comment',
     }
   }
 
+  if (comment_type === 'plan' || comment_type === 'question' || comment_type === 'permission') {
+    const currentTask = db.prepare('SELECT status FROM agent_tasks WHERE id = ?').get(taskId);
+    if (currentTask && currentTask.status !== 'done' && currentTask.status !== 'failed') {
+      playSystemNotificationSound();
+    }
+  }
+
   setMetadata('idle_since', null);
   return db.prepare('SELECT * FROM task_comments WHERE id = ?').get(id);
+}
+
+export function notifyPermission(taskId, message = 'Antigravity is requesting user permission to proceed.') {
+  let targetTaskId = taskId;
+  if (!targetTaskId || targetTaskId === 'active') {
+    const active = getActiveTask();
+    if (active) {
+      targetTaskId = active.id;
+    } else {
+      const review = getPendingReviewTasks();
+      if (review.length > 0) {
+        targetTaskId = review[0].id;
+      } else {
+        const next = getNextTodoTask();
+        if (next) targetTaskId = next.id;
+      }
+    }
+  }
+
+  if (!targetTaskId) {
+    playSystemNotificationSound();
+    return { success: false, message: 'No active task found to attach permission comment. Notification sound played.' };
+  }
+
+  const comment = addComment(targetTaskId, {
+    author: 'agent',
+    comment_type: 'permission',
+    content: `⚠️ **Permission Requested**: Antigravity is requesting user permission to proceed:\n\n${message}`
+  });
+
+  return { success: true, taskId: targetTaskId, comment };
 }
 
 export function updateComment(id, content) {
@@ -519,6 +584,42 @@ export function deleteSubtask(subtaskId) {
 }
 
 // Attachments API (SQLite BLOB Storage)
+export function getMimeTypeFromExt(filename) {
+  const ext = path.extname(filename || '').toLowerCase();
+  const map = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.bmp': 'image/bmp',
+    '.json': 'application/json',
+    '.plist': 'application/x-plist',
+    '.xml': 'application/xml',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.yaml': 'application/x-yaml',
+    '.yml': 'application/x-yaml',
+    '.pdf': 'application/pdf',
+    '.zip': 'application/zip',
+    '.tar': 'application/x-tar',
+    '.gz': 'application/gzip',
+    '.csv': 'text/csv',
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.ts': 'application/typescript',
+    '.py': 'text/x-python',
+    '.sh': 'text/x-shellscript',
+    '.swift': 'text/x-swift',
+    '.log': 'text/plain'
+  };
+  return map[ext] || 'application/octet-stream';
+}
+
 export function getAttachments(taskId) {
   const rows = db.prepare(`
     SELECT id, task_id, file_name, mime_type, file_size, created_at
@@ -527,11 +628,15 @@ export function getAttachments(taskId) {
     ORDER BY created_at ASC
   `).all(taskId);
 
-  return rows.map(r => ({
-    ...r,
-    url: `/api/images/${r.id}`,
-    markdown: `![${r.file_name}](/api/images/${r.id})`
-  }));
+  return rows.map(r => {
+    const isImage = r.mime_type && r.mime_type.startsWith('image/');
+    return {
+      ...r,
+      is_image: !!isImage,
+      url: isImage ? `/api/images/${r.id}` : `/api/attachments/${r.id}`,
+      markdown: isImage ? `![${r.file_name}](/api/images/${r.id})` : `[📎 ${r.file_name}](/api/attachments/${r.id})`
+    };
+  });
 }
 
 export function getAttachment(id) {
@@ -549,14 +654,14 @@ export function addAttachment(taskId, { fileName, mimeType, buffer }) {
   }
 
   let buf = buffer;
-  let safeMime = mimeType || 'image/png';
+  let safeMime = mimeType;
   if (typeof buffer === 'string') {
     let cleanBase64 = buffer;
     const commaIdx = cleanBase64.indexOf(',');
     if (commaIdx !== -1 && cleanBase64.slice(0, commaIdx).includes('base64')) {
       const header = cleanBase64.slice(0, commaIdx);
       const m = header.match(/data:([^;]+)/);
-      if (m && !mimeType) safeMime = m[1];
+      if (m && !safeMime) safeMime = m[1];
       cleanBase64 = cleanBase64.slice(commaIdx + 1);
     }
     buf = Buffer.from(cleanBase64, 'base64');
@@ -568,8 +673,16 @@ export function addAttachment(taskId, { fileName, mimeType, buffer }) {
     throw new Error('Attachment buffer is empty');
   }
 
-  const id = `img-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const cleanFileName = (fileName || `image_${Date.now()}.png`).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const cleanFileName = (fileName || `attachment_${Date.now()}.bin`).replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (!safeMime || safeMime === 'application/octet-stream') {
+    const inferred = getMimeTypeFromExt(cleanFileName);
+    if (inferred !== 'application/octet-stream' || !safeMime) {
+      safeMime = inferred;
+    }
+  }
+  const isImage = safeMime && safeMime.startsWith('image/');
+  const idPrefix = isImage ? 'img' : 'att';
+  const id = `${idPrefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const fileSize = buf.length;
 
   db.prepare(`
@@ -580,14 +693,18 @@ export function addAttachment(taskId, { fileName, mimeType, buffer }) {
   db.prepare('UPDATE agent_tasks SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(taskId);
   setMetadata('idle_since', null);
 
+  const url = isImage ? `/api/images/${id}` : `/api/attachments/${id}`;
+  const markdown = isImage ? `![${cleanFileName}](${url})` : `[📎 ${cleanFileName}](${url})`;
+
   return {
     id,
     task_id: taskId,
     file_name: cleanFileName,
     mime_type: safeMime,
     file_size: fileSize,
-    url: `/api/images/${id}`,
-    markdown: `![${cleanFileName}](/api/images/${id})`,
+    is_image: !!isImage,
+    url,
+    markdown,
     created_at: new Date().toISOString()
   };
 }
@@ -980,13 +1097,14 @@ if (command) {
           console.log('    (empty)');
         } else {
           for (const t of inCol) {
+            const permBadge = t.permission_count > 0 ? ' [⚠️ PERMISSION]' : '';
             const qBadge = t.question_count > 0 ? ' [❓ QUESTION]' : '';
             const cBadge = t.comment_count > 0 ? ` (${t.comment_count} 💬)` : '';
             const sBadge = t.subtask_count > 0 ? ` [${t.subtask_done_count}/${t.subtask_count} subtasks]` : '';
             const aBadge = t.attachment_count > 0 ? ` [🖼️ ${t.attachment_count}]` : '';
             const scopeBadge = t.scope ? ` [🏷️ ${t.scope}]` : '';
             const sizeBadge = t.scope_size && t.scope_size !== 'small' ? ` [${t.scope_size.toUpperCase()}]` : '';
-            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${scopeBadge}${sizeBadge}${sBadge}${aBadge}${qBadge}${cBadge}`);
+            console.log(`    • [${t.priority.toUpperCase()}] ${t.id}: ${t.title}${scopeBadge}${sizeBadge}${sBadge}${aBadge}${permBadge}${qBadge}${cBadge}`);
           }
         }
         console.log('');
@@ -1114,16 +1232,7 @@ if (command) {
       }
       const buffer = fs.readFileSync(filePath);
       const fileName = path.basename(filePath);
-      const ext = path.extname(filePath).toLowerCase();
-      const mimeMap = {
-        '.png': 'image/png',
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.gif': 'image/gif',
-        '.webp': 'image/webp',
-        '.svg': 'image/svg+xml'
-      };
-      const mimeType = mimeMap[ext] || 'application/octet-stream';
+      const mimeType = getMimeTypeFromExt(fileName);
       const att = addAttachment(taskId, { fileName, mimeType, buffer });
       console.log(`✅ Attachment added to ${taskId}:`, JSON.stringify(att, null, 2));
       break;
@@ -1149,8 +1258,20 @@ if (command) {
       console.log(JSON.stringify(deleteAttachment(id)));
       break;
     }
+    case 'notify-permission': {
+      const [taskId, ...msgParts] = args;
+      const message = msgParts.join(' ');
+      const res = notifyPermission(taskId, message);
+      console.log(JSON.stringify(res, null, 2));
+      break;
+    }
+    case 'beep': {
+      playSystemNotificationSound();
+      console.log(JSON.stringify({ success: true, message: 'Sound played' }));
+      break;
+    }
     default: {
-      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment.`);
+      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep.`);
     }
   }
 }

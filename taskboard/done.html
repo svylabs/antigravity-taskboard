@@ -1,0 +1,1584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Done Archive • {{PROJECT_NAME}}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #F8FAFC;
+      --bg-surface: #FFFFFF;
+      --border-color: #E2E8F0;
+      --border-subtle: #F1F5F9;
+      --text-main: #0F172A;
+      --text-muted: #64748B;
+      --accent-color: #4F46E5;
+      --accent-hover: #4338CA;
+      --accent-light: #EEF2FF;
+      --done-color: #10B981;
+      --done-light: #ECFDF5;
+      --done-border: #A7F3D0;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+      --radius-sm: 6px;
+      --radius-md: 10px;
+      --radius-lg: 14px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      padding: 12px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .header-main {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, #10B981, #059669);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 20px;
+      font-weight: 700;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .project-pill {
+      font-size: 11px;
+      font-weight: 600;
+      background: #EEF2FF;
+      color: #4F46E5;
+      padding: 2px 8px;
+      border-radius: 12px;
+      border: 1px solid #C7D2FE;
+    }
+
+    .port-pill {
+      font-size: 11px;
+      font-weight: 600;
+      background: #F1F5F9;
+      color: #475569;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-family: monospace;
+    }
+
+    .brand-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      font-size: 12.5px;
+      font-weight: 600;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+      background: var(--bg-surface);
+      color: var(--text-main);
+    }
+
+    .btn-secondary {
+      border-color: var(--border-color);
+      color: #334155;
+    }
+    .btn-secondary:hover {
+      background: #F1F5F9;
+      border-color: #CBD5E1;
+    }
+
+    .btn-primary {
+      background: var(--accent-color);
+      color: white;
+      border-color: var(--accent-color);
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-success {
+      background: #10B981;
+      color: white;
+      border-color: #10B981;
+    }
+    .btn-success:hover {
+      background: #059669;
+    }
+
+    .btn-sm {
+      padding: 4px 8px;
+      font-size: 11px;
+    }
+
+    /* Multi-Project Switcher */
+    .project-switcher {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #F8FAFC;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 3px 8px;
+    }
+    .project-select {
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* KPI Summary Strip */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      padding: 16px 24px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .kpi-card {
+      background: #F8FAFC;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .kpi-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .kpi-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .kpi-subtext {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      padding: 20px 24px 60px 24px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Filter & Controls Toolbar */
+    .controls-toolbar {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .search-box {
+      flex: 1;
+      min-width: 240px;
+      position: relative;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 8px 12px 8px 34px;
+      font-size: 13px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      outline: none;
+      transition: border-color 0.15s;
+      background: #F8FAFC;
+    }
+    .search-input:focus {
+      border-color: var(--accent-color);
+      background: white;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .filter-label {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-select {
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 500;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      background: white;
+      color: var(--text-main);
+      outline: none;
+      cursor: pointer;
+    }
+    .form-select:focus {
+      border-color: var(--accent-color);
+    }
+
+    /* Category Accordion / Group */
+    .category-group {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.15s;
+    }
+    .category-group:hover {
+      box-shadow: var(--shadow-md);
+    }
+
+    .category-header {
+      padding: 12px 18px;
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .category-title-area {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .category-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .category-badge {
+      font-size: 11px;
+      font-weight: 600;
+      background: #E2E8F0;
+      color: #334155;
+      padding: 2px 8px;
+      border-radius: 12px;
+    }
+
+    .category-percent {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .category-toggle-icon {
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: transform 0.2s ease;
+    }
+    .category-group.collapsed .category-toggle-icon {
+      transform: rotate(-90deg);
+    }
+    .category-group.collapsed .category-body {
+      display: none;
+    }
+
+    .category-body {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+
+    /* Archive Task Card */
+    .archive-card {
+      background: white;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .archive-card:hover {
+      border-color: #CBD5E1;
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .card-top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .card-badges {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .badge-urgent { background: #FEE2E2; color: #991B1B; }
+    .badge-high { background: #FEF3C7; color: #92400E; }
+    .badge-medium { background: #EEF2FF; color: #3730A3; }
+    .badge-low { background: #F1F5F9; color: #475569; }
+
+    .role-badge {
+      font-size: 10px;
+      font-weight: 600;
+      background: #F1F5F9;
+      color: #475569;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .scope-badge {
+      font-size: 10px;
+      font-weight: 600;
+      background: #F8FAFC;
+      color: #64748B;
+      font-family: monospace;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid #E2E8F0;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.4;
+    }
+
+    .card-meta-line {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .completed-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: #059669;
+      font-weight: 600;
+    }
+
+    /* Subtask Progress */
+    .card-subtasks {
+      background: #F8FAFC;
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .subtask-label-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .subtask-bar {
+      height: 5px;
+      background: #E2E8F0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .subtask-fill {
+      height: 100%;
+      background: #10B981;
+      border-radius: 4px;
+    }
+
+    .card-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-top: 8px;
+      border-top: 1px solid var(--border-subtle);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Empty States */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      background: var(--bg-surface);
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-muted);
+    }
+    .empty-state-icon {
+      font-size: 40px;
+      margin-bottom: 12px;
+    }
+    .empty-state-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+      margin-bottom: 4px;
+    }
+    .empty-state-sub {
+      font-size: 13px;
+      max-width: 480px;
+      margin: 0 auto 16px auto;
+    }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      background: #1E293B;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: slideIn 0.2s ease-out forwards;
+    }
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: white;
+      border-radius: var(--radius-lg);
+      max-width: 800px;
+      width: 100%;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: var(--shadow-lg);
+      overflow: hidden;
+      animation: modalScale 0.15s ease-out;
+    }
+    @keyframes modalScale {
+      from { opacity: 0; transform: scale(0.97); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #F8FAFC;
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .close-btn {
+      background: transparent;
+      border: none;
+      font-size: 20px;
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .detail-section {
+      background: #F8FAFC;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .detail-section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .comment-item {
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+    .comment-type-walkthrough {
+      background: #ECFDF5;
+      border: 1px solid #A7F3D0;
+      border-left: 4px solid #10B981;
+    }
+    .comment-type-plan {
+      background: #FAF5FF;
+      border: 1px solid #E9D5FF;
+      border-left: 4px solid #A855F7;
+    }
+    .comment-type-question {
+      background: #FFFBEB;
+      border: 1px solid #FDE68A;
+      border-left: 4px solid #F59E0B;
+    }
+    .comment-type-permission {
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      border-left: 4px solid #EF4444;
+    }
+    .comment-type-comment {
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+    }
+
+    @media (max-width: 768px) {
+      .category-body {
+        grid-template-columns: 1fr;
+      }
+      .kpi-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="header-main">
+      <div class="brand">
+        <div class="brand-logo">🏆</div>
+        <div>
+          <div class="brand-title">
+            <span>Done Archive</span>
+            <span class="project-pill" id="projectBadge">{{PROJECT_NAME}}</span>
+            <span class="port-pill" id="portBadge">:{{PROJECT_PORT}}</span>
+          </div>
+          <div class="brand-subtitle">Catalog of completed engineering tasks categorized by label, scope & role</div>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <!-- Multi-Project Switcher -->
+        <div class="project-switcher" id="projectSwitcherContainer">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">PROJECT:</span>
+          <select id="projectSelect" class="project-select" onchange="switchProject(this.value)" title="Switch active project workspace">
+            <option value="http://localhost:{{PROJECT_PORT}}" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}})</option>
+          </select>
+        </div>
+
+        <a href="/" class="btn btn-primary" title="Return to the active Kanban board">
+          <span>←</span><span>Kanban Board</span>
+        </a>
+        <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository files">
+          <span>📁</span><span>Repo Files</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- KPI Metrics Strip -->
+  <section class="kpi-strip">
+    <div class="kpi-card">
+      <div class="kpi-label"><span>🏆</span> Total Completed</div>
+      <div class="kpi-value" id="kpiTotalDone">0</div>
+      <div class="kpi-subtext">All completed tasks</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label"><span>⚡</span> Recent (≤ 5 Days)</div>
+      <div class="kpi-value" id="kpiRecentDone" style="color: #059669;">0</div>
+      <div class="kpi-subtext">Shown on Kanban board</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label"><span>📦</span> Older (> 5 Days)</div>
+      <div class="kpi-value" id="kpiOlderDone" style="color: #4F46E5;">0</div>
+      <div class="kpi-subtext">Archived from main board</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label"><span>🏷️</span> Categories / Scopes</div>
+      <div class="kpi-value" id="kpiTotalCategories">0</div>
+      <div class="kpi-subtext" id="kpiCategoriesSub">Across all tasks</div>
+    </div>
+  </section>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Controls Toolbar -->
+    <div class="controls-toolbar">
+      <div class="toolbar-row">
+        <!-- Live Search -->
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" class="search-input" id="searchInput" placeholder="Search done tasks by title, ID, scope, criteria..." oninput="handleSearch(this.value)">
+        </div>
+
+        <!-- Group By Selector -->
+        <div class="filter-group">
+          <span class="filter-label">Group By:</span>
+          <select class="form-select" id="groupBySelect" onchange="handleGroupByChange(this.value)">
+            <option value="scope" selected>🏷️ Label / Scope</option>
+            <option value="role">👷 Subagent Role</option>
+            <option value="priority">🔥 Priority</option>
+            <option value="date">📅 Date Completed</option>
+            <option value="none">📋 Flat List (No Grouping)</option>
+          </select>
+        </div>
+
+        <!-- Time Window Filter -->
+        <div class="filter-group">
+          <span class="filter-label">Period:</span>
+          <select class="form-select" id="timeFilterSelect" onchange="handleFilterChange()">
+            <option value="all" selected>All Time</option>
+            <option value="24h">Last 24 Hours</option>
+            <option value="5d">Last 5 Days (Board Active)</option>
+            <option value="30d">Last 30 Days</option>
+            <option value="older">Older than 30 Days</option>
+          </select>
+        </div>
+
+        <!-- Sort Order -->
+        <div class="filter-group">
+          <span class="filter-label">Sort:</span>
+          <select class="form-select" id="sortSelect" onchange="handleFilterChange()">
+            <option value="newest" selected>Completed: Newest First</option>
+            <option value="oldest">Completed: Oldest First</option>
+            <option value="priority">Priority: Highest First</option>
+            <option value="title">Title: A → Z</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toolbar-row" style="border-top: 1px solid var(--border-subtle); padding-top: 8px;">
+        <!-- Filter by Scope Dropdown -->
+        <div class="filter-group">
+          <span class="filter-label">Filter Label/Scope:</span>
+          <select class="form-select" id="scopeFilterSelect" onchange="handleFilterChange()">
+            <option value="">All Scopes</option>
+          </select>
+        </div>
+
+        <!-- Filter by Role Dropdown -->
+        <div class="filter-group">
+          <span class="filter-label">Role:</span>
+          <select class="form-select" id="roleFilterSelect" onchange="handleFilterChange()">
+            <option value="">All Roles</option>
+          </select>
+        </div>
+
+        <!-- Filter by Priority Dropdown -->
+        <div class="filter-group">
+          <span class="filter-label">Priority:</span>
+          <select class="form-select" id="priorityFilterSelect" onchange="handleFilterChange()">
+            <option value="">All Priorities</option>
+            <option value="urgent">Urgent</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+        </div>
+
+        <div style="margin-left: auto; display: flex; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllGroups(true)">Expand All</button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="toggleAllGroups(false)">Collapse All</button>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="fetchTasks()">↻ Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Groups & Cards Container -->
+    <div id="groupsContainer">
+      <div class="empty-state">
+        <div class="empty-state-icon">⏳</div>
+        <div class="empty-state-title">Loading completed tasks...</div>
+        <div class="empty-state-sub">Connecting to project SQLite database.</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Detail Modal -->
+  <div class="modal-overlay" id="detailModal" onclick="handleModalOverlayClick(event)">
+    <div class="modal" id="modalCard">
+      <div class="modal-header">
+        <div>
+          <div class="modal-title" id="modalTitle">Task Details</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="modalSubtitle">Completed Task Walkthrough & Details</div>
+        </div>
+        <button class="close-btn" onclick="closeDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody">
+        <!-- Dynamically populated -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    let allTasks = [];
+    let doneTasks = [];
+    let currentGroupBy = 'scope';
+    let searchQuery = '';
+    const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function parseTaskDate(task) {
+      const raw = task.updated_at || task.created_at;
+      if (!raw) return new Date();
+      return new Date(raw.endsWith('Z') ? raw : raw.replace(' ', 'T') + 'Z');
+    }
+
+    function formatRelativeTime(date) {
+      const diffMs = Date.now() - date.getTime();
+      const diffSecs = Math.floor(diffMs / 1000);
+      const diffMins = Math.floor(diffSecs / 60);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffSecs < 60) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays === 1) return 'Yesterday';
+      if (diffDays < 30) return `${diffDays} days ago`;
+      return date.toLocaleDateString();
+    }
+
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.innerHTML = `<span>${type === 'success' ? '✅' : 'ℹ️'}</span><span>${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.2s';
+        setTimeout(() => toast.remove(), 200);
+      }, 3000);
+    }
+
+    async function fetchTasks() {
+      try {
+        const res = await fetch('/api/tasks');
+        const data = await res.json();
+        if (data.success) {
+          allTasks = data.tasks || [];
+          doneTasks = allTasks.filter(t => t.status === 'done');
+          if (data.project) {
+            document.getElementById('projectBadge').innerText = data.project;
+          }
+          updateKPIs();
+          populateFilterDropdowns();
+          renderArchive();
+        }
+      } catch (err) {
+        console.error('Failed to fetch tasks:', err);
+        showToast('Failed to load tasks from SQLite', 'error');
+      }
+    }
+
+    function updateKPIs() {
+      const now = Date.now();
+      let recent = 0;
+      let older = 0;
+      const scopes = new Set();
+
+      doneTasks.forEach(t => {
+        const d = parseTaskDate(t);
+        const age = now - d.getTime();
+        if (age <= FIVE_DAYS_MS) {
+          recent++;
+        } else {
+          older++;
+        }
+        if (t.scope && t.scope.trim()) {
+          t.scope.split(',').forEach(s => scopes.add(s.trim()));
+        }
+      });
+
+      document.getElementById('kpiTotalDone').innerText = doneTasks.length;
+      document.getElementById('kpiRecentDone').innerText = recent;
+      document.getElementById('kpiOlderDone').innerText = older;
+      document.getElementById('kpiTotalCategories').innerText = scopes.size || (doneTasks.length > 0 ? 1 : 0);
+      document.getElementById('kpiCategoriesSub').innerText = `${scopes.size} distinct scopes identified`;
+    }
+
+    function populateFilterDropdowns() {
+      const scopeSelect = document.getElementById('scopeFilterSelect');
+      const roleSelect = document.getElementById('roleFilterSelect');
+
+      const currentScope = scopeSelect.value;
+      const currentRole = roleSelect.value;
+
+      const scopes = new Set();
+      const roles = new Set();
+
+      doneTasks.forEach(t => {
+        if (t.scope && t.scope.trim()) {
+          t.scope.split(',').forEach(s => scopes.add(s.trim()));
+        }
+        if (t.subagent_role && t.subagent_role.trim()) {
+          roles.add(t.subagent_role.trim());
+        }
+      });
+
+      scopeSelect.innerHTML = '<option value="">All Scopes</option>';
+      Array.from(scopes).sort().forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.innerText = `🏷️ ${s}`;
+        if (s === currentScope) opt.selected = true;
+        scopeSelect.appendChild(opt);
+      });
+
+      roleSelect.innerHTML = '<option value="">All Roles</option>';
+      Array.from(roles).sort().forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r;
+        opt.innerText = `👷 ${r}`;
+        if (r === currentRole) opt.selected = true;
+        roleSelect.appendChild(opt);
+      });
+    }
+
+    function handleSearch(val) {
+      searchQuery = (val || '').toLowerCase().trim();
+      renderArchive();
+    }
+
+    function handleGroupByChange(val) {
+      currentGroupBy = val;
+      renderArchive();
+    }
+
+    function handleFilterChange() {
+      renderArchive();
+    }
+
+    function getFilteredTasks() {
+      const scopeFilter = document.getElementById('scopeFilterSelect').value;
+      const roleFilter = document.getElementById('roleFilterSelect').value;
+      const priorityFilter = document.getElementById('priorityFilterSelect').value;
+      const timeFilter = document.getElementById('timeFilterSelect').value;
+      const sortVal = document.getElementById('sortSelect').value;
+
+      const now = Date.now();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+      const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
+
+      let filtered = doneTasks.filter(task => {
+        // Search query filter
+        if (searchQuery) {
+          const matchTitle = (task.title || '').toLowerCase().includes(searchQuery);
+          const matchDesc = (task.description || '').toLowerCase().includes(searchQuery);
+          const matchId = (task.id || '').toLowerCase().includes(searchQuery);
+          const matchScope = (task.scope || '').toLowerCase().includes(searchQuery);
+          const matchRole = (task.subagent_role || '').toLowerCase().includes(searchQuery);
+          if (!matchTitle && !matchDesc && !matchId && !matchScope && !matchRole) {
+            return false;
+          }
+        }
+
+        // Scope filter
+        if (scopeFilter) {
+          const taskScopes = (task.scope || '').split(',').map(s => s.trim().toLowerCase());
+          if (!taskScopes.includes(scopeFilter.toLowerCase())) {
+            return false;
+          }
+        }
+
+        // Role filter
+        if (roleFilter && (task.subagent_role || '').trim().toLowerCase() !== roleFilter.toLowerCase()) {
+          return false;
+        }
+
+        // Priority filter
+        if (priorityFilter && (task.priority || '').toLowerCase() !== priorityFilter.toLowerCase()) {
+          return false;
+        }
+
+        // Time Period filter
+        if (timeFilter !== 'all') {
+          const d = parseTaskDate(task);
+          const age = now - d.getTime();
+          if (timeFilter === '24h' && age > ONE_DAY_MS) return false;
+          if (timeFilter === '5d' && age > FIVE_DAYS_MS) return false;
+          if (timeFilter === '30d' && age > THIRTY_DAYS_MS) return false;
+          if (timeFilter === 'older' && age <= THIRTY_DAYS_MS) return false;
+        }
+
+        return true;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        const dateA = parseTaskDate(a).getTime();
+        const dateB = parseTaskDate(b).getTime();
+
+        if (sortVal === 'newest') return dateB - dateA;
+        if (sortVal === 'oldest') return dateA - dateB;
+        if (sortVal === 'priority') {
+          const pOrder = { urgent: 4, high: 3, medium: 2, low: 1 };
+          const pDiff = (pOrder[b.priority] || 0) - (pOrder[a.priority] || 0);
+          return pDiff !== 0 ? pDiff : dateB - dateA;
+        }
+        if (sortVal === 'title') {
+          return (a.title || '').localeCompare(b.title || '');
+        }
+        return dateB - dateA;
+      });
+
+      return filtered;
+    }
+
+    function groupTasks(tasksList, groupBy) {
+      if (groupBy === 'none') {
+        return [{ key: 'all', title: 'All Completed Tasks', icon: '📋', tasks: tasksList }];
+      }
+
+      const groups = {};
+
+      tasksList.forEach(task => {
+        let key = 'uncategorized';
+        let title = 'Uncategorized';
+        let icon = '🏷️';
+
+        if (groupBy === 'scope') {
+          icon = '🏷️';
+          const sc = (task.scope || '').trim();
+          if (sc) {
+            key = sc.split(',')[0].trim().toLowerCase();
+            title = sc.split(',')[0].trim();
+          } else {
+            key = 'general';
+            title = 'General / Unscoped';
+          }
+        } else if (groupBy === 'role') {
+          icon = '👷';
+          key = (task.subagent_role || 'Engineer').trim().toLowerCase();
+          title = task.subagent_role || 'Engineer';
+        } else if (groupBy === 'priority') {
+          icon = '🔥';
+          key = (task.priority || 'medium').toLowerCase();
+          title = key.toUpperCase();
+        } else if (groupBy === 'date') {
+          icon = '📅';
+          const d = parseTaskDate(task);
+          const ageMs = Date.now() - d.getTime();
+          const ONE_DAY = 24 * 60 * 60 * 1000;
+          if (ageMs <= ONE_DAY) {
+            key = 'today';
+            title = 'Today';
+          } else if (ageMs <= 2 * ONE_DAY) {
+            key = 'yesterday';
+            title = 'Yesterday';
+          } else if (ageMs <= 7 * ONE_DAY) {
+            key = 'last_7_days';
+            title = 'Past 7 Days';
+          } else if (ageMs <= 30 * ONE_DAY) {
+            key = 'last_30_days';
+            title = 'Past 30 Days';
+          } else {
+            key = 'older';
+            title = 'Older than 30 Days';
+          }
+        }
+
+        if (!groups[key]) {
+          groups[key] = { key, title, icon, tasks: [] };
+        }
+        groups[key].tasks.push(task);
+      });
+
+      // Priority ordering for certain group keys
+      const groupArray = Object.values(groups);
+      if (groupBy === 'priority') {
+        const order = ['urgent', 'high', 'medium', 'low'];
+        groupArray.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+      } else if (groupBy === 'date') {
+        const order = ['today', 'yesterday', 'last_7_days', 'last_30_days', 'older'];
+        groupArray.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+      } else {
+        groupArray.sort((a, b) => a.title.localeCompare(b.title));
+      }
+
+      return groupArray;
+    }
+
+    function renderArchive() {
+      const container = document.getElementById('groupsContainer');
+      const filtered = getFilteredTasks();
+
+      if (doneTasks.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🏆</div>
+            <div class="empty-state-title">No completed tasks yet</div>
+            <div class="empty-state-sub">Tasks moved to "Done" on the Kanban board will be archived and categorized here.</div>
+            <a href="/" class="btn btn-primary">Go to Kanban Board</a>
+          </div>
+        `;
+        return;
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🔍</div>
+            <div class="empty-state-title">No tasks matched your filters</div>
+            <div class="empty-state-sub">Try clearing your search query or expanding the time window.</div>
+            <button type="button" class="btn btn-secondary" onclick="resetFilters()">Reset All Filters</button>
+          </div>
+        `;
+        return;
+      }
+
+      const groups = groupTasks(filtered, currentGroupBy);
+      container.innerHTML = '';
+
+      groups.forEach((grp, idx) => {
+        const percent = Math.round((grp.tasks.length / filtered.length) * 100);
+        const groupEl = document.createElement('div');
+        groupEl.className = 'category-group';
+        groupEl.id = `group-${grp.key}`;
+
+        groupEl.innerHTML = `
+          <div class="category-header" onclick="toggleGroup('${grp.key}')">
+            <div class="category-title-area">
+              <span style="font-size: 16px;">${grp.icon}</span>
+              <span class="category-title">${escapeHtml(grp.title)}</span>
+              <span class="category-badge">${grp.tasks.length} task${grp.tasks.length === 1 ? '' : 's'}</span>
+              <span class="category-percent">(${percent}% of shown)</span>
+            </div>
+            <span class="category-toggle-icon">▼</span>
+          </div>
+          <div class="category-body" id="group-body-${grp.key}"></div>
+        `;
+
+        const bodyEl = groupEl.querySelector(`#group-body-${grp.key}`);
+        grp.tasks.forEach(task => {
+          bodyEl.appendChild(createArchiveCard(task));
+        });
+
+        container.appendChild(groupEl);
+      });
+    }
+
+    function createArchiveCard(task) {
+      const card = document.createElement('div');
+      card.className = 'archive-card';
+      card.onclick = () => openDetailModal(task.id);
+
+      const d = parseTaskDate(task);
+      const relTime = formatRelativeTime(d);
+      const isWithin5Days = (Date.now() - d.getTime()) <= FIVE_DAYS_MS;
+
+      const hasSubtasks = (task.subtask_count || 0) > 0;
+      const subtaskPercent = hasSubtasks ? Math.round(((task.subtask_done_count || 0) / task.subtask_count) * 100) : 0;
+      const subtaskHtml = hasSubtasks ? `
+        <div class="card-subtasks">
+          <div class="subtask-label-row">
+            <span>☑️ ${task.subtask_done_count || 0}/${task.subtask_count} subtasks</span>
+            <span>${subtaskPercent}%</span>
+          </div>
+          <div class="subtask-bar">
+            <div class="subtask-fill" style="width: ${subtaskPercent}%;"></div>
+          </div>
+        </div>
+      ` : '';
+
+      const sizeStyle = task.scope_size === 'large' 
+        ? 'background: #FEE2E2; color: #991B1B;'
+        : task.scope_size === 'medium'
+          ? 'background: #FEF3C7; color: #92400E;'
+          : 'background: #EEF2FF; color: #4338CA;';
+
+      const scopeBadge = task.scope ? `<span class="scope-badge" title="${escapeHtml(task.scope)}">🏷️ ${escapeHtml(task.scope)}</span>` : '';
+      const sizeBadge = task.scope_size && task.scope_size !== 'small' ? `<span class="role-badge" style="${sizeStyle}">${escapeHtml(task.scope_size.toUpperCase())}</span>` : '';
+
+      card.innerHTML = `
+        <div class="card-top-row">
+          <div class="card-badges">
+            <span class="badge badge-${task.priority}">${escapeHtml(task.priority)}</span>
+            <span class="role-badge">${escapeHtml(task.subagent_role || 'Engineer')}</span>
+            ${scopeBadge}
+            ${sizeBadge}
+          </div>
+          <span style="font-size: 10px; font-family: monospace; color: var(--text-muted);">${task.id.slice(-6)}</span>
+        </div>
+
+        <div class="card-title">${escapeHtml(task.title)}</div>
+
+        <div class="card-meta-line">
+          <span class="completed-tag">
+            <span>✅</span>
+            <span>Completed ${relTime}</span>
+          </span>
+          <span style="font-size: 10.5px; color: #94A3B8;">•</span>
+          <span style="font-size: 11px; color: #64748B;">${d.toLocaleDateString()}</span>
+          ${isWithin5Days ? '<span style="font-size: 10px; background: #ECFDF5; color: #047857; padding: 1px 5px; border-radius: 4px; font-weight: 600;">Active on Board</span>' : '<span style="font-size: 10px; background: #F1F5F9; color: #475569; padding: 1px 5px; border-radius: 4px;">Archived (>5d)</span>'}
+        </div>
+
+        ${subtaskHtml}
+
+        <div class="card-footer">
+          <div style="display: flex; gap: 8px; align-items: center;">
+            ${(task.attachment_count || 0) > 0 ? `<span>📎 ${task.attachment_count}</span>` : ''}
+            ${(task.comment_count || 0) > 0 ? `<span>💬 ${task.comment_count}</span>` : ''}
+          </div>
+          <div class="card-actions" onclick="event.stopPropagation()">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${task.id}')" title="Inspect implementation walkthrough & details">👁️ Details</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="reopenTask('${task.id}', event)" style="color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;" title="Reopen this completed task back to Planned">↩️ Reopen</button>
+          </div>
+        </div>
+      `;
+
+      return card;
+    }
+
+    function toggleGroup(key) {
+      const el = document.getElementById(`group-${key}`);
+      if (el) {
+        el.classList.toggle('collapsed');
+      }
+    }
+
+    function toggleAllGroups(expand) {
+      const groups = document.querySelectorAll('.category-group');
+      groups.forEach(g => {
+        if (expand) g.classList.remove('collapsed');
+        else g.classList.add('collapsed');
+      });
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('scopeFilterSelect').value = '';
+      document.getElementById('roleFilterSelect').value = '';
+      document.getElementById('priorityFilterSelect').value = '';
+      document.getElementById('timeFilterSelect').value = 'all';
+      document.getElementById('sortSelect').value = 'newest';
+      searchQuery = '';
+      renderArchive();
+    }
+
+    async function reopenTask(taskId, event) {
+      if (event) event.stopPropagation();
+      const reason = prompt('Please enter a note / reason for reopening this task to Planned:');
+      if (reason === null) return;
+
+      try {
+        if (reason.trim()) {
+          await fetch(`/api/tasks/${taskId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              author: 'user',
+              comment_type: 'comment',
+              content: `↩️ **Task Reopened**: ${reason.trim()}`
+            })
+          });
+        }
+
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'planned' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Task moved back to Planned on Kanban Board!', 'success');
+          fetchTasks();
+        } else {
+          showToast(data.error || 'Failed to reopen task', 'error');
+        }
+      } catch (err) {
+        console.error(err);
+        showToast('Error reopening task', 'error');
+      }
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes || bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function getFileIcon(fileName, mimeType) {
+      const ext = (fileName || '').split('.').pop().toLowerCase();
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(ext) || (mimeType && mimeType.startsWith('image/'))) {
+        return '🖼️';
+      }
+      if (ext === 'json') return '{ }';
+      if (ext === 'plist') return '📋';
+      if (['xml', 'html', 'xhtml'].includes(ext)) return '🌐';
+      if (['yml', 'yaml', 'toml', 'ini', 'cfg', 'conf', 'env'].includes(ext)) return '⚙️';
+      if (['txt', 'md', 'rtf', 'log'].includes(ext)) return '📝';
+      if (['js', 'mjs', 'ts', 'jsx', 'tsx', 'py', 'swift', 'go', 'rs', 'c', 'cpp', 'h', 'java', 'kt', 'rb', 'php', 'sh'].includes(ext)) return '💻';
+      if (['pdf'].includes(ext)) return '📕';
+      if (['zip', 'tar', 'gz', 'bz2', '7z', 'rar'].includes(ext)) return '📦';
+      return '📄';
+    }
+
+    function isImageAttachment(fileName, mimeType) {
+      if (mimeType && mimeType.startsWith('image/')) return true;
+      return /\.(png|jpe?g|gif|webp|svg|ico|bmp)$/i.test(fileName || '');
+    }
+
+    // Modal Operations
+    async function openDetailModal(taskId) {
+      const task = allTasks.find(t => t.id === taskId);
+      if (!task) return;
+
+      document.getElementById('modalTitle').innerText = task.title;
+      document.getElementById('modalSubtitle').innerText = `Completed Task ${task.id} • ${task.priority.toUpperCase()} • ${task.subagent_role || 'Engineer'}`;
+
+      const modalBody = document.getElementById('modalBody');
+      modalBody.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
+            <span class="badge badge-${task.priority}">${task.priority}</span>
+            <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
+            ${task.scope ? `<span class="scope-badge">🏷️ ${escapeHtml(task.scope)}</span>` : ''}
+            <span class="role-badge" style="background: #ECFDF5; color: #047857; font-weight: 700;">✅ Done</span>
+          </div>
+          <button type="button" class="btn btn-sm btn-secondary" onclick="reopenTask('${task.id}')" style="color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;">↩️ Reopen to Planned</button>
+        </div>
+
+        <div class="detail-section">
+          <div class="detail-section-title">Description & Acceptance Criteria</div>
+          <div style="font-size: 13px; line-height: 1.6; white-space: pre-wrap; color: var(--text-main);">${escapeHtml(task.description || 'No description provided.')}</div>
+          ${task.acceptance_criteria ? `<div style="margin-top: 10px; font-size: 12.5px; background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color);"><b style="color: #047857;">Criteria:</b><div style="white-space: pre-wrap; margin-top: 4px;">${escapeHtml(task.acceptance_criteria)}</div></div>` : ''}
+          ${task.verification_cmd ? `<div style="margin-top: 8px; font-size: 11.5px; font-family: monospace; background: #1E293B; color: #E2E8F0; padding: 6px 10px; border-radius: 6px;">$ ${escapeHtml(task.verification_cmd)}</div>` : ''}
+        </div>
+
+        <div class="detail-section" id="modalAttachmentsSection">
+          <div class="detail-section-title">Attachments & Files</div>
+          <div id="modalAttachmentsList" style="font-size: 12.5px; color: var(--text-muted);">Loading attachments...</div>
+        </div>
+
+        <div class="detail-section" id="modalSubtasksSection">
+          <div class="detail-section-title">Ordered Subtasks</div>
+          <div id="modalSubtasksList" style="font-size: 12.5px; color: var(--text-muted);">Loading subtasks...</div>
+        </div>
+
+        <div class="detail-section" id="modalCommentsSection">
+          <div class="detail-section-title">Implementation Walkthroughs & Comments</div>
+          <div id="modalCommentsList" style="font-size: 12.5px; color: var(--text-muted);">Loading comments...</div>
+        </div>
+      `;
+
+      document.getElementById('detailModal').classList.add('active');
+
+      loadAttachments(taskId);
+      loadSubtasks(taskId);
+      loadComments(taskId);
+    }
+
+    async function loadAttachments(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/attachments`);
+        const data = await res.json();
+        const listEl = document.getElementById('modalAttachmentsList');
+        if (!listEl) return;
+        if (data.success && data.attachments && data.attachments.length > 0) {
+          listEl.innerHTML = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-top: 6px;">
+              ${data.attachments.map(att => {
+                const isImg = isImageAttachment(att.file_name, att.mime_type);
+                const ext = (att.file_name || '').split('.').pop().toUpperCase();
+                const icon = getFileIcon(att.file_name, att.mime_type);
+                const downloadUrl = `/api/attachments/${att.id}?download=1`;
+                const viewUrl = isImg ? `/api/images/${att.id}` : `/api/attachments/${att.id}`;
+                return `
+                  <div style="background: white; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; display: flex; flex-direction: column;">
+                    ${isImg ? `
+                    <a href="${viewUrl}" target="_blank" style="height: 75px; background: #0F172A; display: flex; align-items: center; justify-content: center; text-decoration: none;">
+                      <img src="${viewUrl}" style="max-height: 100%; max-width: 100%; object-fit: contain;" alt="${escapeHtml(att.file_name)}">
+                    </a>
+                    ` : `
+                    <a href="${viewUrl}" target="_blank" style="height: 75px; background: #F1F5F9; display: flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: #475569;">
+                      <span style="font-size: 24px;">${icon}</span>
+                      <span style="font-size: 10px; margin-top: 2px; color: #64748B; font-family: monospace; font-weight: 700;">${escapeHtml(ext)}</span>
+                    </a>
+                    `}
+                    <div style="padding: 6px; font-size: 11px;">
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;" title="${escapeHtml(att.file_name)}">${escapeHtml(att.file_name)}</div>
+                      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 10px; color: var(--text-muted);">
+                        <span>${formatFileSize(att.file_size)}</span>
+                        <a href="${downloadUrl}" download="${escapeHtml(att.file_name)}" style="color: var(--primary); text-decoration: none; font-weight: 600;">⬇ Save</a>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          listEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No attachments on this completed task.</div>';
+        }
+      } catch {
+        const listEl = document.getElementById('modalAttachmentsList');
+        if (listEl) listEl.innerHTML = '<div style="font-size: 12px; color: red;">Failed to load attachments.</div>';
+      }
+    }
+
+    async function loadSubtasks(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/subtasks`);
+        const data = await res.json();
+        const listEl = document.getElementById('modalSubtasksList');
+        if (data.success && data.subtasks && data.subtasks.length > 0) {
+          listEl.innerHTML = data.subtasks.map(s => `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-subtle);">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span>${s.status === 'done' ? '✅' : '⚪'}</span>
+                <span style="font-weight: 500; ${s.status === 'done' ? 'text-decoration: line-through; color: #64748B;' : ''}">${escapeHtml(s.title)}</span>
+              </div>
+              <span class="role-badge" style="font-size: 10px;">${s.status}</span>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No subtasks defined.</div>';
+        }
+      } catch {
+        document.getElementById('modalSubtasksList').innerHTML = '<div style="font-size: 12px; color: red;">Failed to load subtasks.</div>';
+      }
+    }
+
+    async function loadComments(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/comments`);
+        const data = await res.json();
+        const listEl = document.getElementById('modalCommentsList');
+        if (data.success && data.comments && data.comments.length > 0) {
+          listEl.innerHTML = data.comments.map(c => `
+            <div class="comment-item comment-type-${c.comment_type}">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; font-weight: 600;">
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <span>${c.author === 'agent' ? '🤖 Agent' : c.author === 'user' ? '👤 User' : escapeHtml(c.author)}</span>
+                  <span class="role-badge" style="text-transform: uppercase; font-size: 9px;">${c.comment_type}</span>
+                </div>
+                <span style="color: var(--text-muted); font-size: 10px;">${new Date(c.created_at).toLocaleString()}</span>
+              </div>
+              <div style="white-space: pre-wrap; font-size: 12.5px;">${escapeHtml(c.content)}</div>
+            </div>
+          `).join('');
+        } else {
+          listEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No comments on this card.</div>';
+        }
+      } catch {
+        document.getElementById('modalCommentsList').innerHTML = '<div style="font-size: 12px; color: red;">Failed to load comments.</div>';
+      }
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    function handleModalOverlayClick(e) {
+      if (e.target.id === 'detailModal') {
+        closeDetailModal();
+      }
+    }
+
+    // Project Switcher
+    async function loadProjects() {
+      try {
+        const res = await fetch('/api/projects');
+        const data = await res.json();
+        if (data.success && data.projects && data.projects.length > 0) {
+          const sel = document.getElementById('projectSelect');
+          sel.innerHTML = '';
+          data.projects.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.url;
+            opt.innerText = `${p.isActive ? '●' : '○'} ${p.projectName} (:${p.port})`;
+            if (p.projectName === data.currentProject) opt.selected = true;
+            sel.appendChild(opt);
+          });
+        }
+      } catch {}
+    }
+
+    function switchProject(targetUrl) {
+      if (targetUrl && !targetUrl.includes(`:${window.location.port}`)) {
+        window.location.href = `${targetUrl}/done`;
+      }
+    }
+
+    // Keyboard ESC to close modal
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeDetailModal();
+    });
+
+    // Auto-sync polling every 10 seconds
+    setInterval(fetchTasks, 10000);
+
+    // Initial load
+    fetchTasks();
+    loadProjects();
+  </script>
+</body>
+</html>

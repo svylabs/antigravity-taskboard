@@ -46,6 +46,14 @@ To prevent burning credits during recurring schedule wakeups:
    * While a task is in `verification` (`👀 Pending Review`), it holds locks on its modified paths until user sign-off.
 3. **Branch Isolation**:
    Always dispatch subagents in isolated git branches (`Workspace: "branch"`).
+4. **Black-Box CLI Utility Gate (Never Call `view_file` on `tasks.mjs`)**:
+   Always execute `tasks.mjs` via terminal commands (`node taskboard/tasks.mjs ...` or `node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs ...`). **NEVER call `view_file`, `cat`, or read `tasks.mjs` directly**, as doing so triggers cross-workspace / branch sandbox security permission dialogs and interrupts productivity.
+5. **Permission Alerting & Sound Chimes**:
+   Whenever an agent or subagent is waiting for user permission or approval (e.g. `state: "waiting_for_input"`, sandbox bypass, or destructive action), immediately run:
+   ```bash
+   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs notify-permission <TASK_ID> "<REASON>"
+   ```
+   This posts an alert comment on the card and plays the system chime. The web board beeps for 5 seconds and repeats every 5 minutes until acted on.
 
 ---
 
@@ -99,6 +107,12 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 * **If `action == "monitor_active"`**:
   Active task(s) are in progress and any candidate task is either deferred due to scope conflict / large scope, or max concurrency (2) is reached. Monitor active task(s) to completion.
+  - When inspecting active subagents via `manage_subagents(Action: "list")`:
+    If a subagent's `state` is `"waiting_for_input"` (waiting on user permission, bypass sandbox, or confirmation):
+    ```bash
+    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs notify-permission <TASK_ID> "<stateDetail>"
+    ```
+    This immediately posts a permission comment to the card and sounds the system alert chime.
 
 ---
 

@@ -31,6 +31,9 @@ When working with this repository or when the taskboard plugin is installed, fol
    * Never skip subtasks or attempt concurrent execution.
    * Move the parent task to `done` only after all subtasks are `done`.
 
+6. **Black-Box CLI Utility (Never Call `view_file` on `tasks.mjs`)**:
+   Always execute `tasks.mjs` via CLI or MCP tools. **NEVER call `view_file` or read `tasks.mjs`**, as doing so triggers out-of-workspace permission prompts and interrupts autonomous workflow.
+
 ---
 
 ## 🛠️ Tool Execution Methods
@@ -62,6 +65,18 @@ node taskboard/tasks.mjs update-subtask <SUBTASK_ID> done
 # Post comment
 node taskboard/tasks.mjs comment <ID> "Content..." "Claude" "plan"
 
+# Notify permission request (beeps and posts card comment)
+node taskboard/tasks.mjs notify-permission <ID> "Requesting user approval"
+
+# Play alert chime
+node taskboard/tasks.mjs beep
+
+# Attachments (Images, JSON, Plist, configs)
+node taskboard/tasks.mjs attachments <TASK_ID>
+node taskboard/tasks.mjs add-attachment <TASK_ID> <FILE_PATH>
+node taskboard/tasks.mjs get-attachment <ATTACHMENT_ID> [OUTPUT_PATH]
+
 # Update status
 node taskboard/tasks.mjs update <ID> done "Verification passed"
 ```
+

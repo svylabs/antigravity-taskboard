@@ -66,3 +66,27 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
     * Whenever the taskboard is in active use, the supervisor must maintain a standing 1-minute recurring schedule (`schedule(CronExpression="* * * * *", Prompt="Poll taskboard for new tasks or comments", IsDaemon=false)`).
     * **Never Cancel on Pending Review**: When a task completes and moves to `👀 Pending Review`, the recurring cron remains active. Every 60s, it executes `tasks.mjs poll` so that user comments, card moves, approvals, and revision requests are automatically detected and acted upon without requiring chat prompts.
     * **Single Cancellation Condition**: The cron is only cancelled when `stop_loop: true` is returned after 8 continuous hours of inactivity (or if explicitly stopped by user).
+
+11. **Black-Box CLI Utility Gate (Never Call `view_file` on `tasks.mjs`)**:
+    * All subagents and supervisor agents must treat `tasks.mjs` strictly as a black-box executable CLI utility.
+    * **DO NOT use `view_file`, `cat`, or read `tasks.mjs`**. Reading `tasks.mjs` directly triggers out-of-workspace file permission prompts and breaks autonomous flow.
+    * All supported commands and arguments are fully documented here:
+      - **Poll Delta**: `node taskboard/tasks.mjs poll` (or `node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll`)
+      - **Get Next Task**: `node taskboard/tasks.mjs next`
+      - **Get Subtasks**: `node taskboard/tasks.mjs subtasks <TASK_ID>`
+      - **Update Subtask**: `node taskboard/tasks.mjs update-subtask <SUBTASK_ID> in_progress|done|failed`
+      - **Post Comment**: `node taskboard/tasks.mjs comment <TASK_ID> "<CONTENT>" "<AUTHOR>" "<plan|walkthrough|question|comment>"`
+      - **Update Task Status**: `node taskboard/tasks.mjs update <TASK_ID> in_progress|verification|done|failed "<LOGS>"`
+      - **Acknowledge User Comment**: `node taskboard/tasks.mjs ack-comment <COMMENT_ID>`
+      - **Permission Alert & Beep**: `node taskboard/tasks.mjs notify-permission [TASK_ID] "<REASON>"`
+      - **Play Alert Chime**: `node taskboard/tasks.mjs beep`
+      - **List Tasks (ASCII Kanban)**: `node taskboard/tasks.mjs list`
+      - **Get Task Details**: `node taskboard/tasks.mjs get <TASK_ID>`
+      - **List Attachments**: `node taskboard/tasks.mjs attachments <TASK_ID>`
+      - **Download Attachment**: `node taskboard/tasks.mjs get-attachment <ID> [OUTPUT_PATH]`
+
+12. **Permission Request Alerts & Beeps**:
+    * Whenever an agent or subagent needs user approval (e.g. sandbox bypass, destructive action, or subagent entering `waiting_for_input`), it must immediately run:
+      `node taskboard/tasks.mjs notify-permission <TASK_ID> "<TOOL_OR_PERMISSION_DETAILS>"`
+    * This posts a `comment_type: 'permission'` card comment and sounds the system chime. The web board activates the attention banner and chimes every 5 minutes until acted on.
+

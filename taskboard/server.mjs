@@ -435,6 +435,21 @@ const server = http.createServer(async (req, res) => {
     return res.end(html);
   }
 
+  // Serve static done.html (Archive of all completed tasks)
+  if (pathname === '/done' || pathname === '/archive' || pathname === '/completed') {
+    const htmlPath = path.join(__dirname, 'done.html');
+    if (!fs.existsSync(htmlPath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('done.html not found');
+    }
+    let html = fs.readFileSync(htmlPath, 'utf-8');
+    const { projectName } = getProjectInfo();
+    html = html.replace(/\{\{PROJECT_NAME\}\}/g, projectName);
+    html = html.replace(/\{\{PROJECT_PORT\}\}/g, String(ACTIVE_PORT));
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    return res.end(html);
+  }
+
   // Serve repository files, docs, and code viewer: /repo/*, /files/*, /view/*
   if (pathname === '/repo' || pathname.startsWith('/repo/') || 
       pathname === '/files' || pathname.startsWith('/files/') || 
@@ -513,6 +528,9 @@ const server = http.createServer(async (req, res) => {
           try {
             fs.copyFileSync(path.join(__dirname, 'server.mjs'), path.join(tbDir, 'server.mjs'));
             fs.copyFileSync(path.join(__dirname, 'board.html'), path.join(tbDir, 'board.html'));
+            if (fs.existsSync(path.join(__dirname, 'done.html'))) {
+              fs.copyFileSync(path.join(__dirname, 'done.html'), path.join(tbDir, 'done.html'));
+            }
             fs.copyFileSync(path.join(__dirname, 'repo_viewer.mjs'), path.join(tbDir, 'repo_viewer.mjs'));
             if (fs.existsSync(path.join(__dirname, 'tasks.mjs')) && !fs.existsSync(path.join(tbDir, 'tasks.mjs'))) {
               fs.copyFileSync(path.join(__dirname, 'tasks.mjs'), path.join(tbDir, 'tasks.mjs'));
@@ -759,24 +777,24 @@ const server = http.createServer(async (req, res) => {
     return sendJson(res, 200, { success: true, deleted: id });
   }
 
-  // REST API: GET /api/tasks/:id/images
-  const taskImagesGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/images$/);
-  if (taskImagesGetMatch && req.method === 'GET') {
-    const taskId = taskImagesGetMatch[1];
+  // REST API: GET /api/tasks/:id/attachments or /images
+  const taskAttachmentsGetMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/(images|attachments)$/);
+  if (taskAttachmentsGetMatch && req.method === 'GET') {
+    const taskId = taskAttachmentsGetMatch[1];
     const attachments = getAttachments(taskId);
     return sendJson(res, 200, { success: true, attachments });
   }
 
-  // REST API: POST /api/tasks/:id/images
-  const taskImagesPostMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/images$/);
-  if (taskImagesPostMatch && req.method === 'POST') {
-    const taskId = taskImagesPostMatch[1];
+  // REST API: POST /api/tasks/:id/attachments or /images
+  const taskAttachmentsPostMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/(images|attachments)$/);
+  if (taskAttachmentsPostMatch && req.method === 'POST') {
+    const taskId = taskAttachmentsPostMatch[1];
     try {
       const body = await parseBody(req);
       let { fileName, mimeType, dataBase64, data } = body;
       const rawBase64 = dataBase64 || data;
       if (!rawBase64) {
-        return sendJson(res, 400, { success: false, error: 'Image data (dataBase64) is required' });
+        return sendJson(res, 400, { success: false, error: 'File data (dataBase64) is required' });
       }
 
       let cleanBase64 = rawBase64;
@@ -792,15 +810,15 @@ const server = http.createServer(async (req, res) => {
 
       const buffer = Buffer.from(cleanBase64, 'base64');
       if (buffer.length === 0) {
-        return sendJson(res, 400, { success: false, error: 'Empty image data' });
+        return sendJson(res, 400, { success: false, error: 'Empty file data' });
       }
       if (buffer.length > 10 * 1024 * 1024) {
-        return sendJson(res, 413, { success: false, error: 'Image size exceeds 10MB limit' });
+        return sendJson(res, 413, { success: false, error: 'File size exceeds 10MB limit' });
       }
 
       const attachment = addAttachment(taskId, {
-        fileName: fileName || `screenshot_${Date.now()}.png`,
-        mimeType: mimeType || 'image/png',
+        fileName: fileName || `attachment_${Date.now()}.bin`,
+        mimeType: mimeType || 'application/octet-stream',
         buffer
       });
       return sendJson(res, 201, { success: true, attachment });
@@ -809,18 +827,21 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // REST API: GET/HEAD /api/images/:id
-  const imageGetMatch = pathname.match(/^\/api\/images\/([^/]+)$/);
-  if (imageGetMatch && (req.method === 'GET' || req.method === 'HEAD')) {
-    const imageId = imageGetMatch[1];
-    const attachment = getAttachment(imageId);
+  // REST API: GET/HEAD /api/attachments/:id or /images/:id
+  const attachmentGetMatch = pathname.match(/^\/api\/(images|attachments)\/([^/]+)$/);
+  if (attachmentGetMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+    const attachmentId = attachmentGetMatch[2];
+    const attachment = getAttachment(attachmentId);
     if (!attachment) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
-      return res.end('Image not found');
+      return res.end('Attachment not found');
     }
+    const isDownload = url.searchParams.get('download') === '1';
+    const disposition = isDownload ? 'attachment' : 'inline';
     res.writeHead(200, {
-      'Content-Type': attachment.mime_type || 'image/png',
+      'Content-Type': attachment.mime_type || 'application/octet-stream',
       'Content-Length': attachment.data.length,
+      'Content-Disposition': `${disposition}; filename="${encodeURIComponent(attachment.file_name)}"`,
       'Cache-Control': 'public, max-age=31536000, immutable',
       'Access-Control-Allow-Origin': '*'
     });
@@ -830,12 +851,12 @@ const server = http.createServer(async (req, res) => {
     return res.end(attachment.data);
   }
 
-  // REST API: DELETE /api/images/:id
-  const imageDeleteMatch = pathname.match(/^\/api\/images\/([^/]+)$/);
-  if (imageDeleteMatch && req.method === 'DELETE') {
-    const imageId = imageDeleteMatch[1];
-    deleteAttachment(imageId);
-    return sendJson(res, 200, { success: true, deleted: imageId });
+  // REST API: DELETE /api/attachments/:id or /images/:id
+  const attachmentDeleteMatch = pathname.match(/^\/api\/(images|attachments)\/([^/]+)$/);
+  if (attachmentDeleteMatch && req.method === 'DELETE') {
+    const attachmentId = attachmentDeleteMatch[2];
+    deleteAttachment(attachmentId);
+    return sendJson(res, 200, { success: true, deleted: attachmentId });
   }
 
   res.writeHead(404, { 'Content-Type': 'application/json' });
