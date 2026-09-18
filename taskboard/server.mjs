@@ -421,9 +421,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Serve static board.html
-  if (pathname === '/' || pathname === '/index.html') {
-    const htmlPath = path.join(__dirname, 'board.html');
-    if (!fs.existsSync(htmlPath)) {
+  const cleanPath = pathname.replace(/\/+$/, '') || '/';
+  if (cleanPath === '/' || cleanPath === '/index.html' || cleanPath === '/board' || cleanPath === '/board.html') {
+    const candidatePaths = [
+      path.join(__dirname, 'board.html'),
+      path.join(process.cwd(), 'taskboard', 'board.html'),
+      path.join(process.cwd(), '.agents', 'plugins', 'antigravity-taskboard', 'taskboard', 'board.html'),
+      path.join(process.cwd(), '.agents', 'taskboard', 'board.html')
+    ];
+    const htmlPath = candidatePaths.find(p => fs.existsSync(p));
+    if (!htmlPath) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       return res.end('board.html not found');
     }
@@ -436,9 +443,15 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Serve static done.html (Archive of all completed tasks)
-  if (pathname === '/done' || pathname === '/archive' || pathname === '/completed') {
-    const htmlPath = path.join(__dirname, 'done.html');
-    if (!fs.existsSync(htmlPath)) {
+  if (cleanPath === '/done' || cleanPath === '/archive' || cleanPath === '/completed' || cleanPath === '/done.html') {
+    const candidatePaths = [
+      path.join(__dirname, 'done.html'),
+      path.join(process.cwd(), 'taskboard', 'done.html'),
+      path.join(process.cwd(), '.agents', 'plugins', 'antigravity-taskboard', 'taskboard', 'done.html'),
+      path.join(process.cwd(), '.agents', 'taskboard', 'done.html')
+    ];
+    const htmlPath = candidatePaths.find(p => fs.existsSync(p));
+    if (!htmlPath) {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       return res.end('done.html not found');
     }
