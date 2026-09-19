@@ -1917,9 +1917,9 @@
         <div class="audio-setting-row" style="flex-direction: column; align-items: stretch; gap: 6px;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <span style="font-size: 12px; font-weight: 600;">Volume</span>
-            <span id="audioVolumeValue" style="font-size: 12px; font-weight: 700; color: var(--primary);">70%</span>
+            <span id="audioVolumeValue" style="font-size: 12px; font-weight: 700; color: var(--primary);">3%</span>
           </div>
-          <input type="range" id="audioVolumeSlider" min="0" max="100" value="70" class="volume-range" oninput="handleVolumeChange(this.value)">
+          <input type="range" id="audioVolumeSlider" min="0" max="100" value="3" class="volume-range" oninput="handleVolumeChange(this.value)">
         </div>
 
         <!-- Trigger Events -->
@@ -2261,7 +2261,15 @@
         this.currentGain = null;
         this.stopTimeout = null;
         this.isPlaying = false;
-        this.volume = parseFloat(localStorage.getItem('tb_audio_vol') || '0.7');
+        // Default volume is 3% (0.03)
+        const savedVol = localStorage.getItem('tb_audio_vol');
+        if (!savedVol || savedVol === '0.7' || localStorage.getItem('tb_vol_version') !== '2') {
+          this.volume = 0.03;
+          localStorage.setItem('tb_audio_vol', '0.03');
+          localStorage.setItem('tb_vol_version', '2');
+        } else {
+          this.volume = parseFloat(savedVol);
+        }
         this.enabled = localStorage.getItem('tb_audio_enabled') !== 'false';
         this.onStateChange = null;
       }
