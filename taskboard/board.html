@@ -441,7 +441,7 @@
       bottom: 24px;
       right: 24px;
       z-index: 9999;
-      max-width: 480px;
+      max-width: 580px;
       background: #0F172A;
       color: #FFFFFF;
       border-radius: 14px;
@@ -1959,15 +1959,45 @@
           </label>
         </div>
 
+        <!-- Max Reminders -->
+        <div class="audio-setting-row" style="margin-top: 10px; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 600;">Max Reminders</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Stop repeated beeps after N reminders</div>
+          </div>
+          <select id="selectMaxReminders" class="form-select" style="width: 145px; padding: 4px 8px; font-size: 12px;" onchange="handleMaxRemindersChange(this.value)">
+            <option value="3">3 reminders (~15m)</option>
+            <option value="1">1 reminder (~5m)</option>
+            <option value="5">5 reminders (~25m)</option>
+            <option value="0">None (1st alert only)</option>
+            <option value="-1">Unlimited</option>
+          </select>
+        </div>
+
+        <!-- Max Snoozes -->
+        <div class="audio-setting-row" style="margin-top: 8px; align-items: center;">
+          <div>
+            <div style="font-size: 13px; font-weight: 600;">Max Snoozes</div>
+            <div style="font-size: 11px; color: var(--text-muted);">Auto-silence task after N snoozes</div>
+          </div>
+          <select id="selectMaxSnoozes" class="form-select" style="width: 145px; padding: 4px 8px; font-size: 12px;" onchange="handleMaxSnoozesChange(this.value)">
+            <option value="3">3 snoozes</option>
+            <option value="1">1 snooze</option>
+            <option value="5">5 snoozes</option>
+            <option value="-1">Unlimited</option>
+          </select>
+        </div>
+
         <!-- Reminder Rules Info -->
-        <div class="audio-rules-box">
+        <div class="audio-rules-box" style="margin-top: 12px;">
           <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #1E293B; font-size: 12px;">
-            <span>⏱️</span><span>Reminder Rules</span>
+            <span>⏱️</span><span>Smart Reminder Rules</span>
           </div>
           <div style="font-size: 11.5px; color: #475569; margin-top: 4px; line-height: 1.45;">
-            • <b>First alert:</b> 5 seconds beep when entering review<br>
-            • <b>Reminders:</b> 2 seconds beep every 5 minutes until acted on<br>
-            • <b>Auto-stop:</b> Silences when approved, revised, moved, or commented
+            • <b>First alert:</b> 5 seconds chime when card needs attention<br>
+            • <b>Reminders:</b> 2 seconds chime every 5 minutes (max 3 by default)<br>
+            • <b>Snooze:</b> 15m or 1h postponement (max 3 snoozes before auto-silence)<br>
+            • <b>Auto-stop:</b> Automatically silences when acted on or silenced
           </div>
         </div>
 
@@ -1999,8 +2029,14 @@
         <button class="btn btn-sm btn-danger" id="btnBannerStopSound" onclick="stopCurrentBeep()" title="Stop sound immediately">
           🛑 Stop Sound
         </button>
-        <button class="btn btn-sm btn-secondary" onclick="snoozeCurrentAlert(5)" title="Snooze reminders for 5 minutes">
-          ⏰ Snooze 5m
+        <button class="btn btn-sm btn-secondary" onclick="snoozeCurrentAlert(15)" title="Snooze reminders for 15 minutes">
+          ⏰ Snooze 15m
+        </button>
+        <button class="btn btn-sm btn-secondary" onclick="snoozeCurrentAlert(60)" title="Snooze reminders for 1 hour">
+          ⏰ 1h
+        </button>
+        <button class="btn btn-sm btn-secondary" onclick="silenceCurrentAlert()" title="Permanently silence audio alerts for this task" style="background: rgba(255,255,255,0.85); color: #475569;">
+          🔕 Silence
         </button>
         <button class="btn btn-sm btn-primary" onclick="openCurrentAttentionTask()" title="Review task card">
           👀 Review
@@ -2355,6 +2391,9 @@
         this.REMINDER_BEEP_SECS = 2;
         this.REMINDER_INTERVAL_MS = 5 * 60 * 1000;
 
+        this.maxReminders = parseInt(localStorage.getItem('tb_max_reminders') ?? '3', 10);
+        this.maxSnoozes = parseInt(localStorage.getItem('tb_max_snoozes') ?? '3', 10);
+
         this.triggerVerification = localStorage.getItem('tb_trig_verif') !== 'false';
         this.triggerPlanned = localStorage.getItem('tb_trig_planned') !== 'false';
         this.triggerQuestion = localStorage.getItem('tb_trig_question') !== 'false';
@@ -2441,6 +2480,7 @@
               firstAlertPlayed: false,
               lastAlertAt: 0,
               remindersCount: 0,
+              snoozeCount: 0,
               snoozedUntil: null,
               acknowledged: false
             };
@@ -2501,8 +2541,28 @@
             return;
           }
 
+          const currentReminders = item.remindersCount || 0;
+          if (this.maxReminders !== -1 && currentReminders >= this.maxReminders) {
+            item.acknowledged = true;
+            this.saveState();
+            this.stopTitleFlashing();
+            if (this.currentAttentionTaskId === item.id) {
+              this.audio.stop();
+            }
+            this.showBanner(item, 'exhausted');
+            continue;
+          }
+
           const elapsed = now - (item.lastAlertAt || item.enteredAt || now);
           if (elapsed >= this.REMINDER_INTERVAL_MS) {
+            const nextReminderCount = currentReminders + 1;
+            item.lastAlertAt = now;
+            item.remindersCount = nextReminderCount;
+
+            if (this.maxReminders !== -1 && nextReminderCount >= this.maxReminders) {
+              item.acknowledged = true;
+            }
+
             this.currentAttentionTaskId = item.id;
             this.lastBeepReason = 'reminder';
 
@@ -2511,8 +2571,6 @@
               this.showUnlockPrompt();
             }
 
-            item.lastAlertAt = now;
-            item.remindersCount = (item.remindersCount || 0) + 1;
             this.saveState();
 
             this.showBanner(item, 'reminder');
@@ -2537,15 +2595,37 @@
         }
       }
 
-      snooze(taskId, minutes = 5) {
-        if (this.state[taskId]) {
-          this.state[taskId].snoozedUntil = Date.now() + minutes * 60 * 1000;
-          this.saveState();
+      snooze(taskId, minutes = 15) {
+        if (!this.state[taskId]) {
+          this.audio.stop();
+          this.hideBanner();
+          this.stopTitleFlashing();
+          return;
         }
+
+        const item = this.state[taskId];
+        item.snoozeCount = (item.snoozeCount || 0) + 1;
+        const maxSnoozes = this.maxSnoozes;
+
+        if (maxSnoozes !== -1 && item.snoozeCount >= maxSnoozes) {
+          item.acknowledged = true;
+          item.snoozedUntil = null;
+          this.saveState();
+          this.audio.stop();
+          this.hideBanner();
+          this.stopTitleFlashing();
+          showToast(`🔕 Reached maximum snoozes (${maxSnoozes}) — sound alerts silenced for this task.`, 'info');
+          return;
+        }
+
+        item.snoozedUntil = Date.now() + minutes * 60 * 1000;
+        this.saveState();
+
         this.audio.stop();
         this.hideBanner();
         this.stopTitleFlashing();
-        showToast(`⏰ Reminders snoozed for ${minutes} minutes.`, 'info');
+        const countInfo = maxSnoozes === -1 ? '' : ` (${item.snoozeCount}/${maxSnoozes} snoozes used)`;
+        showToast(`⏰ Reminders snoozed for ${minutes}m${countInfo}.`, 'info');
       }
 
       acknowledge(taskId) {
@@ -2603,10 +2683,14 @@
 
         titleEl.innerText = `${statusText}: ${taskItem.title}`;
         if (type === 'first_alert') {
-          subEl.innerText = `Initial 5s alert • Will remind every 5 minutes until acted on`;
+          const maxText = this.maxReminders === -1 ? 'every 5m until acted on' : this.maxReminders === 0 ? 'no repeated reminders' : `up to ${this.maxReminders} reminders`;
+          subEl.innerText = `Initial 5s alert • Will remind ${maxText}`;
+        } else if (type === 'exhausted') {
+          subEl.innerText = `Reminders finished (max ${this.maxReminders} reached) • Audio silenced`;
         } else {
           const count = taskItem.remindersCount || 1;
-          subEl.innerText = `5m Reminder #${count} (2s beep) • Please review or snooze`;
+          const maxText = this.maxReminders === -1 ? '' : ` of ${this.maxReminders}`;
+          subEl.innerText = `5m Reminder #${count}${maxText} (2s beep) • Review, snooze, or silence`;
         }
 
         banner.style.display = 'block';
@@ -2690,12 +2774,30 @@
 
       const tPerm = document.getElementById('triggerPermission');
       if (tPerm) tPerm.checked = attentionManager.triggerPermission;
+
+      const selRem = document.getElementById('selectMaxReminders');
+      if (selRem) selRem.value = String(attentionManager.maxReminders);
+
+      const selSnooze = document.getElementById('selectMaxSnoozes');
+      if (selSnooze) selSnooze.value = String(attentionManager.maxSnoozes);
     }
 
     function handleAudioMasterToggle(checked) {
       attentionAudio.setEnabled(checked);
       attentionManager.updateAudioUI(false);
       showToast(checked ? 'Sound notifications enabled.' : 'Sound notifications muted.', 'info');
+    }
+
+    function handleMaxRemindersChange(val) {
+      attentionManager.maxReminders = parseInt(val, 10);
+      localStorage.setItem('tb_max_reminders', String(attentionManager.maxReminders));
+      showToast(`Max reminders set to: ${val === '-1' ? 'Unlimited' : val === '0' ? 'None (1st alert only)' : val}.`, 'info');
+    }
+
+    function handleMaxSnoozesChange(val) {
+      attentionManager.maxSnoozes = parseInt(val, 10);
+      localStorage.setItem('tb_max_snoozes', String(attentionManager.maxSnoozes));
+      showToast(`Max snoozes set to: ${val === '-1' ? 'Unlimited' : val}.`, 'info');
     }
 
     function handleVolumeChange(val) {
@@ -2734,12 +2836,22 @@
       attentionAudio.stop();
     }
 
-    function snoozeCurrentAlert(minutes = 5) {
+    function snoozeCurrentAlert(minutes = 15) {
       if (attentionManager.currentAttentionTaskId) {
         attentionManager.snooze(attentionManager.currentAttentionTaskId, minutes);
       } else {
         attentionAudio.stop();
         attentionManager.hideBanner();
+      }
+    }
+
+    function silenceCurrentAlert() {
+      if (attentionManager.currentAttentionTaskId) {
+        attentionManager.acknowledge(attentionManager.currentAttentionTaskId);
+      } else {
+        attentionAudio.stop();
+        attentionManager.hideBanner();
+        attentionManager.stopTitleFlashing();
       }
     }
 
@@ -3045,10 +3157,11 @@
           <div style="background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #92400E; font-weight: 600;">
               <span>🔔 Attention Active:</span>
-              <span>${task.status === 'verification' ? 'Pending Review' : task.status === 'planned' ? 'Plan Created' : (task.permission_count > 0 ? 'Permission Requested' : 'Waiting for You')} (reminding every 5m)</span>
+              <span>${task.status === 'verification' ? 'Pending Review' : task.status === 'planned' ? 'Plan Created' : (task.permission_count > 0 ? 'Permission Requested' : 'Waiting for You')}</span>
             </div>
             <div style="display: flex; gap: 6px;">
-              <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.snooze('${task.id}', 5)" style="background: white; font-size: 11px;">⏰ Snooze 5m</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.snooze('${task.id}', 15)" style="background: white; font-size: 11px;">⏰ Snooze 15m</button>
+              <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.snooze('${task.id}', 60)" style="background: white; font-size: 11px;">⏰ 1h</button>
               <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.acknowledge('${task.id}')" style="background: white; font-size: 11px;">🔕 Silence</button>
             </div>
           </div>
