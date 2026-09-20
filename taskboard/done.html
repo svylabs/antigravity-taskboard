@@ -1543,6 +1543,24 @@
       }
     }
 
+    function resolveProjectUrl(port, rawUrl, path = '/done') {
+      const protocol = window.location.protocol || 'http:';
+      const hostname = window.location.hostname || 'localhost';
+      if (port) {
+        return `${protocol}//${hostname}:${port}${path}`;
+      }
+      if (rawUrl) {
+        try {
+          const u = new URL(rawUrl, window.location.href);
+          u.hostname = hostname;
+          u.protocol = protocol;
+          u.pathname = path;
+          return u.toString();
+        } catch {}
+      }
+      return `${protocol}//${hostname}:4040${path}`;
+    }
+
     // Project Switcher
     async function loadProjects() {
       try {
@@ -1553,7 +1571,7 @@
           sel.innerHTML = '';
           data.projects.forEach(p => {
             const opt = document.createElement('option');
-            opt.value = p.url;
+            opt.value = resolveProjectUrl(p.port, p.url, '/done');
             opt.innerText = `${p.isActive ? '●' : '○'} ${p.projectName} (:${p.port})`;
             if (p.projectName === data.currentProject) opt.selected = true;
             sel.appendChild(opt);
@@ -1563,8 +1581,10 @@
     }
 
     function switchProject(targetUrl) {
-      if (targetUrl && !targetUrl.includes(`:${window.location.port}`)) {
-        window.location.href = `${targetUrl}/done`;
+      if (!targetUrl) return;
+      const destUrl = resolveProjectUrl(null, targetUrl, '/done');
+      if (destUrl && !destUrl.includes(`:${window.location.port}/`)) {
+        window.location.href = destUrl;
       }
     }
 

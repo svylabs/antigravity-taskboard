@@ -94,6 +94,23 @@ function readCentralRegistry() {
   return reg;
 }
 
+function getProjectRegistryPort(projectName, projectDir) {
+  try {
+    const reg = readCentralRegistry();
+    if (reg && reg[projectName] && reg[projectName].port) {
+      return reg[projectName].port;
+    }
+    if (projectDir) {
+      const localConf = path.join(projectDir, '.agents', 'taskboard', '.server.json');
+      if (fs.existsSync(localConf)) {
+        const conf = JSON.parse(fs.readFileSync(localConf, 'utf8'));
+        if (conf && conf.port) return conf.port;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 function writeCentralRegistry(registry) {
   const content = JSON.stringify(registry, null, 2);
   try {
@@ -472,23 +489,29 @@ const server = http.createServer(async (req, res) => {
 
   // REST API: GET /api/info
   if (pathname === '/api/info' && req.method === 'GET') {
+    const reqHost = req.headers.host ? req.headers.host.split(':')[0] : 'localhost';
     return sendJson(res, 200, { 
       success: true, 
       ...getProjectInfo(),
       port: ACTIVE_PORT,
-      url: `http://localhost:${ACTIVE_PORT}`
+      url: `http://${reqHost}:${ACTIVE_PORT}`
     });
   }
 
   // REST API: GET /api/projects - Multi-project registry
   if (pathname === '/api/projects' && req.method === 'GET') {
     const info = getProjectInfo();
+    const reqHost = req.headers.host ? req.headers.host.split(':')[0] : 'localhost';
     const projects = await getActiveProjects(info.projectName, ACTIVE_PORT);
+    const mappedProjects = projects.map(p => ({
+      ...p,
+      url: `http://${reqHost}:${p.port}`
+    }));
     return sendJson(res, 200, {
       success: true,
       currentProject: info.projectName,
       currentPort: ACTIVE_PORT,
-      projects
+      projects: mappedProjects
     });
   }
 
@@ -559,6 +582,7 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 500, { success: false, error: `No taskboard server script found for "${targetName}"` });
       }
 
+      const reqHost = req.headers.host ? req.headers.host.split(':')[0] : 'localhost';
       const targetPort = project.port || 4042;
       const isAlreadyUp = await pingProjectPort(targetPort, project.projectName);
       if (isAlreadyUp) {
@@ -566,7 +590,7 @@ const server = http.createServer(async (req, res) => {
           success: true,
           projectName: project.projectName,
           port: targetPort,
-          url: `http://localhost:${targetPort}`,
+          url: `http://${reqHost}:${targetPort}`,
           alreadyRunning: true
         });
       }
@@ -644,7 +668,7 @@ const server = http.createServer(async (req, res) => {
         success: true,
         projectName: project.projectName,
         port: assignedPort,
-        url: `http://localhost:${assignedPort}`,
+        url: `http://${reqHost}:${assignedPort}`,
         launched
       });
     } catch (e) {
@@ -890,7 +914,9 @@ function getNetworkIp() {
 
 async function startServer() {
   const info = getProjectInfo();
-  ACTIVE_PORT = await findAvailablePort(REQUESTED_PORT, HOST, info);
+  const savedRegistryPort = getProjectRegistryPort(info.projectName, info.projectDir);
+  const targetPort = cliOpts.port || (process.env.TASKBOARD_PORT ? parseInt(process.env.TASKBOARD_PORT, 10) : (savedRegistryPort || REQUESTED_PORT));
+  ACTIVE_PORT = await findAvailablePort(targetPort, HOST, info);
   const netIp = getNetworkIp();
 
   server.listen(ACTIVE_PORT, HOST, () => {

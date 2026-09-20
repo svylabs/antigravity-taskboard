@@ -3167,7 +3167,8 @@
               <span>🔔 Attention Active:</span>
               <span>${task.status === 'verification' ? 'Pending Review' : task.status === 'planned' ? 'Plan Created' : (task.permission_count > 0 ? 'Permission Requested' : 'Waiting for You')}</span>
             </div>
-            <div style="display: flex; gap: 6px;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              ${task.status === 'planned' ? `<button type="button" class="btn btn-sm btn-primary" onclick="handleProceedPlan('${task.id}')" style="background: #16A34A; border-color: #15803D; font-size: 11px; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px;">▶️ Proceed</button>` : ''}
               <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.snooze('${task.id}', 15)" style="background: white; font-size: 11px;">⏰ Snooze 15m</button>
               <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.snooze('${task.id}', 60)" style="background: white; font-size: 11px;">⏰ 1h</button>
               <button type="button" class="btn btn-sm btn-secondary" onclick="attentionManager.acknowledge('${task.id}')" style="background: white; font-size: 11px;">🔕 Silence</button>
@@ -3552,6 +3553,16 @@
               <span style="color: #94A3B8; font-size: 11px;">${formatDate(c.created_at)}</span>
             </div>
             <div class="comment-content">${renderMarkdown(c.content)}</div>
+            ${c.comment_type === 'plan' ? `
+              <div class="plan-proceed-container" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #CBD5E1; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+                <div style="font-size: 12px; color: #166534; font-weight: 600; display: flex; align-items: center; gap: 6px;">
+                  <span>📋 Implementation Plan</span>
+                </div>
+                <button type="button" class="btn btn-sm btn-primary" onclick="handleProceedPlan('${taskId}')" style="background: #16A34A; border-color: #15803D; font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" title="Approve plan and post 'Proceed' comment">
+                  <span>▶️ Proceed</span>
+                </button>
+              </div>
+            ` : ''}
           </div>
         `).join('');
 
@@ -3565,6 +3576,34 @@
         }
       } catch (err) {
         console.error('Failed to load comments:', err);
+      }
+    }
+
+    async function handleProceedPlan(taskId) {
+      const id = taskId || currentTaskId;
+      if (!id) return;
+
+      try {
+        const res = await fetch(`/api/tasks/${id}/comments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            author: 'User',
+            comment_type: 'comment',
+            content: 'Proceed'
+          })
+        });
+        if (res.ok) {
+          attentionManager.taskActedOn(id);
+          await loadComments(id, true);
+          await fetchTasks();
+          showToast('Comment "Proceed" posted successfully.', 'success');
+        } else {
+          showToast('Failed to post proceed comment.', 'error');
+        }
+      } catch (err) {
+        console.error('Failed to post proceed comment:', err);
+        showToast('Error posting proceed comment.', 'error');
       }
     }
 
@@ -4285,6 +4324,23 @@
       });
     }
 
+    function resolveProjectUrl(port, rawUrl) {
+      const protocol = window.location.protocol || 'http:';
+      const hostname = window.location.hostname || 'localhost';
+      if (port) {
+        return `${protocol}//${hostname}:${port}`;
+      }
+      if (rawUrl) {
+        try {
+          const u = new URL(rawUrl, window.location.href);
+          u.hostname = hostname;
+          u.protocol = protocol;
+          return u.toString();
+        } catch {}
+      }
+      return rawUrl || `${protocol}//${hostname}:4040`;
+    }
+
     async function loadProjects() {
       try {
         const res = await fetch('/api/projects');
@@ -4300,7 +4356,8 @@
 
         const projects = data.projects || [];
         if (projects.length === 0) {
-          select.innerHTML = `<option value="{{PROJECT_NAME}}" data-url="http://localhost:{{PROJECT_PORT}}" data-alive="1" data-current="1" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}}) [Current]</option>`;
+          const currentUrl = resolveProjectUrl('{{PROJECT_PORT}}', 'http://localhost:{{PROJECT_PORT}}');
+          select.innerHTML = `<option value="{{PROJECT_NAME}}" data-url="${currentUrl}" data-alive="1" data-current="1" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}}) [Current]</option>`;
           return;
         }
 
@@ -4314,7 +4371,8 @@
           } else {
             tag = ' [Offline - Click to Start]';
           }
-          return `<option value="${p.projectName}" data-url="${p.url}" data-alive="${p.isAlive ? '1' : '0'}" data-current="${p.isCurrent ? '1' : '0'}" data-port="${p.port}" ${p.isCurrent ? 'selected' : ''}>${indicator} ${p.projectName} (:${p.port})${tag}</option>`;
+          const pUrl = resolveProjectUrl(p.port, p.url);
+          return `<option value="${p.projectName}" data-url="${pUrl}" data-alive="${p.isAlive ? '1' : '0'}" data-current="${p.isCurrent ? '1' : '0'}" data-port="${p.port}" ${p.isCurrent ? 'selected' : ''}>${indicator} ${p.projectName} (:${p.port})${tag}</option>`;
         }).join('');
       } catch (e) {
         // silent fail
@@ -4331,7 +4389,8 @@
       if (isCurrent) return;
 
       const isAlive = selectedOption.getAttribute('data-alive') === '1';
-      const targetUrl = selectedOption.getAttribute('data-url');
+      const targetPort = selectedOption.getAttribute('data-port');
+      const targetUrl = resolveProjectUrl(targetPort, selectedOption.getAttribute('data-url'));
 
       if (isAlive && targetUrl) {
         showToast(`Switching to ${projectName}...`, 'info');
@@ -4340,8 +4399,7 @@
       }
 
       // Project is offline: launch it automatically!
-      const targetPort = selectedOption.getAttribute('data-port') || '...';
-      showToast(`🚀 Starting taskboard for "${projectName}" on port ${targetPort}...`, 'info');
+      showToast(`🚀 Starting taskboard for "${projectName}" on port ${targetPort || '...'}...`, 'info');
       select.disabled = true;
 
       try {
@@ -4351,10 +4409,11 @@
           body: JSON.stringify({ projectName })
         });
         const data = await res.json();
-        if (data.success && data.url) {
+        if (data.success && (data.url || data.port)) {
+          const destUrl = resolveProjectUrl(data.port, data.url);
           showToast(`✨ Launched "${projectName}" on port ${data.port}! Redirecting...`, 'success');
           setTimeout(() => {
-            window.location.href = data.url;
+            window.location.href = destUrl;
           }, 400);
         } else {
           showToast(`Failed to start "${projectName}": ${data.error || 'Server error'}`, 'error');
