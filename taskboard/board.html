@@ -2263,10 +2263,10 @@
         this.isPlaying = false;
         // Default volume is 3% (0.03)
         const savedVol = localStorage.getItem('tb_audio_vol');
-        if (!savedVol || savedVol === '0.7' || localStorage.getItem('tb_vol_version') !== '2') {
+        if (!savedVol || savedVol === '0.7' || localStorage.getItem('tb_vol_version') !== '3') {
           this.volume = 0.03;
           localStorage.setItem('tb_audio_vol', '0.03');
-          localStorage.setItem('tb_vol_version', '2');
+          localStorage.setItem('tb_vol_version', '3');
         } else {
           this.volume = parseFloat(savedVol);
         }
@@ -4522,6 +4522,7 @@
     }
 
     // Initial load & auto-sync
+    syncAudioPopoverControls();
     fetchTasks();
     loadProjects();
     setInterval(fetchTasks, 3000);

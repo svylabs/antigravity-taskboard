@@ -9,7 +9,8 @@ export function playSystemNotificationSound() {
     if (process.platform === 'darwin') {
       const pingSound = '/System/Library/Sounds/Ping.aiff';
       if (fs.existsSync(pingSound)) {
-        const p = spawn('afplay', [pingSound], { detached: true, stdio: 'ignore' });
+        const vol = process.env.TASKBOARD_AUDIO_VOLUME || '0.03';
+        const p = spawn('afplay', ['-v', vol, pingSound], { detached: true, stdio: 'ignore' });
         p.unref();
         return;
       }
