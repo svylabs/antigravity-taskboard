@@ -873,7 +873,7 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(404, { 'Content-Type': 'text/plain' });
       return res.end('Attachment not found');
     }
-    const isDownload = url.searchParams.get('download') === '1';
+    const isDownload = urlObj.searchParams.get('download') === '1';
     const disposition = isDownload ? 'attachment' : 'inline';
     res.writeHead(200, {
       'Content-Type': attachment.mime_type || 'application/octet-stream',
