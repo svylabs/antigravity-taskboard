@@ -1271,8 +1271,125 @@ if (command) {
       console.log(JSON.stringify({ success: true, message: 'Sound played' }));
       break;
     }
+
+    case 'followups': {
+      const [taskId] = args;
+      if (!taskId) {
+        console.error('Usage: tasks.mjs followups <taskId>');
+        process.exit(1);
+      }
+      const comments = getComments(taskId);
+      let followups = [];
+      for (const c of comments) {
+        if (c.comment_type === 'walkthrough' || c.content.includes('Follow-up Tasks') || c.content.includes('FOLLOWUP_TASKS_JSON')) {
+          const list = extractFollowupTasks(c.content);
+          if (list && list.length > 0) {
+            followups = list;
+            break;
+          }
+        }
+      }
+      console.log(JSON.stringify(followups, null, 2));
+      break;
+    }
+    case 'create-followup': {
+      const [taskId, indexStr] = args;
+      const idx = parseInt(indexStr, 10);
+      if (!taskId || isNaN(idx) || idx < 1) {
+        console.error('Usage: tasks.mjs create-followup <taskId> <index (1-3)>');
+        process.exit(1);
+      }
+      const comments = getComments(taskId);
+      let followups = [];
+      for (const c of comments) {
+        if (c.comment_type === 'walkthrough' || c.content.includes('Follow-up Tasks') || c.content.includes('FOLLOWUP_TASKS_JSON')) {
+          const list = extractFollowupTasks(c.content);
+          if (list && list.length > 0) {
+            followups = list;
+            break;
+          }
+        }
+      }
+      if (followups.length === 0) {
+        console.error('No follow-up suggestions found on task ' + taskId);
+        process.exit(1);
+      }
+      const target = followups[idx - 1];
+      if (!target) {
+        console.error('Invalid index ' + idx + '. Available follow-ups: 1 to ' + followups.length);
+        process.exit(1);
+      }
+      const created = addTask({
+        title: target.title,
+        description: target.description || '',
+        priority: target.priority || 'medium',
+        scope: target.scope || '',
+        scope_size: target.scope_size || 'small',
+        acceptance_criteria: target.acceptance_criteria || '',
+        verification_cmd: target.verification_cmd || '',
+        status: 'todo'
+      });
+      console.log('✅ Follow-up task created with ID ' + created.id + ': "' + created.title + '"');
+      break;
+    }
+
     default: {
-      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep.`);
+      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup.`);
     }
   }
+}
+
+
+export function extractFollowupTasks(content) {
+  if (!content || typeof content !== 'string') return [];
+  const jsonMatch = content.match(/<!--\s*FOLLOWUP_TASKS_JSON([\s\S]*?)-->/i);
+  if (jsonMatch && jsonMatch[1]) {
+    try {
+      const parsed = JSON.parse(jsonMatch[1].trim());
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((item, idx) => ({
+          index: idx + 1,
+          title: (item.title || item.name || '').trim(),
+          description: (item.description || item.desc || '').trim(),
+          priority: item.priority || 'medium',
+          scope: item.scope || '',
+          scope_size: item.scope_size || 'small',
+          acceptance_criteria: item.acceptance_criteria || item.criteria || '',
+          verification_cmd: item.verification_cmd || item.verify_cmd || ''
+        })).filter(t => t.title);
+      }
+    } catch (e) {}
+  }
+  const sectionMatch = content.match(/###?\s*Suggested\s+Follow-?up\s+Tasks([\s\S]*?)(?:###|$)/i);
+  if (sectionMatch && sectionMatch[1]) {
+    const text = sectionMatch[1].trim();
+    const lines = text.split('\n');
+    const tasks = [];
+    let currentTask = null;
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('<!--')) continue;
+      const itemMatch = line.match(/^(?:(?:\d+[.)])|[-*•])\s*(?:\*\*(.*?)\*\*|(.*?))(?:\s*[:–—-])\s*(.*)$/);
+      if (itemMatch) {
+        if (currentTask) tasks.push(currentTask);
+        const title = (itemMatch[1] || itemMatch[2] || '').trim();
+        const desc = (itemMatch[3] || '').trim();
+        currentTask = {
+          index: tasks.length + 1,
+          title: title.replace(/^\*+|\*+$/g, '').trim(),
+          description: desc,
+          priority: 'medium',
+          scope: '',
+          scope_size: 'small',
+          acceptance_criteria: '',
+          verification_cmd: ''
+        };
+      } else if (currentTask && line) {
+        currentTask.description += ' ' + line;
+      }
+    }
+    if (currentTask) tasks.push(currentTask);
+    if (tasks.length > 0) return tasks.filter(t => t.title);
+  }
+  return [];
 }

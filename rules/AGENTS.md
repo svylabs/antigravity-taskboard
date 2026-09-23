@@ -21,19 +21,27 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
    * When conflicts exist or when scope is large, the task must wait until active tasks and pending review locks clear before starting.
    * While a task is in `verification` (`👀 Pending Review`), it holds locks on its modified paths until user sign-off.
 
-3. **Verification & Walkthrough Before User Review**:
+3. **Verification, Walkthrough & Follow-up Suggestions Before User Review**:
    * If an automated command exists: execute it and ensure an exit code of `0`.
    * If textual criteria or manual verification exist: the agent must evaluate the code diff against every item in the verification criteria and document the validation in the walkthrough comment.
+   * **Mandatory 3 Follow-up Suggestions**: When implementation is finished, the agent must formulate **3 concrete, high-value follow-up tasks** based on the implemented code changes (e.g. next logical feature increment, edge case/integration tests, performance hardening, or documentation).
+   * **Structured Walkthrough Format**: Include a dedicated `### Suggested Follow-up Tasks` section with numbered items AND embedded `<!-- FOLLOWUP_TASKS_JSON [...] -->` metadata for automatic UI button rendering.
    * For all tasks upon completing implementation and validation, transition the card to `verification` (`👀 Pending Review`) with a detailed walkthrough for user sign-off and manual testing. The user approves (`done`) or requests revision (`needs_revision`).
+   * **Interactive Choice Flow**: In interactive pairing or chat supervisor mode, immediately prompt the user (e.g. via `ask_question` or interactive choice list) offering the 3 suggested follow-up tasks with options:
+     - `(Recommended) Create Task: <Title 1>`
+     - `Create Task: <Title 2>`
+     - `Create Task: <Title 3>`
+     - `Go back / No follow-up tasks needed right now`
+     When the user chooses an option, create the task on the board, and then give them options to **create another task** or **go back**.
 
 4. **Workspace Branch Isolation**:
    Always execute code tasks in isolated branches (`Workspace: "branch"`). Never write untested changes directly to the primary working tree.
 
-5. **Context Preservation (Plans & Walkthroughs)**:
+5. **Context Preservation (Plans, Walkthroughs & Follow-up Suggestions)**:
    Always record structured comments on task cards:
    * **Implementation Plan** (`plan`) before starting coding: Must use Markdown header (`### Implementation Plan`), numbered lists on discrete lines (`1. **Step**: description with \`file/path\``), and explicit verification notes. Never write single-line run-on plans.
    * **Questions** (`question`) if encountering ambiguities.
-   * **Walkthrough** (`walkthrough`) upon successful verification: Must use Markdown bullets (`- File changes: ...`, `- Verification: ...`).
+   * **Walkthrough** (`walkthrough`) upon successful verification: Must use Markdown bullets (`- File changes: ...`, `- Verification: ...`), followed by `### Suggested Follow-up Tasks` with 3 numbered suggestions and `<!-- FOLLOWUP_TASKS_JSON [...] -->`.
 
 6. **Project Scoping**:
    All database operations must target the local project's `.agents/taskboard/tasks.sqlite`. Never touch or overwrite other repositories' taskboards.
@@ -84,6 +92,8 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
       - **Get Task Details**: `node taskboard/tasks.mjs get <TASK_ID>`
       - **List Attachments**: `node taskboard/tasks.mjs attachments <TASK_ID>`
       - **Download Attachment**: `node taskboard/tasks.mjs get-attachment <ID> [OUTPUT_PATH]`
+      - **Get Follow-up Suggestions**: `node taskboard/tasks.mjs followups <TASK_ID>`
+      - **Create Follow-up Task**: `node taskboard/tasks.mjs create-followup <TASK_ID> <INDEX>`
 
 12. **Permission Request Alerts & Beeps**:
     * Whenever an agent or subagent needs user approval (e.g. sandbox bypass, destructive action, or subagent entering `waiting_for_input`), it must immediately run:

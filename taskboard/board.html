@@ -1372,6 +1372,89 @@
     .comment-tag-permission { background: #FEE2E2; color: #B91C1C; }
     .comment-tag-comment { background: #E2E8F0; color: #475569; }
 
+    /* Follow-up Tasks Container & Cards */
+    .followup-container {
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      border-radius: 10px;
+    }
+    .followup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .followup-header-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #166534;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .followup-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .followup-card {
+      background: white;
+      border: 1px solid #D1FAE5;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    .followup-card:hover {
+      border-color: #86EFAC;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+    .followup-card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .followup-card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #0F172A;
+      line-height: 1.4;
+    }
+    .followup-card-desc {
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    .followup-card-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
+      padding-top: 6px;
+      border-top: 1px solid #F1F5F9;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .followup-created-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #16A34A;
+      background: #DCFCE7;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
     .comment-content {
       font-size: 13px;
       line-height: 1.6;
@@ -2239,6 +2322,36 @@
         <button class="close-btn" onclick="closeDetailModal()">&times;</button>
       </div>
       <div id="detailContent"></div>
+    </div>
+  </div>
+
+  <!-- Follow-up Suggestions Modal -->
+  <div class="modal-overlay" id="followupModal">
+    <div class="modal" style="max-width: 650px;">
+      <div class="modal-header" style="background: #F0FDF4; border-bottom: 1px solid #BBF7D0;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 24px;">🎉</span>
+          <div>
+            <div class="modal-title" style="color: #166534;">Task Implementation Finished!</div>
+            <div style="font-size: 12px; color: #15803D; margin-top: 2px;">Suggested follow-up tasks to maintain momentum</div>
+          </div>
+        </div>
+        <button class="close-btn" onclick="closeFollowupModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 18px 20px;">
+        <div id="followupModalNotice" style="font-size: 12.5px; color: #475569; margin-bottom: 12px; line-height: 1.5;">
+          Here are 3 recommended follow-up tasks based on the completed implementation. You can queue one or more tasks into <b>To Do</b>, customize any task, or return to the board:
+        </div>
+        <div id="followupModalList" class="followup-list"></div>
+      </div>
+      <div class="modal-footer" style="padding: 14px 20px; background: #F8FAFC; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+        <button type="button" class="btn btn-secondary" onclick="openCreateModalFromFollowup()" style="font-weight: 600;">
+          <span>➕ Create Another Task</span>
+        </button>
+        <button type="button" class="btn btn-primary" onclick="closeFollowupModal()" style="font-weight: 600;">
+          <span>↩️ Go Back to Board</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -3405,6 +3518,9 @@
             ${(task.status === 'done' || task.status === 'failed') ? `
               <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'planned')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;">📋 Move to Planned</button>
             ` : ''}
+            ${(task.status === 'verification' || task.status === 'done') ? `
+              <button type="button" class="btn btn-secondary" onclick="checkAndShowFollowupModal('${task.id}')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #166534; border-color: #86EFAC; background: #F0FDF4;" title="View suggested follow-up tasks">💡 Follow-ups</button>
+            ` : ''}
             ${task.status === 'verification' ? `
               <button class="btn btn-primary" onclick="moveTaskStatus('${task.id}', 'done')" style="padding: 7px 14px; font-size: 12px; font-weight: 600; background: #10B981; border-color: #059669;" title="Approve manual verification and mark task Done">✅ Approve & Mark Done</button>
               <button class="btn btn-secondary" onclick="moveTaskStatus('${task.id}', 'planned')" style="padding: 7px 12px; font-size: 12px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;" title="Request changes or report verification issues">📋 Request Revision (Planned)</button>
@@ -3563,6 +3679,7 @@
                 </button>
               </div>
             ` : ''}
+            ${c.comment_type === 'walkthrough' ? renderFollowupTasksHtml(c.content, taskId, c.id) : ''}
           </div>
         `).join('');
 
@@ -3870,6 +3987,9 @@
       });
       closeDetailModal();
       fetchTasks();
+      if (newStatus === 'done') {
+        checkAndShowFollowupModal(id);
+      }
     }
 
     async function deleteTaskItem(id) {
@@ -3880,8 +4000,17 @@
       fetchTasks();
     }
 
-    function openCreateModal() {
+    function openCreateModal(prefill) {
       document.getElementById('createModal').classList.add('active');
+      if (prefill) {
+        if (prefill.title) document.getElementById('newTitle').value = prefill.title;
+        if (prefill.description) document.getElementById('newDescription').value = prefill.description;
+        if (prefill.priority) document.getElementById('newPriority').value = prefill.priority;
+        if (prefill.criteria) document.getElementById('newCriteria').value = prefill.criteria;
+        if (prefill.verifyCmd) document.getElementById('newVerifyCmd').value = prefill.verifyCmd;
+        if (prefill.scope) document.getElementById('newScope').value = prefill.scope;
+        if (prefill.scopeSize) document.getElementById('newScopeSize').value = prefill.scopeSize;
+      }
     }
 
     function closeCreateModal() {
@@ -3890,6 +4019,315 @@
       renderStagedCreateImages();
       const form = document.getElementById('createForm');
       if (form) form.reset();
+    }
+
+    // ==========================================
+    // Follow-up Task Suggestions & Flow
+    // ==========================================
+
+    function extractFollowupTasks(content) {
+      if (!content || typeof content !== 'string') return [];
+
+      // 1. Check for structured JSON block
+      const jsonMatch = content.match(/<!--\s*FOLLOWUP_TASKS_JSON([\s\S]*?)-->/i);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1].trim());
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed.map((item, idx) => ({
+              index: idx + 1,
+              title: (item.title || item.name || '').trim(),
+              description: (item.description || item.desc || '').trim(),
+              priority: item.priority || 'medium',
+              scope: item.scope || '',
+              scope_size: item.scope_size || 'small',
+              acceptance_criteria: item.acceptance_criteria || item.criteria || '',
+              verification_cmd: item.verification_cmd || item.verify_cmd || ''
+            })).filter(t => t.title);
+          }
+        } catch (e) {}
+      }
+
+      // 2. Fallback: Parse markdown list under "### Suggested Follow-up Tasks"
+      const sectionMatch = content.match(/###?\s*Suggested\s+Follow-?up\s+Tasks([\s\S]*?)(?:###|$)/i);
+      if (sectionMatch && sectionMatch[1]) {
+        const text = sectionMatch[1].trim();
+        const lines = text.split('\n');
+        const tasks = [];
+        let currentTask = null;
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line || line.startsWith('<!--')) continue;
+
+          const itemMatch = line.match(/^(?:(?:\d+[.)])|[-*•])\s*(?:\*\*(.*?)\*\*|(.*?))(?:\s*[:–—-])\s*(.*)$/);
+          if (itemMatch) {
+            if (currentTask) tasks.push(currentTask);
+            const title = (itemMatch[1] || itemMatch[2] || '').trim();
+            const desc = (itemMatch[3] || '').trim();
+            currentTask = {
+              index: tasks.length + 1,
+              title: title.replace(/^\*+|\*+$/g, '').trim(),
+              description: desc,
+              priority: 'medium',
+              scope: '',
+              scope_size: 'small',
+              acceptance_criteria: '',
+              verification_cmd: ''
+            };
+          } else if (currentTask && line) {
+            currentTask.description += ' ' + line;
+          }
+        }
+        if (currentTask) tasks.push(currentTask);
+        if (tasks.length > 0) return tasks.filter(t => t.title);
+      }
+
+      return [];
+    }
+
+    function renderFollowupTasksHtml(content, taskId, commentId) {
+      const followups = extractFollowupTasks(content);
+      if (!followups || followups.length === 0) return '';
+
+      return `
+        <div class="followup-container" id="followup-box-${commentId || taskId}">
+          <div class="followup-header">
+            <div class="followup-header-title">
+              <span>💡 Suggested Follow-up Tasks (${followups.length})</span>
+            </div>
+            <div style="font-size: 11px; color: #15803D; font-weight: 500;">
+              Click to create directly or customize
+            </div>
+          </div>
+          <div class="followup-list">
+            ${followups.map((f, idx) => {
+              const safeData = encodeURIComponent(JSON.stringify(f));
+              return `
+              <div class="followup-card" id="followup-card-${taskId}-${idx}">
+                <div class="followup-card-top">
+                  <div class="followup-card-title">${escapeHtml(f.title)}</div>
+                  <span class="badge badge-${f.priority || 'medium'}">${(f.priority || 'medium').toUpperCase()}</span>
+                </div>
+                ${f.description ? `<div class="followup-card-desc">${escapeHtml(f.description)}</div>` : ''}
+                <div class="followup-card-actions">
+                  <div id="followup-status-${taskId}-${idx}">
+                    ${f.scope ? `<span class="scope-badge">${escapeHtml(f.scope)}</span>` : '<span style="font-size: 11px; color: #94A3B8;">Queue into To Do</span>'}
+                  </div>
+                  <div style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="btn btn-sm btn-secondary" onclick="handleCustomizeFollowupTask('${safeData}')" style="padding: 3px 8px; font-size: 11px;" title="Customize details in create modal">
+                      <span>✏️ Customize</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary" onclick="handleCreateFollowupTask('${taskId}', ${idx}, '${safeData}')" style="background: #10B981; border-color: #059669; padding: 3px 10px; font-size: 11px;" title="Create this task directly in To Do">
+                      <span>➕ Create Task</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            `;}).join('')}
+          </div>
+          <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #A7F3D0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <button type="button" class="btn btn-sm btn-secondary" onclick="openCreateModal()" style="font-size: 11px; padding: 3px 8px;">
+              <span>➕ Create Another Task</span>
+            </button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="collapseFollowupBox('${commentId || taskId}')" style="font-size: 11px; padding: 3px 8px;">
+              <span>↩️ Go Back</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }
+
+    function collapseFollowupBox(boxId) {
+      const box = document.getElementById(`followup-box-${boxId}`);
+      if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    async function handleCreateFollowupTask(taskId, index, encodedData) {
+      try {
+        const taskData = JSON.parse(decodeURIComponent(encodedData));
+        const statusContainer = document.getElementById(`followup-status-${taskId}-${index}`);
+        const card = document.getElementById(`followup-card-${taskId}-${index}`);
+
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: taskData.title,
+            description: taskData.description || '',
+            priority: taskData.priority || 'medium',
+            scope: taskData.scope || '',
+            scope_size: taskData.scope_size || 'small',
+            acceptance_criteria: taskData.acceptance_criteria || '',
+            verification_cmd: taskData.verification_cmd || '',
+            status: 'todo'
+          })
+        });
+
+        const result = await res.json();
+        if (result.success && result.task) {
+          if (statusContainer) {
+            statusContainer.innerHTML = `<span class="followup-created-badge">✅ Created: #${result.task.id.slice(-6)}</span>`;
+          }
+          if (card) {
+            card.style.background = '#F0FDF4';
+            card.style.borderColor = '#86EFAC';
+            const createBtn = card.querySelector('.btn-primary');
+            if (createBtn) {
+              createBtn.disabled = true;
+              createBtn.style.opacity = '0.6';
+              createBtn.innerHTML = '<span>✅ Created</span>';
+            }
+          }
+          showToast(`Task "${taskData.title}" created in To Do!`, 'success');
+          fetchTasks();
+        } else {
+          showToast('Failed to create follow-up task', 'error');
+        }
+      } catch (err) {
+        console.error('Error creating follow-up task:', err);
+        showToast('Error creating follow-up task', 'error');
+      }
+    }
+
+    function handleCustomizeFollowupTask(encodedData) {
+      try {
+        const taskData = JSON.parse(decodeURIComponent(encodedData));
+        closeFollowupModal();
+        openCreateModal({
+          title: taskData.title,
+          description: taskData.description,
+          priority: taskData.priority,
+          scope: taskData.scope,
+          scopeSize: taskData.scope_size,
+          criteria: taskData.acceptance_criteria,
+          verifyCmd: taskData.verification_cmd
+        });
+      } catch (e) {
+        console.error('Error customizing follow-up task:', e);
+      }
+    }
+
+    let currentFollowupTaskId = null;
+    let currentFollowupsList = [];
+
+    async function checkAndShowFollowupModal(taskId) {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}/comments`);
+        const data = await res.json();
+        if (!data.success || !data.comments) return;
+
+        let allFollowups = [];
+        for (const c of data.comments) {
+          if (c.comment_type === 'walkthrough' || c.content.includes('Follow-up Tasks') || c.content.includes('FOLLOWUP_TASKS_JSON')) {
+            const extracted = extractFollowupTasks(c.content);
+            if (extracted && extracted.length > 0) {
+              allFollowups = extracted;
+              break;
+            }
+          }
+        }
+
+        if (allFollowups.length > 0) {
+          showFollowupModal(taskId, allFollowups);
+        }
+      } catch (err) {
+        console.error('Failed to check follow-up suggestions:', err);
+      }
+    }
+
+    function showFollowupModal(taskId, followups) {
+      currentFollowupTaskId = taskId;
+      currentFollowupsList = followups;
+
+      const list = document.getElementById('followupModalList');
+      if (!list) return;
+
+      list.innerHTML = followups.map((f, idx) => {
+        const safeData = encodeURIComponent(JSON.stringify(f));
+        return `
+        <div class="followup-card" id="modal-followup-card-${idx}">
+          <div class="followup-card-top">
+            <div class="followup-card-title">${escapeHtml(f.title)}</div>
+            <span class="badge badge-${f.priority || 'medium'}">${(f.priority || 'medium').toUpperCase()}</span>
+          </div>
+          ${f.description ? `<div class="followup-card-desc">${escapeHtml(f.description)}</div>` : ''}
+          <div class="followup-card-actions">
+            <div id="modal-followup-status-${idx}">
+              ${f.scope ? `<span class="scope-badge">${escapeHtml(f.scope)}</span>` : '<span style="font-size: 11px; color: #94A3B8;">Queue into To Do</span>'}
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button type="button" class="btn btn-sm btn-secondary" onclick="handleCustomizeFollowupTask('${safeData}')" style="padding: 4px 8px; font-size: 11px;">
+                <span>✏️ Customize</span>
+              </button>
+              <button type="button" class="btn btn-sm btn-primary" onclick="handleCreateModalFollowupTask(${idx})" style="background: #10B981; border-color: #059669; padding: 4px 12px; font-size: 11.5px; font-weight: 600;">
+                <span>➕ Create Task</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      `;}).join('');
+
+      document.getElementById('followupModal').classList.add('active');
+    }
+
+    async function handleCreateModalFollowupTask(idx) {
+      const f = currentFollowupsList[idx];
+      if (!f) return;
+
+      const card = document.getElementById(`modal-followup-card-${idx}`);
+      const status = document.getElementById(`modal-followup-status-${idx}`);
+
+      try {
+        const res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: f.title,
+            description: f.description || '',
+            priority: f.priority || 'medium',
+            scope: f.scope || '',
+            scope_size: f.scope_size || 'small',
+            acceptance_criteria: f.acceptance_criteria || '',
+            verification_cmd: f.verification_cmd || '',
+            status: 'todo'
+          })
+        });
+        const result = await res.json();
+        if (result.success && result.task) {
+          if (status) {
+            status.innerHTML = `<span class="followup-created-badge">✅ Created: #${result.task.id.slice(-6)}</span>`;
+          }
+          if (card) {
+            card.style.background = '#F0FDF4';
+            card.style.borderColor = '#86EFAC';
+            const btn = card.querySelector('.btn-primary');
+            if (btn) {
+              btn.disabled = true;
+              btn.style.opacity = '0.6';
+              btn.innerHTML = '<span>✅ Created</span>';
+            }
+          }
+          showToast(`Task "${f.title}" created in To Do!`, 'success');
+          fetchTasks();
+        } else {
+          showToast('Failed to create follow-up task', 'error');
+        }
+      } catch (e) {
+        console.error('Error creating follow-up task from modal:', e);
+        showToast('Error creating task', 'error');
+      }
+    }
+
+    function closeFollowupModal() {
+      document.getElementById('followupModal').classList.remove('active');
+    }
+
+    function openCreateModalFromFollowup() {
+      closeFollowupModal();
+      openCreateModal();
     }
 
     // Staged Attachments & Files for New Task Creation

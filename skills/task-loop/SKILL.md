@@ -151,18 +151,40 @@ When the subagent finishes:
    * **If automated command**: run it with `run_command` (must exit 0).
    * **If textual / manual criteria**: evaluate diffs against each item in the checklist and document manual testing steps.
    * **If no verification required**: confirm changes are complete.
-2. Post structured walkthrough comment with clickable repository file links and manual testing steps:
+2. **Formulate 3 Actionable Follow-up Tasks**:
+   Analyze the completed code changes and identify 3 logical next steps (e.g. edge-case testing, next feature increment, performance hardening, or documentation).
+3. Post structured walkthrough comment with clickable repository file links, verification results, and 3 suggested follow-up tasks (with embedded JSON metadata for one-click UI task creation):
    ```bash
    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "### Walkthrough
 Verified changes against criteria:
 - Created [backend/src/db/migrator.js](/repo/backend/src/db/migrator.js): core migration runner.
 - Updated [docs/database.md](/repo/docs/database.md): migration documentation.
-- Verification: npm test passed with exit code 0." "Subagent" "walkthrough"
+- Verification: npm test passed with exit code 0.
+
+### Suggested Follow-up Tasks
+1. **Add rollback migration support**: Implement down migration handler in \`migrator.js\`.
+2. **Add integration test suite for migrations**: Write tests verifying schema rollback under simulated connection failure.
+3. **Document migration CLI commands**: Add reference guides and troubleshooting notes in \`docs/database.md\`.
+
+<!-- FOLLOWUP_TASKS_JSON
+[
+  {\"title\": \"Add rollback migration support\", \"description\": \"Implement down migration handler in migrator.js.\", \"priority\": \"medium\", \"scope\": \"backend/src/db/migrator.js\"},
+  {\"title\": \"Add integration test suite for migrations\", \"description\": \"Write tests verifying schema rollback under simulated connection failure.\", \"priority\": \"high\", \"scope\": \"tests/migrations/\"},
+  {\"title\": \"Document migration CLI commands\", \"description\": \"Add reference guides and troubleshooting notes in docs/database.md.\", \"priority\": \"low\", \"scope\": \"docs/database.md\"}
+]
+-->" "Subagent" "walkthrough"
    ```
-3. Transition card status to `verification` (**`👀 Pending Review`**):
+4. Transition card status to `verification` (**`👀 Pending Review`**):
    ```bash
    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> verification "Implementation complete; awaiting user manual verification and review."
    ```
-4. If automated verification failed:
+5. **Interactive Follow-up Prompt Flow (Interactive / Chat Sessions)**:
+   In interactive chat supervisor mode, immediately prompt the user (via `ask_question` or interactive choice list):
+   * Option 1: `(Recommended) Create Task: <Title 1>`
+   * Option 2: `Create Task: <Title 2>`
+   * Option 3: `Create Task: <Title 3>`
+   * Option 4: `Go back / No follow-up tasks needed right now`
+   When the user selects an option, create the task on the taskboard (`node taskboard/tasks.mjs add "<Title>" "<Description>" "<Priority>"`), then give them the choice to **create another task** or **go back**.
+6. If automated verification failed:
    * Mark card `failed` with failure logs.
-5. While the card is in **`👀 Pending Review`**, keep the standing 1-minute recurring cron active (`schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop", IsDaemon=false)`). The supervisor pauses code execution to allow user manual testing, but the background cron continues checking every 60s so user feedback, comments, approvals (`done`), or moves back to `todo`/`planned` are detected and picked up autonomously within 1 minute. Once the user approves or requests revision, proceed back to Step 1.
+7. While the card is in **`👀 Pending Review`**, keep the standing 1-minute recurring cron active (`schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop", IsDaemon=false)`). The supervisor pauses code execution to allow user manual testing, but the background cron continues checking every 60s so user feedback, comments, approvals (`done`), or moves back to `todo`/`planned` are detected and picked up autonomously within 1 minute. Once the user approves or requests revision, proceed back to Step 1.

@@ -202,3 +202,12 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs get-attachment <A
 node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs delete-attachment <ATTACHMENT_ID>
 ```
 
+### 7. Follow-up Task Suggestions & Quick Creation
+```bash
+# List suggested follow-up tasks parsed from a task's walkthrough comment
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs followups <TASK_ID>
+
+# Create one of the suggested follow-up tasks (1, 2, or 3) directly into To Do
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs create-followup <TASK_ID> <INDEX>
+```
+
