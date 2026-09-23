@@ -24,15 +24,16 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
 3. **Verification, Walkthrough & Follow-up Suggestions Before User Review**:
    * If an automated command exists: execute it and ensure an exit code of `0`.
    * If textual criteria or manual verification exist: the agent must evaluate the code diff against every item in the verification criteria and document the validation in the walkthrough comment.
-   * **Mandatory 3 Follow-up Suggestions**: When implementation is finished, the agent must formulate **3 concrete, high-value follow-up tasks** based on the implemented code changes (e.g. next logical feature increment, edge case/integration tests, performance hardening, or documentation).
-   * **Structured Walkthrough Format**: Include a dedicated `### Suggested Follow-up Tasks` section with numbered items AND embedded `<!-- FOLLOWUP_TASKS_JSON [...] -->` metadata for automatic UI button rendering.
-   * For all tasks upon completing implementation and validation, transition the card to `verification` (`👀 Pending Review`) with a detailed walkthrough for user sign-off and manual testing. The user approves (`done`) or requests revision (`needs_revision`).
-   * **Interactive Choice Flow**: In interactive pairing or chat supervisor mode, immediately prompt the user (e.g. via `ask_question` or interactive choice list) offering the 3 suggested follow-up tasks with options:
-     - `(Recommended) Create Task: <Title 1>`
-     - `Create Task: <Title 2>`
-     - `Create Task: <Title 3>`
-     - `Go back / No follow-up tasks needed right now`
-     When the user chooses an option, create the task on the board, and then give them options to **create another task** or **go back**.
+   * **Mandatory 3 Follow-up Suggestions in Taskboard Comment**: When implementation is finished, the agent must formulate **3 concrete, high-value follow-up tasks** based on the implemented code changes (e.g. next logical feature increment, edge case/integration tests, performance hardening, or documentation).
+   * **Displayed Directly as a Comment in Taskboard (Not within Antigravity itself)**:
+     - **DO NOT** prompt or ask the user in Antigravity chat (never call `ask_question` or block execution in the chat for follow-ups).
+     - The 3 follow-up suggestions must be posted directly as a structured comment on the taskboard card (within the walkthrough comment).
+     - The taskboard web UI dynamically renders interactive action buttons directly inside the comment card:
+       * `➕ Create Task` on each suggested task to queue it into To Do on the board with one click.
+       * `✏️ Customize` to prefill the task creation modal.
+       * `➕ Create Another Task` to queue multiple follow-ups or add a custom task.
+       * `↩️ Go Back` to collapse or return to the card view.
+   * For all tasks upon completing implementation and validation, transition the card to `verification` (`👀 Pending Review`) with this detailed walkthrough for user sign-off. The user approves (`done`) or requests revision (`needs_revision`).
 
 4. **Workspace Branch Isolation**:
    Always execute code tasks in isolated branches (`Workspace: "branch"`). Never write untested changes directly to the primary working tree.

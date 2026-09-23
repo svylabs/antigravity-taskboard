@@ -3659,7 +3659,11 @@
         }
 
         countBadge.innerText = data.comments.length;
-        list.innerHTML = data.comments.map(c => `
+        list.innerHTML = data.comments.map(c => {
+          const followups = extractFollowupTasks(c.content);
+          const hasFollowups = followups && followups.length > 0;
+          const displayContent = hasFollowups ? removeFollowupSectionForDisplay(c.content) : c.content;
+          return `
           <div class="comment-item comment-type-${c.comment_type}">
             <div class="comment-meta">
               <div class="comment-author">
@@ -3668,7 +3672,7 @@
               </div>
               <span style="color: #94A3B8; font-size: 11px;">${formatDate(c.created_at)}</span>
             </div>
-            <div class="comment-content">${renderMarkdown(c.content)}</div>
+            ${displayContent ? `<div class="comment-content">${renderMarkdown(displayContent)}</div>` : ''}
             ${c.comment_type === 'plan' ? `
               <div class="plan-proceed-container" style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #CBD5E1; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
                 <div style="font-size: 12px; color: #166534; font-weight: 600; display: flex; align-items: center; gap: 6px;">
@@ -3679,9 +3683,9 @@
                 </button>
               </div>
             ` : ''}
-            ${c.comment_type === 'walkthrough' ? renderFollowupTasksHtml(c.content, taskId, c.id) : ''}
+            ${hasFollowups ? renderFollowupTasksHtml(followups, taskId, c.id) : ''}
           </div>
-        `).join('');
+        `;}).join('');
 
         if (autoScroll) {
           const modalBox = document.querySelector('#detailModal .modal');
@@ -4086,8 +4090,16 @@
       return [];
     }
 
-    function renderFollowupTasksHtml(content, taskId, commentId) {
-      const followups = extractFollowupTasks(content);
+    function removeFollowupSectionForDisplay(content) {
+      if (!content) return '';
+      return content
+        .replace(/<!--\s*FOLLOWUP_TASKS_JSON[\s\S]*?-->/gi, '')
+        .replace(/###?\s*Suggested\s+Follow-?up\s+Tasks[\s\S]*$/i, '')
+        .trim();
+    }
+
+    function renderFollowupTasksHtml(followupsOrContent, taskId, commentId) {
+      const followups = Array.isArray(followupsOrContent) ? followupsOrContent : extractFollowupTasks(followupsOrContent);
       if (!followups || followups.length === 0) return '';
 
       return `
@@ -4097,7 +4109,7 @@
               <span>💡 Suggested Follow-up Tasks (${followups.length})</span>
             </div>
             <div style="font-size: 11px; color: #15803D; font-weight: 500;">
-              Click to create directly or customize
+              Click to create directly into To Do or customize
             </div>
           </div>
           <div class="followup-list">

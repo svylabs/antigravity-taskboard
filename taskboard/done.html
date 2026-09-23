@@ -1596,7 +1596,11 @@
         const data = await res.json();
         const listEl = document.getElementById('modalCommentsList');
         if (data.success && data.comments && data.comments.length > 0) {
-          listEl.innerHTML = data.comments.map(c => `
+          listEl.innerHTML = data.comments.map(c => {
+            const followups = extractFollowupTasks(c.content);
+            const hasFollowups = followups && followups.length > 0;
+            const displayContent = hasFollowups ? removeFollowupSectionForDisplay(c.content) : c.content;
+            return `
             <div class="comment-item comment-type-${c.comment_type}">
               <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; font-size: 11px; font-weight: 600;">
                 <div style="display: flex; align-items: center; gap: 6px;">
@@ -1605,10 +1609,10 @@
                 </div>
                 <span style="color: var(--text-muted); font-size: 10px;">${new Date(c.created_at).toLocaleString()}</span>
               </div>
-              <div style="white-space: pre-wrap; font-size: 12.5px;">${escapeHtml(c.content)}</div>
-              ${c.comment_type === 'walkthrough' ? renderFollowupTasksHtml(c.content, taskId, c.id) : ''}
+              ${displayContent ? `<div style="white-space: pre-wrap; font-size: 12.5px;">${escapeHtml(displayContent)}</div>` : ''}
+              ${hasFollowups ? renderFollowupTasksHtml(followups, taskId, c.id) : ''}
             </div>
-          `).join('');
+          `;}).join('');
         } else {
           listEl.innerHTML = '<div style="font-size: 12px; color: var(--text-muted);">No comments on this card.</div>';
         }
@@ -1683,8 +1687,16 @@
       return [];
     }
 
-    function renderFollowupTasksHtml(content, taskId, commentId) {
-      const followups = extractFollowupTasks(content);
+    function removeFollowupSectionForDisplay(content) {
+      if (!content) return '';
+      return content
+        .replace(/<!--\s*FOLLOWUP_TASKS_JSON[\s\S]*?-->/gi, '')
+        .replace(/###?\s*Suggested\s+Follow-?up\s+Tasks[\s\S]*$/i, '')
+        .trim();
+    }
+
+    function renderFollowupTasksHtml(followupsOrContent, taskId, commentId) {
+      const followups = Array.isArray(followupsOrContent) ? followupsOrContent : extractFollowupTasks(followupsOrContent);
       if (!followups || followups.length === 0) return '';
 
       return `

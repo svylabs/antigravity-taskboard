@@ -178,13 +178,8 @@ Verified changes against criteria:
    ```bash
    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> verification "Implementation complete; awaiting user manual verification and review."
    ```
-5. **Interactive Follow-up Prompt Flow (Interactive / Chat Sessions)**:
-   In interactive chat supervisor mode, immediately prompt the user (via `ask_question` or interactive choice list):
-   * Option 1: `(Recommended) Create Task: <Title 1>`
-   * Option 2: `Create Task: <Title 2>`
-   * Option 3: `Create Task: <Title 3>`
-   * Option 4: `Go back / No follow-up tasks needed right now`
-   When the user selects an option, create the task on the taskboard (`node taskboard/tasks.mjs add "<Title>" "<Description>" "<Priority>"`), then give them the choice to **create another task** or **go back**.
+5. **Follow-up Tasks Displayed in Taskboard Comment (Not within Antigravity itself)**:
+   Do NOT prompt the user within Antigravity chat (never call `ask_question` or block the chat for follow-ups). All 3 follow-up tasks are recorded directly on the task card within the walkthrough comment. The taskboard web UI dynamically renders interactive action buttons inside the comment card (`➕ Create Task`, `✏️ Customize`, `➕ Create Another Task`, `↩️ Go Back`), allowing the user to create tasks directly from the board interface at their convenience.
 6. If automated verification failed:
    * Mark card `failed` with failure logs.
 7. While the card is in **`👀 Pending Review`**, keep the standing 1-minute recurring cron active (`schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop", IsDaemon=false)`). The supervisor pauses code execution to allow user manual testing, but the background cron continues checking every 60s so user feedback, comments, approvals (`done`), or moves back to `todo`/`planned` are detected and picked up autonomously within 1 minute. Once the user approves or requests revision, proceed back to Step 1.

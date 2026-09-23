@@ -21,8 +21,7 @@ When working with this repository or when the taskboard plugin is installed, fol
 4. **Context Preservation (Comments & Follow-up Suggestions)**:
    * Post a **plan** comment before coding begins.
    * Post a **question** comment if requirements are ambiguous.
-   * Post a **walkthrough** comment summarizing changes, verification checks, and **3 suggested follow-up tasks** with embedded JSON (`<!-- FOLLOWUP_TASKS_JSON [...] -->`) upon completion.
-   * In interactive sessions, prompt the user with options to create a suggested follow-up task, create another task, or go back.
+   * Display the 3 suggested follow-up tasks directly as a comment on the taskboard card (never in agent chat), formatted with embedded JSON (`<!-- FOLLOWUP_TASKS_JSON [...] -->`) so the taskboard UI displays interactive buttons to create a task, create another task, or go back.
 
 5. **Sequential Subtask Execution**:
    If a task contains subtasks:
