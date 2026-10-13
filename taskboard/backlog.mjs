@@ -231,7 +231,7 @@ export const writeBacklogTree = writeProductTree;
 /**
  * Add a new node to the tree under parentId (default 'root').
  */
-export function addBacklogNode(projectDir, { parentId = 'root', title, description = '', projectName, db = null }) {
+export function addBacklogNode(projectDir, { parentId = 'root', title, description = '', type = null, projectName, db = null }) {
   if (!title || !title.trim()) {
     throw new Error('Title is required for backlog node');
   }
@@ -251,17 +251,35 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
     parent.children = [];
   }
 
+  // Determine node type: 'component' | 'feature' | 'bug'
+  let nodeType = type;
+  if (!nodeType) {
+    const lower = title.trim().toLowerCase();
+    if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]')) {
+      nodeType = 'bug';
+    } else if (lower === 'features' || lower === 'feature') {
+      nodeType = 'feature';
+    } else if (lower === 'components' || lower === 'component') {
+      nodeType = 'component';
+    } else {
+      nodeType = 'feature';
+    }
+  }
+
   const newNode = {
     id: generateNodeId(),
     title: title.trim(),
     description: description ? description.trim() : '',
+    type: nodeType,
     createdAt: new Date().toISOString(),
     children: []
   };
 
   parent.children.push(newNode);
   const parentTitle = (parentId && parentId !== 'root' && parent.title) ? ` under "${parent.title}"` : '';
-  const commitMsg = `feat(product): add feature "${newNode.title}"${parentTitle}`;
+  const typeLabel = nodeType === 'bug' ? 'bug' : (nodeType === 'component' ? 'component' : 'feature');
+  const commitPrefix = nodeType === 'bug' ? 'fix(product)' : 'feat(product)';
+  const commitMsg = `${commitPrefix}: add ${typeLabel} "${newNode.title}"${parentTitle}`;
   writeBacklogTree(projectDir, tree, commitMsg);
 
   return { success: true, node: newNode, tree };
@@ -270,7 +288,7 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
 /**
  * Update an existing node's title and/or description.
  */
-export function updateBacklogNode(projectDir, id, { title, description, projectName, db = null }) {
+export function updateBacklogNode(projectDir, id, { title, description, type, projectName, db = null }) {
   const tree = readBacklogTree(projectDir, projectName, db);
   const found = findNodeAndParent(tree, id);
   if (!found) {
@@ -284,9 +302,13 @@ export function updateBacklogNode(projectDir, id, { title, description, projectN
   if (description !== undefined) {
     node.description = description.trim();
   }
+  if (type !== undefined) {
+    node.type = type;
+  }
   node.updatedAt = new Date().toISOString();
 
-  const commitMsg = `docs(product): update feature "${node.title}" specifications`;
+  const typeLabel = node.type === 'bug' ? 'bug' : (node.type === 'component' ? 'component' : 'feature');
+  const commitMsg = `docs(product): update ${typeLabel} "${node.title}" specifications`;
   writeBacklogTree(projectDir, tree, commitMsg);
   return { success: true, node, tree };
 }
@@ -432,25 +454,29 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   }
 
   const node = found.node;
-  const taskTitle = (taskData.title || node.title || '').trim();
+  const isBug = (node.type === 'bug') || (taskData.type === 'bug') || (taskData.title && taskData.title.toLowerCase().startsWith('[bug]')) || (node.title && node.title.toLowerCase().startsWith('[bug]'));
+  let taskTitle = (taskData.title || node.title || '').trim();
+  if (isBug && !taskTitle.toLowerCase().startsWith('[bug]')) {
+    taskTitle = `[Bug] ${taskTitle}`;
+  }
   const taskDescription = (taskData.description !== undefined ? taskData.description : (node.description || '')).trim();
 
   // Create the task in SQLite with status 'todo'
   const task = addTaskFn({
     title: taskTitle,
     description: taskDescription,
-    priority: taskData.priority || 'medium',
-    subagent_role: taskData.subagent_role || 'Fullstack Engineer',
-    scope: taskData.scope || '',
+    priority: taskData.priority || (isBug ? 'high' : 'medium'),
+    subagent_role: taskData.subagent_role || (isBug ? 'QA / Test Engineer' : 'Fullstack Engineer'),
+    scope: taskData.scope || (isBug ? 'bug' : ''),
     scope_size: taskData.scope_size || 'small',
     verification_cmd: taskData.verification_cmd || '',
     acceptance_criteria: taskData.acceptance_criteria || '',
-    status: 'todo'
+    status: taskData.status || 'todo'
   });
 
   // Update node with converted task metadata
   node.taskId = task.id;
-  node.taskStatus = 'todo';
+  node.taskStatus = taskData.status || 'todo';
   node.convertedAt = new Date().toISOString();
   if (taskDescription) {
     node.description = taskDescription;
@@ -459,7 +485,9 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
     node.title = taskTitle;
   }
 
-  const convertCommitMsg = `feat(product): assign Task #${task.id.slice(-5)} to feature "${node.title}"`;
+  const actionPrefix = isBug ? 'fix(product)' : 'feat(product)';
+  const typeWord = isBug ? 'bug' : (node.type === 'component' ? 'component' : 'feature');
+  const convertCommitMsg = `${actionPrefix}: assign Task #${task.id.slice(-5)} to ${typeWord} "${node.title}"`;
   writeBacklogTree(projectDir, tree, convertCommitMsg);
 
   return { success: true, task, node, tree };

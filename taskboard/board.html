@@ -1101,6 +1101,170 @@
       opacity: 0.85;
     }
 
+    /* Component, Feature, Bug Type Badges & Indicators */
+    .tree-type-pill {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      flex-shrink: 0;
+      line-height: 1.2;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .tree-type-pill.pill-component {
+      background: #EEF2FF;
+      color: #4338CA;
+      border: 1px solid #C7D2FE;
+    }
+
+    .tree-type-pill.pill-feature {
+      background: #EFF6FF;
+      color: #1D4ED8;
+      border: 1px solid #BFDBFE;
+    }
+
+    .tree-type-pill.pill-bug {
+      background: #FFF1F2;
+      color: #BE123C;
+      border: 1px solid #FECDD3;
+    }
+
+    .tree-node-row.is-bug {
+      border-left: 2.5px solid #F43F5E !important;
+      background: #FFFBFB;
+    }
+
+    .tree-counter-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+
+    .tree-counter-pill.is-feature {
+      background: #EFF6FF;
+      color: #1E40AF;
+      border: 1px solid #DBEAFE;
+    }
+
+    .tree-counter-pill.is-bug {
+      background: #FFF1F2;
+      color: #9F1239;
+      border: 1px solid #FFE4E6;
+    }
+
+    .tree-type-segmented {
+      display: inline-flex;
+      background: #F1F5F9;
+      padding: 2px;
+      border-radius: 6px;
+      gap: 2px;
+      margin-bottom: 8px;
+      border: 1px solid #E2E8F0;
+    }
+
+    .tree-type-btn {
+      border: none;
+      background: transparent;
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #64748B;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .tree-type-btn:hover {
+      color: #1E293B;
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    .tree-type-btn.is-active.is-feature {
+      background: #2563EB;
+      color: white;
+      box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+    }
+
+    .tree-type-btn.is-active.is-bug {
+      background: #E11D48;
+      color: white;
+      box-shadow: 0 1px 2px rgba(225, 29, 72, 0.2);
+    }
+
+    .tree-type-btn.is-active.is-component {
+      background: #6366F1;
+      color: white;
+      box-shadow: 0 1px 2px rgba(99, 102, 241, 0.2);
+    }
+
+    .component-breakdown-card {
+      margin-top: 12px;
+      background: #F8FAFC;
+      border: 1px solid #E2E8F0;
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .component-breakdown-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .component-breakdown-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .component-breakdown-section-title {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #64748B;
+      margin: 8px 0 4px 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .component-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 8px;
+      background: white;
+      border: 1px solid #E2E8F0;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      font-size: 11.5px;
+    }
+
+    .component-item-row:hover {
+      border-color: #CBD5E1;
+      background: #F8FAFC;
+    }
+
+    .badge-bug {
+      background: #FEE2E2 !important;
+      color: #991B1B !important;
+      border: 1px solid #FECACA !important;
+      font-weight: 700 !important;
+    }
+
     .tree-node-actions {
       display: flex;
       align-items: center;
@@ -4941,6 +5105,83 @@
       }
     }
 
+    function getNodeType(node) {
+      if (!node) return 'feature';
+      if (node.id === 'root') return 'root';
+      if (node.type) return node.type;
+      const lower = (node.title || '').toLowerCase().trim();
+      if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]')) return 'bug';
+      if (lower === 'features' || lower === 'feature') return 'feature';
+      if (lower === 'components' || lower === 'component') return 'component';
+      if (Array.isArray(node.children) && node.children.length > 0) return 'component';
+      return 'feature';
+    }
+
+    function getComponentStats(node) {
+      let features = 0;
+      let bugs = 0;
+      let components = 0;
+      if (!node || !Array.isArray(node.children)) return { features, bugs, components };
+
+      function countRecursive(item) {
+        if (!item) return;
+        const t = getNodeType(item);
+        if (t === 'bug') bugs++;
+        else if (t === 'component') components++;
+        else features++;
+        if (Array.isArray(item.children)) {
+          item.children.forEach(countRecursive);
+        }
+      }
+
+      node.children.forEach(countRecursive);
+      return { features, bugs, components };
+    }
+
+    let draftSelectedType = {};
+
+    function selectDraftType(parentId, newType) {
+      draftSelectedType[parentId] = newType;
+      const titleEl = document.getElementById(`draft-title-${parentId}`);
+      const descEl = document.getElementById(`draft-desc-${parentId}`);
+      const curTitle = titleEl ? titleEl.value : '';
+      const curDesc = descEl ? descEl.value : '';
+      renderBacklogTree();
+      setTimeout(() => {
+        const tEl = document.getElementById(`draft-title-${parentId}`);
+        const dEl = document.getElementById(`draft-desc-${parentId}`);
+        if (tEl) {
+          tEl.value = curTitle;
+          tEl.focus();
+        }
+        if (dEl) dEl.value = curDesc;
+      }, 30);
+    }
+
+    async function changeNodeType(nodeId, newType, e) {
+      if (e) e.stopPropagation();
+      const node = findBacklogNode(backlogTree, nodeId);
+      if (!node) return;
+      node.type = newType;
+      try {
+        const res = await fetch(`/api/product/nodes/${nodeId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: newType })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const typeName = newType === 'bug' ? '🐛 Bug' : (newType === 'component' ? '🧩 Component' : '✨ Feature');
+          showToast(`Changed type to ${typeName}`);
+          await fetchBacklog(true);
+        } else {
+          alert('Failed to update type: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error updating type: ' + err.message);
+      }
+    }
+
     function buildInlineDraftElement(parentId) {
       const draft = document.createElement('div');
       draft.className = 'tree-inline-card is-draft';
@@ -4948,6 +5189,36 @@
       const isRoot = parentId === 'root';
       const parentNode = !isRoot ? findBacklogNode(backlogTree, parentId) : null;
       const parentTitle = parentNode ? parentNode.title : 'Product';
+
+      const currentType = draftSelectedType[parentId] || 'feature';
+      const isBug = currentType === 'bug';
+      const isComponent = currentType === 'component';
+
+      let typeTag = '✨ New Feature';
+      let titlePlaceholder = 'Feature title (e.g. Social Login, Meal Plan Generator)...';
+      let descPlaceholder = 'Requirements, specifications, acceptance criteria, or technical details...';
+      let submitLabel = 'Add Feature to Product Doc';
+      let tagBg = '#EFF6FF';
+      let tagColor = '#1D4ED8';
+      let tagBorder = '#BFDBFE';
+
+      if (isBug) {
+        typeTag = '🐛 New Bug / Issue';
+        titlePlaceholder = 'Bug description (e.g. Header text clipped on small screens)...';
+        descPlaceholder = 'Steps to reproduce, expected vs actual behavior, error details...';
+        submitLabel = 'Report Bug';
+        tagBg = '#FFF1F2';
+        tagColor = '#BE123C';
+        tagBorder = '#FECDD3';
+      } else if (isComponent) {
+        typeTag = '🧩 New Component / Screen';
+        titlePlaceholder = 'Component or screen name (e.g. Welcome Screen, Chat Screen, Settings)...';
+        descPlaceholder = 'Component overview, child modules, UI specifications...';
+        submitLabel = 'Add Component';
+        tagBg = '#EEF2FF';
+        tagColor = '#4338CA';
+        tagBorder = '#C7D2FE';
+      }
 
       // Preserve any text already typed if element previously existed
       let preservedTitle = '';
@@ -4959,15 +5230,26 @@
 
       draft.innerHTML = `
         <div class="tree-inline-header">
-          <span class="tree-inline-tag">➕ New ${isRoot ? 'Feature' : 'Sub-feature under "' + escapeHtml(parentTitle) + '"'}</span>
+          <span class="tree-inline-tag" style="background: ${tagBg}; color: ${tagColor}; border: 1px solid ${tagBorder};">
+            ${isRoot ? '📁 Project Root' : `${typeTag} under "${escapeHtml(parentTitle)}"`}
+          </span>
           <button type="button" class="tree-inline-close" onclick="cancelInlineDraft(event)">&times;</button>
         </div>
+
+        <div style="margin-bottom: 8px;">
+          <div class="tree-type-segmented">
+            <button type="button" class="tree-type-btn ${currentType === 'feature' ? 'is-active is-feature' : ''}" onclick="selectDraftType('${parentId}', 'feature')">✨ Feature</button>
+            <button type="button" class="tree-type-btn ${currentType === 'bug' ? 'is-active is-bug' : ''}" onclick="selectDraftType('${parentId}', 'bug')">🐛 Bug</button>
+            <button type="button" class="tree-type-btn ${currentType === 'component' ? 'is-active is-component' : ''}" onclick="selectDraftType('${parentId}', 'component')">🧩 Component</button>
+          </div>
+        </div>
+
         <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
-        <input type="text" class="tree-inline-title" id="draft-title-${parentId}" value="${escapeHtml(preservedTitle)}" placeholder="Feature title (e.g. Twilio Voice Verification)..." onkeydown="handleDraftKeydown(event, '${parentId}')">
+        <input type="text" class="tree-inline-title" id="draft-title-${parentId}" value="${escapeHtml(preservedTitle)}" placeholder="${titlePlaceholder}" onkeydown="handleDraftKeydown(event, '${parentId}')">
         <label class="tree-inline-label">Description & Specifications <span style="font-weight: 400; color: #94A3B8;">(Optional)</span></label>
-        <textarea class="tree-inline-desc" id="draft-desc-${parentId}" rows="2" placeholder="Describe requirements, acceptance criteria, or technical details..." onkeydown="handleDraftKeydown(event, '${parentId}')">${escapeHtml(preservedDesc)}</textarea>
+        <textarea class="tree-inline-desc" id="draft-desc-${parentId}" rows="2" placeholder="${descPlaceholder}" onkeydown="handleDraftKeydown(event, '${parentId}')">${escapeHtml(preservedDesc)}</textarea>
         <div class="tree-inline-actions">
-          <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineDraft('${parentId}', event)">Add to Product Doc</button>
+          <button type="button" class="btn btn-sm ${isBug ? 'btn-danger' : 'btn-primary'}" ${isBug ? 'style="background: #E11D48; border-color: #BE123C; color: white;"' : ''} onclick="saveInlineDraft('${parentId}', event)">${submitLabel}</button>
           <button type="button" class="btn btn-sm btn-ghost" onclick="cancelInlineDraft(event)">Cancel</button>
         </div>
       `;
@@ -4986,13 +5268,33 @@
       }
     }
 
-    function openInlineDraft(parentId = 'root', e) {
+    function openInlineDraft(parentId = 'root', initialType = 'feature', e) {
       if (e) e.stopPropagation();
-      addingChildUnderParentId = parentId;
-      collapsedNodes.delete(parentId);
+
+      // If parent has a child named "features" or "bugs" matching initialType, automatically target it
+      let targetParentId = parentId;
+      if (parentId !== 'root') {
+        const parentNode = findBacklogNode(backlogTree, parentId);
+        if (parentNode && Array.isArray(parentNode.children)) {
+          if (initialType === 'feature') {
+            const featChild = parentNode.children.find(c => (c.title || '').trim().toLowerCase() === 'features');
+            if (featChild) targetParentId = featChild.id;
+          } else if (initialType === 'bug') {
+            const bugChild = parentNode.children.find(c => (c.title || '').trim().toLowerCase() === 'bugs');
+            if (bugChild) targetParentId = bugChild.id;
+          }
+        }
+      }
+
+      addingChildUnderParentId = targetParentId;
+      draftSelectedType[targetParentId] = initialType || 'feature';
+      collapsedNodes.delete(targetParentId);
+      if (targetParentId !== parentId) {
+        collapsedNodes.delete(parentId);
+      }
       renderBacklogTree();
       setTimeout(() => {
-        const el = document.getElementById(`draft-title-${parentId}`);
+        const el = document.getElementById(`draft-title-${targetParentId}`);
         if (el) {
           el.focus();
           el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -5018,27 +5320,30 @@
       const description = descEl ? descEl.value.trim() : '';
       if (!title) {
         titleEl.focus();
-        showToast('⚠️ Please enter a title for the feature');
+        showToast('⚠️ Please enter a title');
         return;
       }
+
+      const type = draftSelectedType[parentId] || 'feature';
 
       try {
         const res = await fetch('/api/product/nodes', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ parentId, title, description })
+          body: JSON.stringify({ parentId, title, description, type })
         });
         const data = await res.json();
         if (data.success) {
           addingChildUnderParentId = null;
           activeEditNodeId = null;
-          showToast(`✅ Added "${title}" to product doc`);
+          const typeName = type === 'bug' ? '🐛 Bug' : (type === 'component' ? '🧩 Component' : '✨ Feature');
+          showToast(`✅ Added ${typeName} "${title}" to product doc`);
           await fetchBacklog(true);
         } else {
-          alert('Error adding feature: ' + (data.error || 'Unknown error'));
+          alert('Error adding item: ' + (data.error || 'Unknown error'));
         }
       } catch (err) {
-        alert('Failed to add feature: ' + err.message);
+        alert('Failed to add item: ' + err.message);
       }
     }
 
@@ -5337,6 +5642,9 @@
       const isCollapsed = collapsedNodes.has(node.id);
       const isEditing = activeEditNodeId === node.id;
       const attCount = Array.isArray(node.attachments) ? node.attachments.length : 0;
+      const nodeType = getNodeType(node);
+      const isBug = nodeType === 'bug';
+      const isComponent = nodeType === 'component';
 
       // Determine live task status and completion
       let effectiveStatus = (node.taskStatus || '').toLowerCase();
@@ -5351,7 +5659,7 @@
       if (isEditing) {
         // Render in-place editor card
         const card = document.createElement('div');
-        card.className = `tree-inline-card ${isDone ? 'is-completed' : ''}`;
+        card.className = `tree-inline-card ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''}`;
         card.onclick = (e) => e.stopPropagation();
         card.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id, isRoot));
         card.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
@@ -5364,10 +5672,74 @@
         if (existingTitleInput && existingTitleInput.value !== undefined) currentTitle = existingTitleInput.value;
         if (existingDescInput && existingDescInput.value !== undefined) currentDesc = existingDescInput.value;
 
+        let breakdownHtml = '';
+        if (!isRoot && (isComponent || hasChildren)) {
+          const stats = getComponentStats(node);
+          const childList = [];
+          function collectChildren(item) {
+            if (!item || !Array.isArray(item.children)) return;
+            item.children.forEach(c => {
+              const cType = getNodeType(c);
+              if (cType === 'feature' || cType === 'bug') {
+                childList.push(c);
+              }
+              collectChildren(c);
+            });
+          }
+          collectChildren(node);
+
+          breakdownHtml = `
+            <div class="component-breakdown-card" style="margin-top: 10px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.3px;">
+                  🧩 Component Contents (${stats.features} feature${stats.features === 1 ? '' : 's'}, ${stats.bugs} bug${stats.bugs === 1 ? '' : 's'})
+                </span>
+                <div style="display: flex; gap: 4px;">
+                  <button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'feature', event)">✨ + Feature</button>
+                  <button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #BE123C; border-color: #FECDD3;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug</button>
+                </div>
+              </div>
+              <div style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
+                ${childList.length === 0 ? '<div style="font-size: 11px; color: #94A3B8; font-style: italic;">No features or bugs added yet. Click above to add items.</div>' : ''}
+                ${childList.map(item => {
+                  const itType = getNodeType(item);
+                  const itIsBug = itType === 'bug';
+                  let itemTaskStatus = (item.taskStatus || '').toLowerCase();
+                  if (item.taskId) {
+                    const lt = tasks.find(t => t.id === item.taskId);
+                    if (lt && lt.status) itemTaskStatus = lt.status.toLowerCase();
+                  }
+                  const itDone = Boolean(item.taskId && itemTaskStatus === 'done');
+                  return `
+                    <div class="component-item-row" style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; background: white; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 11.5px;">
+                      <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px;">
+                        <span>${itIsBug ? '🐛' : '✨'}</span>
+                        <span style="font-weight: 600; color: ${itDone ? '#94A3B8' : '#1E293B'}; ${itDone ? 'text-decoration: line-through;' : ''}">${escapeHtml(item.title)}</span>
+                      </div>
+                      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                        ${item.taskId ? `
+                          <span class="tree-task-badge" style="font-size: 10px; padding: 1px 5px; cursor: pointer; ${itDone ? 'background: #DCFCE7; color: #166534;' : 'background: #FEF3C7; color: #92400E;'}" onclick="openDetailModal('${item.taskId}'); event.stopPropagation();">
+                            ${itDone ? '✅ Done' : `Task #${item.taskId.slice(-5)}`}
+                          </span>
+                        ` : `
+                          <button type="button" class="btn btn-sm btn-ghost" style="font-size: 10.5px; padding: 1px 6px; color: #4F46E5; font-weight: 600;" onclick="activeEditNodeId = '${item.id}'; showConvertDrawerForNodeId = '${item.id}'; renderBacklogTree(); event.stopPropagation();">
+                            🚀 Include
+                          </button>
+                        `}
+                        <button type="button" class="btn btn-sm btn-ghost" style="padding: 1px 4px; font-size: 11px;" onclick="toggleNodeEditInPlace('${item.id}', event)" title="Edit">✏️</button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          `;
+        }
+
         card.innerHTML = `
           <div class="tree-inline-header">
-            <span class="tree-inline-tag" ${isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : ''}>
-              ${isRoot ? '📁 Project Root' : (isDone ? `✅ Completed Feature (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}` : '✏️ Feature Spec'))}
+            <span class="tree-inline-tag" ${isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : (isBug ? 'style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3;"' : (isComponent ? 'style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;"' : ''))}>
+              ${isRoot ? '📁 Project Root' : (isDone ? `✅ Completed ${isBug ? 'Bug' : (isComponent ? 'Component' : 'Feature')} (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}` : (isBug ? '🐛 Bug Spec' : (isComponent ? '🧩 Component Spec' : '✨ Feature Spec'))))}
             </span>
             <button type="button" class="tree-inline-close" onclick="closeInlineEditor(event)" title="Close editor">&times;</button>
           </div>
@@ -5375,20 +5747,32 @@
           ${isDone ? `
           <div class="tree-completed-banner">
             <span>✅</span>
-            <span>This feature has been completed and verified (Task #${node.taskId ? node.taskId.slice(-5) : ''}).</span>
+            <span>This ${isBug ? 'bug' : 'feature'} has been completed and verified (Task #${node.taskId ? node.taskId.slice(-5) : ''}).</span>
           </div>
           ` : ''}
 
-          <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
-          <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" placeholder="Feature title..." onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
+          ${!isRoot ? `
+          <div style="margin-bottom: 8px;">
+            <div class="tree-type-segmented">
+              <button type="button" class="tree-type-btn ${nodeType === 'feature' ? 'is-active is-feature' : ''}" onclick="changeNodeType('${node.id}', 'feature', event)">✨ Feature</button>
+              <button type="button" class="tree-type-btn ${nodeType === 'bug' ? 'is-active is-bug' : ''}" onclick="changeNodeType('${node.id}', 'bug', event)">🐛 Bug</button>
+              <button type="button" class="tree-type-btn ${nodeType === 'component' ? 'is-active is-component' : ''}" onclick="changeNodeType('${node.id}', 'component', event)">🧩 Component</button>
+            </div>
+          </div>
+          ` : ''}
+
+          <label class="tree-inline-label">${isBug ? 'Bug Summary' : (isComponent ? 'Component Name' : 'Title')} <span style="color: #EF4444;">*</span></label>
+          <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" placeholder="${isBug ? 'Bug summary (e.g. Header text clipped on mobile)...' : (isComponent ? 'Component name (e.g. Welcome Screen)...' : 'Feature title...')}" onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
 
           <div class="tree-inline-label">
             <span>Description & Specifications</span>
             <button type="button" class="btn btn-sm btn-ghost" onclick="insertMermaidTemplate('${node.id}', event)" title="Insert Mermaid diagram snippet">📊 + Mermaid Diagram</button>
           </div>
-          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="Document specifications, user stories, acceptance criteria, or mermaid diagrams..." oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">${escapeHtml(currentDesc)}</textarea>
+          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="${isBug ? 'Steps to reproduce, expected vs actual behavior, error details...' : (isComponent ? 'Component overview, UI layout, child modules...' : 'Document specifications, user stories, acceptance criteria, or mermaid diagrams...')}" oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">${escapeHtml(currentDesc)}</textarea>
 
           <div class="tree-mermaid-box" id="mermaid-preview-${node.id}" style="display: none;"></div>
+
+          ${breakdownHtml}
 
           <div class="tree-attachments-section">
             <div style="display: flex; align-items: center; justify-content: space-between;">
@@ -5419,25 +5803,26 @@
 
           <div class="tree-inline-actions">
             <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save</button>
-            <button type="button" class="btn btn-sm btn-secondary" onclick="openInlineDraft('${node.id}', event)">➕ Sub-feature</button>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="openInlineDraft('${node.id}', 'feature', event)">✨ + Feature</button>
+            <button type="button" class="btn btn-sm btn-secondary" style="color: #BE123C; border-color: #FECDD3;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug</button>
             ${node.taskId 
               ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}${isDone ? ' (Completed)' : ''}</button>` 
               : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do (Assigns Task ID)</button>`}
-            ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete feature">🗑️</button>` : ''}
+            ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete">🗑️</button>` : ''}
             <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Cancel</button>
           </div>
 
           ${showConvertDrawerForNodeId === node.id ? `
             <div class="tree-inline-convert-drawer">
               <div class="tree-inline-convert-title">
-                <span>🚀 Include Feature in To Do &amp; Assign Task ID</span>
+                <span>🚀 Include ${isBug ? 'Bug' : 'Feature'} in To Do &amp; Assign Task ID</span>
               </div>
               <div class="tree-inline-grid">
                 <div>
                   <label class="tree-inline-label">Priority</label>
                   <select class="tree-inline-select" id="convert-prio-${node.id}">
-                    <option value="medium" selected>Medium</option>
-                    <option value="high">High</option>
+                    <option value="medium" ${!isBug ? 'selected' : ''}>Medium</option>
+                    <option value="high" ${isBug ? 'selected' : ''}>High</option>
                     <option value="urgent">Urgent</option>
                     <option value="low">Low</option>
                   </select>
@@ -5445,10 +5830,10 @@
                 <div>
                   <label class="tree-inline-label">Subagent Role</label>
                   <select class="tree-inline-select" id="convert-role-${node.id}">
-                    <option value="Fullstack Engineer" selected>Fullstack Engineer</option>
+                    <option value="Fullstack Engineer" ${!isBug ? 'selected' : ''}>Fullstack Engineer</option>
                     <option value="Frontend Specialist">Frontend Specialist</option>
                     <option value="Backend / API Engineer">Backend / API Engineer</option>
-                    <option value="QA / Test Engineer">QA / Test Engineer</option>
+                    <option value="QA / Test Engineer" ${isBug ? 'selected' : ''}>QA / Test Engineer</option>
                     <option value="Architect & System Designer">Architect & System Designer</option>
                   </select>
                 </div>
@@ -5482,7 +5867,7 @@
       } else {
         // Compact single-line row
         const row = document.createElement('div');
-        row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isDone ? 'is-completed' : ''}`;
+        row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''} ${isComponent ? 'is-component' : ''}`;
         row.onclick = (e) => toggleNodeEditInPlace(node.id, e);
 
         // Every row is a drop target (drop inside feature, or drop onto root)
@@ -5536,7 +5921,13 @@
         // Icon
         const iconSpan = document.createElement('span');
         iconSpan.className = 'tree-node-icon';
-        iconSpan.innerHTML = isRoot ? '📁' : (isDone ? '✅' : (hasChildren ? '📦' : '🔹'));
+        let rowIcon = '✨';
+        if (isRoot) rowIcon = '📁';
+        else if (isDone) rowIcon = '✅';
+        else if (isBug) rowIcon = '🐛';
+        else if (isComponent) rowIcon = '🧩';
+        else if (hasChildren) rowIcon = '📦';
+        iconSpan.innerHTML = rowIcon;
         row.appendChild(iconSpan);
 
         // Title with strike mark if completed
@@ -5553,6 +5944,29 @@
           titleSpan.title = `${node.title}${isDone ? ' (Completed)' : ''}\n(Click to view/edit in place)`;
         }
         row.appendChild(titleSpan);
+
+        // Type badge (Component / Bug)
+        if (!isRoot && (isBug || isComponent)) {
+          const typePill = document.createElement('span');
+          typePill.className = `tree-type-pill pill-${isBug ? 'bug' : 'component'}`;
+          typePill.innerHTML = isBug ? '🐛 Bug' : '🧩 Component';
+          row.appendChild(typePill);
+        }
+
+        // Component aggregate counter pill (✨ N • 🐛 N)
+        if (isComponent || hasChildren) {
+          const stats = getComponentStats(node);
+          if (stats.features > 0 || stats.bugs > 0) {
+            const counterPill = document.createElement('span');
+            counterPill.className = 'tree-counter-pill';
+            let pillText = '';
+            if (stats.features > 0) pillText += `✨ ${stats.features}`;
+            if (stats.bugs > 0) pillText += (pillText ? ' • ' : '') + `🐛 ${stats.bugs}`;
+            counterPill.innerHTML = pillText;
+            counterPill.title = `Contains ${stats.features} feature(s) and ${stats.bugs} bug(s)`;
+            row.appendChild(counterPill);
+          }
+        }
 
         // Attachment indicator
         if (attCount > 0) {
@@ -5599,21 +6013,30 @@
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'tree-node-actions';
 
-        // ➕ Add child
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = 'tree-action-btn';
-        addBtn.innerHTML = '➕';
-        addBtn.title = 'Add sub-feature';
-        addBtn.onclick = (e) => openInlineDraft(node.id, e);
-        actionsDiv.appendChild(addBtn);
+        // ✨ Add feature
+        const addFeatBtn = document.createElement('button');
+        addFeatBtn.type = 'button';
+        addFeatBtn.className = 'tree-action-btn';
+        addFeatBtn.innerHTML = '✨';
+        addFeatBtn.title = 'Add feature';
+        addFeatBtn.onclick = (e) => openInlineDraft(node.id, 'feature', e);
+        actionsDiv.appendChild(addFeatBtn);
+
+        // 🐛 Add bug
+        const addBugBtn = document.createElement('button');
+        addBugBtn.type = 'button';
+        addBugBtn.className = 'tree-action-btn';
+        addBugBtn.innerHTML = '🐛';
+        addBugBtn.title = 'Report bug';
+        addBugBtn.onclick = (e) => openInlineDraft(node.id, 'bug', e);
+        actionsDiv.appendChild(addBugBtn);
 
         // ✏️ Edit
         const editBtn = document.createElement('button');
         editBtn.type = 'button';
         editBtn.className = 'tree-action-btn';
         editBtn.innerHTML = '✏️';
-        editBtn.title = 'Edit feature in place';
+        editBtn.title = 'Edit in place';
         editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
         actionsDiv.appendChild(editBtn);
 
@@ -5651,7 +6074,7 @@
           delBtn.type = 'button';
           delBtn.className = 'tree-action-btn tree-btn-delete';
           delBtn.innerHTML = '🗑️';
-          delBtn.title = 'Delete feature';
+          delBtn.title = 'Delete';
           delBtn.onclick = (e) => deleteNodeInPlace(node.id, e);
           actionsDiv.appendChild(delBtn);
         }
@@ -5766,8 +6189,14 @@
             ? `<span class="session-card-badge" title="Session: ${escapeHtml(sessionObj.name)}">🎯 ${escapeHtml(sessionObj.name)}</span>` 
             : '';
 
+          const isBugTask = (task.title && task.title.startsWith('[Bug]')) || task.scope === 'bug';
+          const bugBadge = isBugTask 
+            ? `<span class="badge badge-bug" style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; font-weight: 700;">🐛 BUG</span>` 
+            : '';
+
           card.innerHTML = `
             <div class="card-badges">
+              ${bugBadge}
               <span class="badge badge-${task.priority}">${task.priority}</span>
               ${statusBadge}
               ${sizeBadge}

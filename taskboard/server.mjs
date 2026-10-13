@@ -765,6 +765,7 @@ const server = http.createServer(async (req, res) => {
         parentId: body.parentId || 'root',
         title: body.title,
         description: body.description || '',
+        type: body.type,
         projectName: info.projectName,
         db
       });
@@ -835,6 +836,7 @@ const server = http.createServer(async (req, res) => {
       const result = updateProductNode(info.projectDir, nodeId, {
         title: body.title,
         description: body.description,
+        type: body.type,
         projectName: info.projectName,
         db
       });
