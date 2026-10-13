@@ -901,7 +901,7 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
 
   const actionPrefix = isBug ? 'fix(product)' : 'feat(product)';
   const typeWord = isBug ? 'bug / improvement' : (node.type === 'component' ? 'component' : 'feature');
-  const convertCommitMsg = `${actionPrefix}: assign Task #${task.id.slice(-5)} to ${typeWord} "${node.title}"`;
+  const convertCommitMsg = `${actionPrefix}: assign Task #${task.id.split('-').pop()} to ${typeWord} "${node.title}"`;
   
   // Save product.json to disk
   writeBacklogTree(projectDir, tree, convertCommitMsg);

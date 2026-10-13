@@ -1179,7 +1179,7 @@ const server = http.createServer(async (req, res) => {
           const isBug = (linkedNode.type === 'bug') || (task.title && (task.title.toLowerCase().startsWith('[bug') || task.title.toLowerCase().startsWith('[improvement')));
           const actionPrefix = isBug ? 'fix(product)' : 'feat(product)';
           const typeWord = isBug ? 'bug / improvement' : (linkedNode.type === 'component' ? 'component' : 'feature');
-          const commitMsg = `${actionPrefix}: assign Task #${task.id.slice(-5)} to ${typeWord} "${linkedNode.title}"`;
+          const commitMsg = `${actionPrefix}: assign Task #${task.id.split('-').pop()} to ${typeWord} "${linkedNode.title}"`;
           writeProductTree(info.projectDir, tree, commitMsg);
           commitProductChanges(info.projectDir, commitMsg);
         } catch (err) {
