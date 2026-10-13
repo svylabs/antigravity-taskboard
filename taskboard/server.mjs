@@ -50,7 +50,9 @@ import {
   deleteBacklogNode,
   moveBacklogNode,
   convertBacklogNodeToTask,
-  getBacklogFilePath
+  getBacklogFilePath,
+  commitProductChanges,
+  getProductGitStatus
 } from './backlog.mjs';
 import {
   ensureSessionSchema,
@@ -726,16 +728,49 @@ const server = http.createServer(async (req, res) => {
     const tree = readProductTree(info.projectDir, info.projectName, db);
     const changed = syncTaskStatusesWithTree(tree, getTaskById);
     if (changed) {
-      writeProductTree(info.projectDir, tree, 'docs(product): sync task statuses with product specification');
+      writeProductTree(info.projectDir, tree);
     }
     const count = countNodes(tree);
+    const gitStatus = getProductGitStatus(info.projectDir);
     return sendJson(res, 200, {
       success: true,
       tree,
       count,
       project: info.projectName,
-      filePath: getProductFilePath(info.projectDir)
+      filePath: getProductFilePath(info.projectDir),
+      dirty: gitStatus.dirty,
+      gitStatus: gitStatus.status
     });
+  }
+
+  // REST API: GET /api/product/status or GET /api/backlog/status - Check if product.json has uncommitted changes
+  if ((pathname === '/api/product/status' || pathname === '/api/backlog/status') && req.method === 'GET') {
+    const info = getProjectInfo();
+    const gitStatus = getProductGitStatus(info.projectDir);
+    return sendJson(res, 200, {
+      success: true,
+      dirty: gitStatus.dirty,
+      status: gitStatus.status
+    });
+  }
+
+  // REST API: POST /api/product/commit or POST /api/backlog/commit - Explicitly commit product.json to git
+  if ((pathname === '/api/product/commit' || pathname === '/api/backlog/commit') && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const info = getProjectInfo();
+      const commitMsg = body?.message || 'chore(product): update product specification in product.json';
+      const committed = commitProductChanges(info.projectDir, commitMsg);
+      const gitStatus = getProductGitStatus(info.projectDir);
+      return sendJson(res, 200, {
+        success: true,
+        committed: Boolean(committed),
+        message: committed || commitMsg,
+        dirty: gitStatus.dirty
+      });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
   }
 
   // REST API: POST /api/product or POST /api/backlog - Save/replace the entire tree

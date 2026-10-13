@@ -1377,6 +1377,90 @@
       transform: scale(1.08);
     }
 
+    /* Explicit Save product.json button styles */
+    .btn-save-product {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 9px;
+      border-radius: 6px;
+      border: 1px solid #CBD5E1;
+      background: #F8FAFC;
+      color: #475569;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-save-product:hover {
+      background: #F1F5F9;
+      color: #0F172A;
+      border-color: #94A3B8;
+    }
+
+    .btn-save-product.is-dirty {
+      background: #FEF3C7 !important;
+      color: #92400E !important;
+      border-color: #F59E0B !important;
+      font-weight: 700 !important;
+      box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+      animation: pulse-save-border 2s infinite;
+    }
+
+    .btn-save-product.is-dirty:hover {
+      background: #FDE68A !important;
+      color: #78350F !important;
+      border-color: #D97706 !important;
+    }
+
+    .btn-save-product.is-saved {
+      background: #DCFCE7 !important;
+      color: #166534 !important;
+      border-color: #86EFAC !important;
+    }
+
+    .save-product-badge {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #EF4444;
+      animation: pulse-dot 1.2s infinite;
+    }
+
+    @keyframes pulse-save-border {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.4); }
+      50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.25); }
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.6; }
+    }
+
+    .btn-save-product-top {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 12px;
+      border-radius: 8px;
+      background: #FEF3C7;
+      color: #92400E;
+      border: 1.5px solid #F59E0B;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(245, 158, 11, 0.2);
+      transition: all 0.2s ease;
+      animation: pulse-save-border 2s infinite;
+    }
+
+    .btn-save-product-top:hover {
+      background: #FDE68A;
+      color: #78350F;
+    }
+
     .btn-feat-action {
       background: #EFF6FF !important;
       color: #1D4ED8 !important;
@@ -3173,6 +3257,11 @@
         <button class="btn btn-agent-start" id="btnStartAgent" onclick="copyLoopPrompt()" title="Start or resume the autonomous agent loop in Antigravity">
           <span>▶</span><span>Start Agent</span>
         </button>
+        <button class="btn btn-save-product-top" id="btnSaveProductTop" onclick="saveProductCommit(event)" style="display: none;" title="Unsaved changes in product.json - click to commit to git">
+          <span>💾</span>
+          <span id="saveProductTopLabel">Save product.json</span>
+          <span class="save-product-badge"></span>
+        </button>
         <button class="btn btn-secondary btn-feat-action" onclick="openInlineDraft('root', event)" title="Add feature to product doc">
           <span>🔷</span><span>Add Feature</span>
         </button>
@@ -3374,7 +3463,14 @@
       </div>
       <div class="backlog-file-bar" id="backlogFileBar">
         <span class="backlog-file-label" id="backlogFilePath" title="Living product specification stored in product.json and checked into git">📄 product.json</span>
-        <button class="tree-header-btn" onclick="openInlineDraft('root', event)" style="padding: 1px 6px; font-size: 10px; font-weight: 700; color: #1D4ED8; background: #EFF6FF; border-color: #BFDBFE;" title="Add feature in place">+ 🔷 Feature</button>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button class="btn-save-product" id="btnSaveProduct" onclick="saveProductCommit(event)" title="Commit product.json changes to git">
+            <span id="saveProductIcon">💾</span>
+            <span id="saveProductLabel">Save</span>
+            <span class="save-product-badge" id="saveProductBadge" style="display: none;"></span>
+          </button>
+          <button class="tree-header-btn" onclick="openInlineDraft('root', event)" style="padding: 1px 6px; font-size: 10px; font-weight: 700; color: #1D4ED8; background: #EFF6FF; border-color: #BFDBFE;" title="Add feature in place">+ 🔷 Feature</button>
+        </div>
       </div>
       <div class="backlog-tree-container" id="backlogTreeContainer">
         <!-- Tree rendered dynamically with in-place editing -->
@@ -4831,6 +4927,91 @@
     let showConvertDrawerForNodeId = null;
 
     let lastProductTreeJson = null;
+    let hasUnsavedProductChanges = false;
+
+    function setUnsavedProductChanges(isDirty) {
+      hasUnsavedProductChanges = Boolean(isDirty);
+
+      const btnSave = document.getElementById('btnSaveProduct');
+      const badge = document.getElementById('saveProductBadge');
+      const label = document.getElementById('saveProductLabel');
+      const topBtn = document.getElementById('btnSaveProductTop');
+
+      if (btnSave) {
+        if (hasUnsavedProductChanges) {
+          btnSave.classList.add('is-dirty');
+          btnSave.classList.remove('is-saved');
+          btnSave.title = 'Unsaved changes to product.json - click to commit to git';
+          if (label) label.innerText = 'Save';
+          if (badge) badge.style.display = 'inline-block';
+        } else {
+          btnSave.classList.remove('is-dirty');
+          if (label) label.innerText = 'Save';
+          if (badge) badge.style.display = 'none';
+          btnSave.title = 'Commit product.json changes to git';
+        }
+      }
+
+      if (topBtn) {
+        topBtn.style.display = hasUnsavedProductChanges ? 'inline-flex' : 'none';
+      }
+    }
+
+    async function saveProductCommit(e) {
+      if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+      }
+
+      const btnSave = document.getElementById('btnSaveProduct');
+      const label = document.getElementById('saveProductLabel');
+      const topBtn = document.getElementById('btnSaveProductTop');
+
+      if (label) label.innerText = 'Saving...';
+      if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Saving...</span>';
+
+      try {
+        const res = await fetch('/api/product/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: 'chore(product): update product specification in product.json' })
+        });
+        const data = await res.json();
+        if (data.success) {
+          setUnsavedProductChanges(false);
+          if (btnSave) {
+            btnSave.classList.add('is-saved');
+            if (label) label.innerText = 'Saved!';
+            setTimeout(() => {
+              btnSave.classList.remove('is-saved');
+              if (label) label.innerText = 'Save';
+            }, 2000);
+          }
+          if (topBtn) {
+            topBtn.style.display = 'none';
+            topBtn.innerHTML = '<span>💾</span><span>Save product.json</span><span class="save-product-badge"></span>';
+          }
+          showToast('💾 Committed product.json to git!', 'success');
+        } else {
+          alert('Failed to commit product.json: ' + (data.error || 'Unknown error'));
+          if (label) label.innerText = 'Save';
+          if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.json</span><span class="save-product-badge"></span>';
+        }
+      } catch (err) {
+        alert('Error committing product.json: ' + err.message);
+        if (label) label.innerText = 'Save';
+        if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.json</span><span class="save-product-badge"></span>';
+      }
+    }
+
+    // Window exit prompt: Ask user to save if there are unsaved changes
+    window.addEventListener('beforeunload', (e) => {
+      if (hasUnsavedProductChanges) {
+        e.preventDefault();
+        e.returnValue = 'You have unsaved changes to product.json. Please save your changes before leaving.';
+        return e.returnValue;
+      }
+    });
 
     async function fetchBacklog(forceRender = false) {
       try {
@@ -4844,6 +5025,10 @@
           backlogTree = data.tree;
           backlogCount = data.count || 0;
           backlogFilePath = data.filePath || 'product.json';
+
+          if (typeof data.dirty === 'boolean') {
+            setUnsavedProductChanges(data.dirty);
+          }
 
           // Update badges without destroying DOM tree
           const countBadge = document.getElementById('count-backlog');
@@ -5154,6 +5339,7 @@
         const data = await res.json();
         if (data.success && data.tree) {
           backlogTree = data.tree;
+          setUnsavedProductChanges(true);
           if (parentToExpand) {
             collapsedNodes.delete(parentToExpand);
           }
@@ -5184,6 +5370,8 @@
         fileLabel.innerText = '📄 ' + base;
         fileLabel.title = `Living product specification stored in ${backlogFilePath} (checked into git)`;
       }
+
+      setUnsavedProductChanges(hasUnsavedProductChanges);
 
       if (!container) return;
       if (!backlogTree) {
@@ -5351,6 +5539,7 @@
         });
         const data = await res.json();
         if (data.success) {
+          setUnsavedProductChanges(true);
           const typeName = newType === 'bug' ? '🐛 Bug / Improvement' : (newType === 'component' ? '🧩 Component' : '🔷 Feature');
           showToast(`Changed type to ${typeName}`);
           await fetchBacklog(true);
@@ -5538,8 +5727,9 @@
         if (data.success) {
           addingChildUnderParentId = null;
           activeEditNodeId = null;
+          setUnsavedProductChanges(true);
           const typeName = type === 'bug' ? '🐛 Bug / Improvement' : (type === 'component' ? '🧩 Component' : '🔷 Feature');
-          showToast(`✅ Added ${typeName} "${title}" to product doc`);
+          showToast(`✅ Added ${typeName} "${title}" (click Save to commit)`);
           await fetchBacklog(true);
         } else {
           alert('Error adding item: ' + (data.error || 'Unknown error'));
@@ -5602,7 +5792,8 @@
         if (data.success) {
           activeEditNodeId = null;
           showConvertDrawerForNodeId = null;
-          showToast(`💾 Saved "${title}" in product.json`);
+          setUnsavedProductChanges(true);
+          showToast(`Updated "${title}" (click Save to commit)`);
           await fetchBacklog(true);
         } else {
           alert('Error saving feature: ' + (data.error || 'Unknown error'));
@@ -5723,7 +5914,8 @@
         const data = await res.json();
         if (data.success) {
           if (activeEditNodeId === nodeId) activeEditNodeId = null;
-          showToast(`🗑️ Deleted "${node.title}"`);
+          setUnsavedProductChanges(true);
+          showToast(`🗑️ Deleted "${node.title}" (click Save to commit)`);
           await fetchBacklog(true);
         } else {
           alert('Error deleting feature: ' + (data.error || 'Unknown error'));
@@ -5759,7 +5951,8 @@
           });
           const data = await res.json();
           if (data.success) {
-            showToast(`📎 Uploaded "${file.name}"`);
+            setUnsavedProductChanges(true);
+            showToast(`📎 Uploaded "${file.name}" (click Save to commit)`);
             await fetchBacklog(true);
           } else {
             alert('Upload error: ' + (data.error || 'Unknown error'));
@@ -5780,7 +5973,8 @@
         });
         const data = await res.json();
         if (data.success) {
-          showToast(`🗑️ Deleted "${fileName}"`);
+          setUnsavedProductChanges(true);
+          showToast(`🗑️ Deleted "${fileName}" (click Save to commit)`);
           await fetchBacklog(true);
         } else {
           alert('Error deleting attachment: ' + (data.error || 'Unknown error'));
@@ -8285,6 +8479,16 @@
 
       const isCurrent = selectedOption.getAttribute('data-current') === '1';
       if (isCurrent) return;
+
+      if (hasUnsavedProductChanges) {
+        const proceed = confirm('You have unsaved changes to product.json.\n\nClick OK to Save before switching projects, or Cancel to stay on this page.');
+        if (proceed) {
+          await saveProductCommit();
+        } else {
+          await loadProjects();
+          return;
+        }
+      }
 
       const isAlive = selectedOption.getAttribute('data-alive') === '1';
       const targetPort = selectedOption.getAttribute('data-port');

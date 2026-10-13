@@ -294,12 +294,33 @@ export function writeProductTree(projectDir, tree, commitMessage = null) {
     try { fs.unlinkSync(legacy); } catch {}
   }
 
-  // Automatically commit changes to git
-  commitProductChanges(pDir, commitMessage);
-
   return filePath;
 }
 export const writeBacklogTree = writeProductTree;
+
+/**
+ * Check if product.json has uncommitted changes in git.
+ */
+export function getProductGitStatus(projectDir) {
+  const pDir = projectDir || process.cwd();
+  try {
+    const isGit = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: pDir, stdio: 'pipe' });
+    if (isGit.status !== 0) {
+      return { isGit: false, dirty: false };
+    }
+    const targetFile = 'product.json';
+    const statusRes = spawnSync('git', ['status', '--porcelain', '--', targetFile], { cwd: pDir, stdio: 'pipe' });
+    const statusOut = statusRes.stdout ? statusRes.stdout.toString().trim() : '';
+    return {
+      isGit: true,
+      dirty: Boolean(statusOut),
+      status: statusOut
+    };
+  } catch (err) {
+    return { isGit: false, dirty: false, error: err.message };
+  }
+}
+export const getBacklogGitStatus = getProductGitStatus;
 
 /**
  * Add a new node to the tree under parentId (default 'root').
