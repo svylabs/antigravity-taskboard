@@ -709,7 +709,10 @@ const server = http.createServer(async (req, res) => {
   if ((pathname === '/api/product' || pathname === '/api/backlog') && req.method === 'GET') {
     const info = getProjectInfo();
     const tree = readProductTree(info.projectDir, info.projectName, db);
-    syncTaskStatusesWithTree(tree, getTaskById);
+    const changed = syncTaskStatusesWithTree(tree, getTaskById);
+    if (changed) {
+      writeProductTree(info.projectDir, tree);
+    }
     const count = countNodes(tree);
     return sendJson(res, 200, {
       success: true,
@@ -1068,6 +1071,16 @@ const server = http.createServer(async (req, res) => {
     try {
       const body = await parseBody(req);
       const updated = updateTask(id, body);
+      if (body.status !== undefined) {
+        try {
+          const info = getProjectInfo();
+          const tree = readProductTree(info.projectDir, info.projectName, db);
+          const changed = syncTaskStatusesWithTree(tree, getTaskById);
+          if (changed) {
+            writeProductTree(info.projectDir, tree);
+          }
+        } catch {}
+      }
       return sendJson(res, 200, { success: true, task: updated });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });

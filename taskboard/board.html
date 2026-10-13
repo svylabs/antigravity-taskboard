@@ -871,6 +871,44 @@
       border-color: #A5B4FC;
     }
 
+    /* Completed task strike mark styling in product feature tree */
+    .tree-node-row.is-completed {
+      background: #F8FAFC;
+      border-color: #E2E8F0;
+      opacity: 0.85;
+    }
+
+    .tree-node-row.is-completed:hover {
+      background: #F1F5F9;
+      opacity: 1;
+    }
+
+    .tree-node-row.is-completed .tree-node-title,
+    .tree-node-title.is-completed-title {
+      text-decoration: line-through !important;
+      color: #94A3B8 !important;
+    }
+
+    .tree-node-row.is-dragging {
+      opacity: 0.45;
+      border: 1px dashed #3B82F6;
+      background: #EFF6FF;
+    }
+
+    .tree-completed-banner {
+      font-size: 11.5px;
+      color: #166534;
+      background: #F0FDF4;
+      border: 1px solid #BBF7D0;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
     .tree-toggle-btn {
       border: none;
       background: transparent;
@@ -2962,6 +3000,7 @@
     let tasks = [];
     let currentTaskId = null;
     let draggedTaskId = null;
+    let draggedNodeId = null;
 
     // Web Audio Synthesizer for Taskboard Attention Alerts
     class TaskboardAudio {
@@ -4105,7 +4144,7 @@
         const data = await res.json();
         if (data.success && data.task) {
           showConvertDrawerForNodeId = null;
-          showToast(`🚀 Converted to Task #${data.task.id.slice(-6)} in 📋 To Do!`);
+          showToast(`🚀 Included in To Do! Assigned Task #${data.task.id.slice(-5)}`, 'success');
           await fetchTasks();
           await fetchBacklog(true);
         } else {
@@ -4113,6 +4152,49 @@
         }
       } catch (err) {
         alert('Failed to convert feature to task: ' + err.message);
+      }
+    }
+
+    async function includeProductNodeInColumn(nodeId, targetStatus = 'todo') {
+      const node = findBacklogNode(backlogTree, nodeId);
+      if (!node) return;
+
+      if (node.taskId) {
+        const liveTask = tasks.find(t => t.id === node.taskId);
+        if (liveTask) {
+          if (liveTask.status === targetStatus) {
+            showToast(`Task #${node.taskId.slice(-5)} is already in ${targetStatus === 'planned' ? 'Planned' : 'To Do'}`);
+          } else {
+            await moveTaskStatus(node.taskId, targetStatus);
+            showToast(`Moved Task #${node.taskId.slice(-5)} ("${node.title}") to ${targetStatus === 'planned' ? 'Planned' : 'To Do'}`);
+          }
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch(`/api/product/nodes/${nodeId}/convert`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: node.title,
+            description: node.description || '',
+            priority: 'medium',
+            subagent_role: 'Fullstack Engineer',
+            scope_size: 'small',
+            status: targetStatus
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.task) {
+          showToast(`🚀 Included "${node.title}" in ${targetStatus === 'planned' ? 'Planned' : 'To Do'} (Assigned Task #${data.task.id.slice(-5)})`, 'success');
+          await fetchTasks();
+          await fetchBacklog(true);
+        } else {
+          alert('Failed to include feature in To Do: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error including feature in To Do: ' + err.message);
       }
     }
 
@@ -4249,10 +4331,20 @@
       const isEditing = activeEditNodeId === node.id;
       const attCount = Array.isArray(node.attachments) ? node.attachments.length : 0;
 
+      // Determine live task status and completion
+      let effectiveStatus = (node.taskStatus || '').toLowerCase();
+      if (node.taskId) {
+        const liveTask = tasks.find(t => t.id === node.taskId);
+        if (liveTask && liveTask.status) {
+          effectiveStatus = liveTask.status.toLowerCase();
+        }
+      }
+      const isDone = Boolean(node.taskId && effectiveStatus === 'done');
+
       if (isEditing) {
         // Render in-place editor card
         const card = document.createElement('div');
-        card.className = 'tree-inline-card';
+        card.className = `tree-inline-card ${isDone ? 'is-completed' : ''}`;
         card.onclick = (e) => e.stopPropagation();
 
         let currentTitle = node.title || '';
@@ -4264,14 +4356,21 @@
 
         card.innerHTML = `
           <div class="tree-inline-header">
-            <span class="tree-inline-tag">
-              ${isRoot ? '📁 Project Root' : '✏️ Editing Feature'}
+            <span class="tree-inline-tag" ${isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : ''}>
+              ${isRoot ? '📁 Project Root' : (isDone ? `✅ Completed Feature (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}` : '✏️ Feature Spec'))}
             </span>
             <button type="button" class="tree-inline-close" onclick="closeInlineEditor(event)" title="Close editor">&times;</button>
           </div>
 
+          ${isDone ? `
+          <div class="tree-completed-banner">
+            <span>✅</span>
+            <span>This feature has been completed and verified (Task #${node.taskId ? node.taskId.slice(-5) : ''}).</span>
+          </div>
+          ` : ''}
+
           <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
-          <input type="text" class="tree-inline-title" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" placeholder="Feature title..." onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
+          <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" placeholder="Feature title..." onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
 
           <div class="tree-inline-label">
             <span>Description & Specifications</span>
@@ -4312,8 +4411,8 @@
             <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save</button>
             <button type="button" class="btn btn-sm btn-secondary" onclick="openInlineDraft('${node.id}', event)">➕ Sub-feature</button>
             ${node.taskId 
-              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}</button>` 
-              : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Convert to Task</button>`}
+              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}${isDone ? ' (Completed)' : ''}</button>` 
+              : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do (Assigns Task ID)</button>`}
             ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete feature">🗑️</button>` : ''}
             <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Cancel</button>
           </div>
@@ -4321,7 +4420,7 @@
           ${showConvertDrawerForNodeId === node.id ? `
             <div class="tree-inline-convert-drawer">
               <div class="tree-inline-convert-title">
-                <span>🚀 Convert to Executable Task in 📋 To Do</span>
+                <span>🚀 Include Feature in To Do &amp; Assign Task ID</span>
               </div>
               <div class="tree-inline-grid">
                 <div>
@@ -4360,7 +4459,7 @@
               </div>
               <div style="display: flex; gap: 6px; margin-top: 8px;">
                 <button type="button" class="btn btn-sm btn-primary" style="background: #4F46E5; border-color: #4338CA;" onclick="confirmInlineConvert('${node.id}', event)">
-                  🚀 Create Task in To Do
+                  🚀 Include in To Do (Assign Task ID)
                 </button>
                 <button type="button" class="btn btn-sm btn-secondary" onclick="toggleInlineConvert('${node.id}', event)">
                   Cancel
@@ -4373,8 +4472,29 @@
       } else {
         // Compact single-line row
         const row = document.createElement('div');
-        row.className = `tree-node-row ${isRoot ? 'is-root' : ''}`;
+        row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isDone ? 'is-completed' : ''}`;
         row.onclick = (e) => toggleNodeEditInPlace(node.id, e);
+
+        // Allow dragging feature node to To Do column to include it as an active task
+        if (!isRoot) {
+          row.setAttribute('draggable', 'true');
+          row.addEventListener('dragstart', (e) => {
+            e.stopPropagation();
+            draggedNodeId = node.id;
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+              type: 'product_node',
+              nodeId: node.id,
+              nodeTitle: node.title,
+              taskId: node.taskId || null
+            }));
+            e.dataTransfer.effectAllowed = 'copyMove';
+            row.classList.add('is-dragging');
+          });
+          row.addEventListener('dragend', () => {
+            row.classList.remove('is-dragging');
+            draggedNodeId = null;
+          });
+        }
 
         // Toggle Chevron
         const toggleBtn = document.createElement('button');
@@ -4390,17 +4510,21 @@
         // Icon
         const iconSpan = document.createElement('span');
         iconSpan.className = 'tree-node-icon';
-        iconSpan.innerHTML = isRoot ? '📁' : (hasChildren ? '📦' : '🔹');
+        iconSpan.innerHTML = isRoot ? '📁' : (isDone ? '✅' : (hasChildren ? '📦' : '🔹'));
         row.appendChild(iconSpan);
 
-        // Title
+        // Title with strike mark if completed
         const titleSpan = document.createElement('span');
-        titleSpan.className = 'tree-node-title';
+        titleSpan.className = `tree-node-title ${isDone ? 'is-completed-title' : ''}`;
         titleSpan.innerText = node.title || (isRoot ? 'Project Root' : 'Untitled');
+        if (isDone) {
+          titleSpan.style.textDecoration = 'line-through';
+          titleSpan.style.color = '#94A3B8';
+        }
         if (node.description) {
-          titleSpan.title = `${node.title}\n\n${node.description}\n\n(Click to view/edit in place)`;
+          titleSpan.title = `${node.title}${isDone ? ' (Completed)' : ''}\n\n${node.description}\n\n(Click to view/edit in place)`;
         } else {
-          titleSpan.title = `${node.title}\n(Click to view/edit in place)`;
+          titleSpan.title = `${node.title}${isDone ? ' (Completed)' : ''}\n(Click to view/edit in place)`;
         }
         row.appendChild(titleSpan);
 
@@ -4413,19 +4537,21 @@
           row.appendChild(attBadge);
         }
 
-        // Task Badge if converted
+        // Task Badge - ONLY assigned after a task is included in To Do
         if (node.taskId) {
           const badge = document.createElement('span');
           badge.className = 'tree-task-badge';
-          const st = (node.taskStatus || 'todo').toLowerCase();
+          const st = effectiveStatus || 'todo';
           let badgeStyle = 'background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;';
           let badgeIcon = '📋';
+          let badgeText = `Task #${node.taskId.slice(-5)}`;
           if (st === 'in_progress') {
             badgeStyle = 'background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A;';
             badgeIcon = '⚡';
           } else if (st === 'done') {
-            badgeStyle = 'background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;';
+            badgeStyle = 'background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; font-weight: 700;';
             badgeIcon = '✅';
+            badgeText = `Task #${node.taskId.slice(-5)} (Done)`;
           } else if (st === 'verification') {
             badgeStyle = 'background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE;';
             badgeIcon = '👀';
@@ -4434,8 +4560,8 @@
             badgeIcon = '📋';
           }
           badge.style = badgeStyle;
-          badge.innerHTML = `${badgeIcon} Task #${node.taskId.slice(-5)}`;
-          badge.title = `Converted to Task #${node.taskId} (${st.toUpperCase()}). Click to open task.`;
+          badge.innerHTML = `${badgeIcon} ${escapeHtml(badgeText)}`;
+          badge.title = `Task #${node.taskId} (${st.toUpperCase()}). Click to open task details.`;
           badge.onclick = (e) => {
             e.stopPropagation();
             openDetailModal(node.taskId);
@@ -4465,19 +4591,33 @@
         editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
         actionsDiv.appendChild(editBtn);
 
-        // 🚀 Convert to Task
-        const convertBtn = document.createElement('button');
-        convertBtn.type = 'button';
-        convertBtn.className = 'tree-action-btn tree-btn-convert';
-        convertBtn.innerHTML = '🚀';
-        convertBtn.title = node.taskId ? 'Task already created' : 'Convert feature to task in To Do';
-        convertBtn.onclick = (e) => {
-          e.stopPropagation();
-          activeEditNodeId = node.id;
-          showConvertDrawerForNodeId = node.id;
-          renderBacklogTree();
-        };
-        actionsDiv.appendChild(convertBtn);
+        if (!node.taskId) {
+          // 🚀 Include in To Do (Assigns Task ID)
+          const convertBtn = document.createElement('button');
+          convertBtn.type = 'button';
+          convertBtn.className = 'tree-action-btn tree-btn-convert';
+          convertBtn.innerHTML = '🚀';
+          convertBtn.title = 'Include in To Do (Assigns Task ID)';
+          convertBtn.onclick = (e) => {
+            e.stopPropagation();
+            activeEditNodeId = node.id;
+            showConvertDrawerForNodeId = node.id;
+            renderBacklogTree();
+          };
+          actionsDiv.appendChild(convertBtn);
+        } else {
+          // Task already created
+          const viewBtn = document.createElement('button');
+          viewBtn.type = 'button';
+          viewBtn.className = 'tree-action-btn';
+          viewBtn.innerHTML = isDone ? '✅' : '📋';
+          viewBtn.title = `Task #${node.taskId.slice(-5)} (${effectiveStatus.toUpperCase()}) - Click to view`;
+          viewBtn.onclick = (e) => {
+            e.stopPropagation();
+            openDetailModal(node.taskId);
+          };
+          actionsDiv.appendChild(viewBtn);
+        }
 
         // 🗑️ Delete (non-root only)
         if (!isRoot) {
@@ -4701,10 +4841,34 @@
     async function handleDrop(e, targetStatus) {
       e.preventDefault();
       e.currentTarget.classList.remove('drag-over');
+
+      // Check if dropped item was a product feature node from the tree
+      let nodeData = null;
+      try {
+        const raw = e.dataTransfer.getData('text/plain');
+        if (raw && (raw.startsWith('{') || raw.startsWith('['))) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.type === 'product_node') {
+            nodeData = parsed;
+          }
+        }
+      } catch (err) {}
+
+      if (nodeData || draggedNodeId) {
+        const nodeId = nodeData ? nodeData.nodeId : draggedNodeId;
+        draggedNodeId = null;
+        if (targetStatus === 'todo' || targetStatus === 'planned') {
+          await includeProductNodeInColumn(nodeId, targetStatus);
+        } else {
+          showToast(`💡 Drop feature onto "To Do" to assign a Task ID and start working on it.`);
+        }
+        return;
+      }
+
       if (!draggedTaskId) return;
 
       if (targetStatus === 'backlog') {
-        showToast('💡 Backlog is managed as a project requirements tree in backlog.json. Use "Convert to Task" on tree items to add tasks to To Do.');
+        showToast('💡 Product Doc is a living specification tree in product.json.');
         draggedTaskId = null;
         return;
       }
@@ -4720,6 +4884,7 @@
           body: JSON.stringify({ status: targetStatus, processed_by_agent: 0 })
         });
         fetchTasks();
+        fetchBacklog(true);
       }
       draggedTaskId = null;
     }
@@ -5494,6 +5659,7 @@
       });
       closeDetailModal();
       fetchTasks();
+      fetchBacklog(true);
       if (newStatus === 'done') {
         checkAndShowFollowupModal(id);
       }
@@ -5505,6 +5671,7 @@
       await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
       closeDetailModal();
       fetchTasks();
+      fetchBacklog(true);
     }
 
     function openCreateModal(prefill) {

@@ -344,47 +344,60 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
 
 /**
  * Synchronize taskStatus of converted nodes with live tasks from SQLite.
+ * Returns true if any node's taskStatus changed so caller can persist updates.
  */
 export function syncTaskStatusesWithTree(node, getTaskByIdFn) {
-  if (!node || typeof getTaskByIdFn !== 'function') return;
+  if (!node || typeof getTaskByIdFn !== 'function') return false;
+  let changed = false;
 
   if (node.taskId) {
     try {
       const task = getTaskByIdFn(node.taskId);
-      if (task) {
-        node.taskStatus = task.status;
-      } else {
-        node.taskStatus = null;
+      const newStatus = task ? task.status : null;
+      if (node.taskStatus !== newStatus) {
+        node.taskStatus = newStatus;
+        changed = true;
       }
     } catch {
-      node.taskStatus = null;
+      if (node.taskStatus !== null) {
+        node.taskStatus = null;
+        changed = true;
+      }
     }
   }
 
   if (Array.isArray(node.children)) {
     for (const child of node.children) {
-      syncTaskStatusesWithTree(child, getTaskByIdFn);
+      const childChanged = syncTaskStatusesWithTree(child, getTaskByIdFn);
+      if (childChanged) changed = true;
     }
   }
+  return changed;
 }
 
 /**
  * Generate a clean ASCII representation of the tree for CLI output.
+ * Renders strike marks (~~title~~) and completion checks for completed tasks.
  */
 export function formatTreeAscii(node, prefix = '', isLast = true, isRoot = true) {
   if (!node) return '';
 
   let out = '';
+  const isDone = node.taskId && (node.taskStatus || '').toLowerCase() === 'done';
   const taskTag = node.taskId 
-    ? ` [📋 Task #${node.taskId.slice(-6)}${node.taskStatus ? ` • ${node.taskStatus.toUpperCase()}` : ''}]` 
+    ? (isDone 
+        ? ` [✅ Task #${node.taskId.slice(-6)} • COMPLETED]` 
+        : ` [📋 Task #${node.taskId.slice(-6)}${node.taskStatus ? ` • ${node.taskStatus.toUpperCase()}` : ''}]`)
     : '';
+
+  const displayTitle = isDone ? `~~${node.title}~~` : node.title;
 
   if (isRoot) {
     out += `📁 ${node.title}${taskTag}\n`;
   } else {
     const branch = isLast ? '└── ' : '├── ';
-    const icon = Array.isArray(node.children) && node.children.length > 0 ? '📦 ' : '• ';
-    out += `${prefix}${branch}${icon}${node.title}${taskTag}\n`;
+    const icon = isDone ? '✅ ' : (Array.isArray(node.children) && node.children.length > 0 ? '📦 ' : '• ');
+    out += `${prefix}${branch}${icon}${displayTitle}${taskTag}\n`;
   }
 
   if (Array.isArray(node.children) && node.children.length > 0) {
