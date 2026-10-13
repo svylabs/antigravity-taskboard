@@ -79,6 +79,76 @@ export function countNodes(node, includeRoot = false) {
 }
 
 /**
+ * Check if a title represents a category folder container: features/, components/, improvements/
+ */
+export function isContainerFolderTitle(title) {
+  const l = (title || '').trim().toLowerCase();
+  return l === 'features/' || l === 'features' ||
+         l === 'components/' || l === 'components' ||
+         l === 'improvements/' || l === 'improvements' ||
+         l === 'bugs/' || l === 'bugs';
+}
+
+/**
+ * Ensure a component node has its 3 standard category containers:
+ * features/, components/, improvements/
+ */
+export function ensureComponentContainers(componentNode) {
+  if (!componentNode) return;
+  if (!Array.isArray(componentNode.children)) {
+    componentNode.children = [];
+  }
+  const containers = [
+    { title: 'features/', desc: 'Features specification' },
+    { title: 'components/', desc: 'Child components and screens' },
+    { title: 'improvements/', desc: 'Bugs and improvements' }
+  ];
+
+  for (const { title, desc } of containers) {
+    const existing = componentNode.children.find(c => {
+      const l = (c.title || '').trim().toLowerCase();
+      return l === title || l === title.replace('/', '') || (title === 'improvements/' && (l === 'bugs' || l === 'bugs/'));
+    });
+    if (existing) {
+      existing.title = title;
+      existing.type = 'container';
+    } else {
+      componentNode.children.push({
+        id: generateNodeId(),
+        title,
+        description: desc,
+        type: 'container',
+        createdAt: new Date().toISOString(),
+        children: []
+      });
+    }
+  }
+}
+
+/**
+ * Recursively normalize legacy container names (e.g. bugs -> improvements/, features -> features/)
+ */
+export function normalizeBacklogTree(node) {
+  if (!node) return;
+  if (Array.isArray(node.children)) {
+    node.children.forEach(child => {
+      const lower = (child.title || '').trim().toLowerCase();
+      if (lower === 'bugs' || lower === 'bugs/' || lower === 'improvements') {
+        child.title = 'improvements/';
+        child.type = 'container';
+      } else if (lower === 'features') {
+        child.title = 'features/';
+        child.type = 'container';
+      } else if (lower === 'components') {
+        child.title = 'components/';
+        child.type = 'container';
+      }
+      normalizeBacklogTree(child);
+    });
+  }
+}
+
+/**
  * Read the product description tree from disk.
  * If file does not exist, initializes with project root node and migrates legacy SQLite backlog tasks if any.
  */
@@ -142,6 +212,9 @@ export function readProductTree(projectDir, projectName, db = null) {
   // Ensure root ID and title
   if (!tree.id) tree.id = 'root';
   if (!tree.children) tree.children = [];
+
+  // Normalize legacy container titles
+  normalizeBacklogTree(tree);
 
   return tree;
 }
@@ -251,14 +324,14 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
     parent.children = [];
   }
 
-  // Determine node type: 'component' | 'feature' | 'bug'
+  // Determine node type: 'component' | 'feature' | 'bug' | 'container'
   let nodeType = type;
   if (!nodeType) {
     const lower = title.trim().toLowerCase();
-    if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) {
+    if (lower === 'features/' || lower === 'features' || lower === 'components/' || lower === 'components' || lower === 'improvements/' || lower === 'improvements') {
+      nodeType = 'container';
+    } else if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) {
       nodeType = 'bug';
-    } else if (lower === 'features' || lower === 'feature') {
-      nodeType = 'feature';
     } else if (lower === 'components' || lower === 'component') {
       nodeType = 'component';
     } else {
@@ -275,9 +348,75 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
     children: []
   };
 
-  parent.children.push(newNode);
+  // If creating a component, pre-populate standard features/, components/, improvements/ containers
+  if (nodeType === 'component') {
+    ensureComponentContainers(newNode);
+  }
+
+  // Determine target container in parent
+  let targetContainer = parent;
+  if (!isContainerFolderTitle(parent.title)) {
+    if (nodeType === 'feature') {
+      let featContainer = parent.children.find(c => {
+        const l = (c.title || '').trim().toLowerCase();
+        return l === 'features/' || l === 'features';
+      });
+      if (!featContainer) {
+        featContainer = {
+          id: generateNodeId(),
+          title: 'features/',
+          description: 'Features specification',
+          type: 'container',
+          createdAt: new Date().toISOString(),
+          children: []
+        };
+        parent.children.push(featContainer);
+      }
+      targetContainer = featContainer;
+    } else if (nodeType === 'component' && parentId !== 'root') {
+      let compContainer = parent.children.find(c => {
+        const l = (c.title || '').trim().toLowerCase();
+        return l === 'components/' || l === 'components';
+      });
+      if (!compContainer) {
+        compContainer = {
+          id: generateNodeId(),
+          title: 'components/',
+          description: 'Child components and screens',
+          type: 'container',
+          createdAt: new Date().toISOString(),
+          children: []
+        };
+        parent.children.push(compContainer);
+      }
+      targetContainer = compContainer;
+    } else if (nodeType === 'bug') {
+      let impContainer = parent.children.find(c => {
+        const l = (c.title || '').trim().toLowerCase();
+        return l === 'improvements/' || l === 'improvements' || l === 'bugs/' || l === 'bugs';
+      });
+      if (!impContainer) {
+        impContainer = {
+          id: generateNodeId(),
+          title: 'improvements/',
+          description: 'Bugs and improvements',
+          type: 'container',
+          createdAt: new Date().toISOString(),
+          children: []
+        };
+        parent.children.push(impContainer);
+      }
+      targetContainer = impContainer;
+    }
+  }
+
+  if (!Array.isArray(targetContainer.children)) {
+    targetContainer.children = [];
+  }
+  targetContainer.children.push(newNode);
+
   const parentTitle = (parentId && parentId !== 'root' && parent.title) ? ` under "${parent.title}"` : '';
-  const typeLabel = nodeType === 'bug' ? 'bug / improvement' : (nodeType === 'component' ? 'component' : 'feature');
+  const typeLabel = nodeType === 'bug' ? 'bug / improvement' : (nodeType === 'component' ? 'component' : (nodeType === 'container' ? 'container' : 'feature'));
   const commitPrefix = nodeType === 'bug' ? 'fix(product)' : 'feat(product)';
   const commitMsg = `${commitPrefix}: add ${typeLabel} "${newNode.title}"${parentTitle}`;
   writeBacklogTree(projectDir, tree, commitMsg);
@@ -304,6 +443,9 @@ export function updateBacklogNode(projectDir, id, { title, description, type, pr
   }
   if (type !== undefined) {
     node.type = type;
+    if (type === 'component') {
+      ensureComponentContainers(node);
+    }
   }
   node.updatedAt = new Date().toISOString();
 
@@ -328,6 +470,9 @@ export function deleteBacklogNode(projectDir, id, projectName, db = null) {
   }
 
   const deletedTitle = found.node.title || id;
+  if (isContainerFolderTitle(deletedTitle)) {
+    throw new Error(`Cannot delete standard category container "${deletedTitle}"`);
+  }
   const parent = found.parent;
   parent.children = parent.children.filter(c => c.id !== id);
   const commitMsg = `chore(product): remove feature "${deletedTitle}" from product specification`;
@@ -356,6 +501,9 @@ export function moveBacklogNode(projectDir, { id, targetParentId = 'root', index
   }
 
   const node = found.node;
+  if (isContainerFolderTitle(node.title)) {
+    throw new Error('Cannot move standard category container folders');
+  }
 
   function isDescendant(parent, targetId) {
     if (!parent || !Array.isArray(parent.children)) return false;
@@ -409,6 +557,18 @@ export function moveBacklogNode(projectDir, { id, targetParentId = 'root', index
       throw new Error('Cannot move a node into one of its own descendants');
     }
 
+    // If target parent is not a container folder, auto-route into appropriate category container
+    if (!isContainerFolderTitle(targetParent.title)) {
+      ensureComponentContainers(targetParent);
+      const isBugItem = node.type === 'bug' || (node.title || '').toLowerCase().includes('bug') || (node.title || '').toLowerCase().includes('improvement');
+      const isCompItem = node.type === 'component';
+      const targetCategoryTitle = isBugItem ? 'improvements/' : (isCompItem ? 'components/' : 'features/');
+      const containerNode = (targetParent.children || []).find(c => isContainerFolderTitle(c.title) && (c.title === targetCategoryTitle || c.title.toLowerCase().startsWith(targetCategoryTitle.slice(0, 3))));
+      if (containerNode) {
+        targetParent = containerNode;
+      }
+    }
+
     // Remove from old parent
     found.parent.children = found.parent.children.filter(c => c.id !== id);
     targetIndex = (typeof index === 'number' && index >= 0 && index <= targetParent.children.length) ? index : targetParent.children.length;
@@ -454,6 +614,9 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   }
 
   const node = found.node;
+  if (isContainerFolderTitle(node.title) || node.type === 'container') {
+    throw new Error(`Cannot convert category container "${node.title}" to a task. Please select an item inside it.`);
+  }
   const isBug = (node.type === 'bug') || (taskData.type === 'bug') || (taskData.title && (taskData.title.toLowerCase().startsWith('[bug') || taskData.title.toLowerCase().startsWith('[improvement'))) || (node.title && (node.title.toLowerCase().startsWith('[bug') || node.title.toLowerCase().startsWith('[improvement')));
   let taskTitle = (taskData.title || node.title || '').trim();
   if (isBug && !taskTitle.toLowerCase().startsWith('[bug') && !taskTitle.toLowerCase().startsWith('[improvement')) {

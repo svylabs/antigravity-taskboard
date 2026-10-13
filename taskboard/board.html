@@ -1143,6 +1143,51 @@
       background: #FFFBFB;
     }
 
+    .tree-node-row.is-container-folder {
+      background: #F8FAFC;
+      border: 1px dashed #CBD5E1;
+      border-radius: 6px;
+      margin: 3px 0;
+    }
+
+    .tree-node-row.is-container-folder:hover {
+      background: #F1F5F9;
+      border-color: #94A3B8;
+    }
+
+    .tree-node-title.is-container-title {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 700;
+      font-size: 12px;
+      letter-spacing: -0.2px;
+    }
+
+    .tree-node-title.is-container-title.container-features {
+      color: #1D4ED8;
+    }
+
+    .tree-node-title.is-container-title.container-components {
+      color: #4338CA;
+    }
+
+    .tree-node-title.is-container-title.container-improvements {
+      color: #BE123C;
+    }
+
+    .tree-container-count-pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 9.5px;
+      font-weight: 600;
+      padding: 1px 6px;
+      border-radius: 10px;
+      background: #F1F5F9;
+      color: #64748B;
+      border: 1px solid #E2E8F0;
+      line-height: 1.2;
+      flex-shrink: 0;
+    }
+
     .tree-counter-pill {
       display: inline-flex;
       align-items: center;
@@ -5177,14 +5222,26 @@
       }
     }
 
+    function isCategoryFolder(node) {
+      if (!node) return false;
+      const lower = (node.title || '').trim().toLowerCase();
+      return lower === 'features/' || lower === 'features' ||
+             lower === 'components/' || lower === 'components' ||
+             lower === 'improvements/' || lower === 'improvements' ||
+             lower === 'bugs/' || lower === 'bugs';
+    }
+
     function getNodeType(node) {
       if (!node) return 'feature';
       if (node.id === 'root') return 'root';
-      if (node.type) return node.type;
       const lower = (node.title || '').toLowerCase().trim();
-      if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) return 'bug';
-      if (lower === 'features' || lower === 'feature') return 'feature';
-      if (lower === 'components' || lower === 'component') return 'component';
+      if (lower === 'features/' || lower === 'features') return 'container_features';
+      if (lower === 'components/' || lower === 'components') return 'container_components';
+      if (lower === 'improvements/' || lower === 'improvements' || lower === 'bugs/' || lower === 'bugs') return 'container_improvements';
+      if (node.type && node.type !== 'container') return node.type;
+      if (lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) return 'bug';
+      if (lower === 'feature') return 'feature';
+      if (lower === 'component') return 'component';
       if (Array.isArray(node.children) && node.children.length > 0) return 'component';
       return 'feature';
     }
@@ -5197,12 +5254,31 @@
 
       function countRecursive(item) {
         if (!item) return;
+        const lower = (item.title || '').trim().toLowerCase();
+        const isContainer = lower === 'features/' || lower === 'features' ||
+                            lower === 'components/' || lower === 'components' ||
+                            lower === 'improvements/' || lower === 'improvements' ||
+                            lower === 'bugs/' || lower === 'bugs';
+
+        if (isContainer) {
+          if (Array.isArray(item.children)) {
+            item.children.forEach(countRecursive);
+          }
+          return;
+        }
+
         const t = getNodeType(item);
         if (t === 'bug') bugs++;
-        else if (t === 'component') components++;
-        else features++;
-        if (Array.isArray(item.children)) {
-          item.children.forEach(countRecursive);
+        else if (t === 'component' || (Array.isArray(item.children) && item.children.length > 0)) {
+          components++;
+          if (Array.isArray(item.children)) {
+            item.children.forEach(countRecursive);
+          }
+        } else {
+          features++;
+          if (Array.isArray(item.children)) {
+            item.children.forEach(countRecursive);
+          }
         }
       }
 
@@ -5218,6 +5294,38 @@
       const descEl = document.getElementById(`draft-desc-${parentId}`);
       const curTitle = titleEl ? titleEl.value : '';
       const curDesc = descEl ? descEl.value : '';
+
+      // If parentId was a category container, and user switched type:
+      const parentNode = findBacklogNode(backlogTree, parentId);
+      if (parentNode && isCategoryFolder(parentNode)) {
+        const found = findNodeAndParent(backlogTree, parentId);
+        if (found && found.parent && Array.isArray(found.parent.children)) {
+          let switchTarget = null;
+          if (newType === 'feature') {
+            switchTarget = found.parent.children.find(c => { const t = (c.title || '').trim().toLowerCase(); return t === 'features/' || t === 'features'; });
+          } else if (newType === 'component') {
+            switchTarget = found.parent.children.find(c => { const t = (c.title || '').trim().toLowerCase(); return t === 'components/' || t === 'components'; });
+          } else if (newType === 'bug') {
+            switchTarget = found.parent.children.find(c => { const t = (c.title || '').trim().toLowerCase(); return t === 'improvements/' || t === 'improvements' || t === 'bugs/' || t === 'bugs'; });
+          }
+          if (switchTarget && switchTarget.id !== parentId) {
+            addingChildUnderParentId = switchTarget.id;
+            draftSelectedType[switchTarget.id] = newType;
+            renderBacklogTree();
+            setTimeout(() => {
+              const newTitleEl = document.getElementById(`draft-title-${switchTarget.id}`);
+              const newDescEl = document.getElementById(`draft-desc-${switchTarget.id}`);
+              if (newTitleEl) {
+                newTitleEl.value = curTitle;
+                newTitleEl.focus();
+              }
+              if (newDescEl) newDescEl.value = curDesc;
+            }, 30);
+            return;
+          }
+        }
+      }
+
       renderBacklogTree();
       setTimeout(() => {
         const tEl = document.getElementById(`draft-title-${parentId}`);
@@ -5349,20 +5457,33 @@
     function openInlineDraft(parentId = 'root', initialType = 'feature', e) {
       if (e) e.stopPropagation();
 
-      // If parent has a child named "features" or "bugs" matching initialType, automatically target it
+      // If parent has a child named "features/", "components/", or "improvements/" matching initialType, automatically target it
       let targetParentId = parentId;
       if (parentId !== 'root') {
         const parentNode = findBacklogNode(backlogTree, parentId);
-        if (parentNode && Array.isArray(parentNode.children)) {
-          if (initialType === 'feature') {
-            const featChild = parentNode.children.find(c => (c.title || '').trim().toLowerCase() === 'features');
-            if (featChild) targetParentId = featChild.id;
-          } else if (initialType === 'bug') {
-            const bugChild = parentNode.children.find(c => {
-              const t = (c.title || '').trim().toLowerCase();
-              return t === 'bugs' || t === 'bug' || t.includes('bug') || t.includes('improvement');
-            });
-            if (bugChild) targetParentId = bugChild.id;
+        if (parentNode) {
+          if (isCategoryFolder(parentNode)) {
+            targetParentId = parentNode.id;
+          } else if (Array.isArray(parentNode.children)) {
+            if (initialType === 'feature') {
+              const featChild = parentNode.children.find(c => {
+                const t = (c.title || '').trim().toLowerCase();
+                return t === 'features/' || t === 'features';
+              });
+              if (featChild) targetParentId = featChild.id;
+            } else if (initialType === 'component') {
+              const compChild = parentNode.children.find(c => {
+                const t = (c.title || '').trim().toLowerCase();
+                return t === 'components/' || t === 'components';
+              });
+              if (compChild) targetParentId = compChild.id;
+            } else if (initialType === 'bug') {
+              const bugChild = parentNode.children.find(c => {
+                const t = (c.title || '').trim().toLowerCase();
+                return t === 'improvements/' || t === 'improvements' || t === 'bugs/' || t === 'bugs';
+              });
+              if (bugChild) targetParentId = bugChild.id;
+            }
           }
         }
       }
@@ -5550,7 +5671,7 @@
 
     async function includeProductNodeInColumn(nodeId, targetStatus = 'todo') {
       const node = findBacklogNode(backlogTree, nodeId);
-      if (!node) return;
+      if (!node || isCategoryFolder(node)) return;
 
       if (node.taskId) {
         const liveTask = tasks.find(t => t.id === node.taskId);
@@ -5726,6 +5847,10 @@
       const nodeType = getNodeType(node);
       const isBug = nodeType === 'bug';
       const isComponent = nodeType === 'component';
+      const isCategory = isCategoryFolder(node);
+      const isFeaturesContainer = isCategory && (nodeType === 'container_features');
+      const isComponentsContainer = isCategory && (nodeType === 'container_components');
+      const isImprovementsContainer = isCategory && (nodeType === 'container_improvements');
 
       // Determine live task status and completion
       let effectiveStatus = (node.taskStatus || '').toLowerCase();
@@ -5761,7 +5886,7 @@
             if (!item || !Array.isArray(item.children)) return;
             item.children.forEach(c => {
               const cType = getNodeType(c);
-              if (cType === 'feature' || cType === 'bug') {
+              if (cType === 'feature' || cType === 'bug' || cType === 'component') {
                 childList.push(c);
               }
               collectChildren(c);
@@ -5773,18 +5898,20 @@
             <div class="component-breakdown-card" style="margin-top: 10px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
               <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                 <span style="font-size: 11.5px; font-weight: 700; color: #1E293B; letter-spacing: 0.2px;">
-                  🧩 <strong>${escapeHtml(node.title || 'Component')}</strong> (${stats.features} feature${stats.features === 1 ? '' : 's'}, ${stats.bugs} bug${stats.bugs === 1 ? '' : 's'} / improvement${stats.bugs === 1 ? '' : 's'})
+                  🧩 <strong>${escapeHtml(node.title || 'Component')}</strong> (${stats.features} feature${stats.features === 1 ? '' : 's'}, ${stats.bugs} bug${stats.bugs === 1 ? '' : 's'} / improvement${stats.bugs === 1 ? '' : 's'}${stats.components > 0 ? `, ${stats.components} component${stats.components === 1 ? '' : 's'}` : ''})
                 </span>
                 <div style="display: flex; gap: 4px;">
                   <button type="button" class="btn btn-sm btn-secondary btn-feat-action" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
                   <button type="button" class="btn btn-sm btn-secondary btn-bug-action" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug / Improvement</button>
+                  <button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF; font-weight: 600;" onclick="openInlineDraft('${node.id}', 'component', event)">🧩 + Component</button>
                 </div>
               </div>
               <div style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
-                ${childList.length === 0 ? '<div style="font-size: 11px; color: #94A3B8; font-style: italic;">No features or bugs / improvements added yet. Click above to add items.</div>' : ''}
+                ${childList.length === 0 ? '<div style="font-size: 11px; color: #94A3B8; font-style: italic;">No features, components, or improvements added yet. Click above to add items.</div>' : ''}
                 ${childList.map(item => {
                   const itType = getNodeType(item);
                   const itIsBug = itType === 'bug';
+                  const itIsComp = itType === 'component';
                   let itemTaskStatus = (item.taskStatus || '').toLowerCase();
                   if (item.taskId) {
                     const lt = tasks.find(t => t.id === item.taskId);
@@ -5794,7 +5921,7 @@
                   return `
                     <div class="component-item-row" style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; background: white; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 11.5px;">
                       <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px;">
-                        <span>${itIsBug ? '🐛' : '🔷'}</span>
+                        <span>${itIsBug ? '🐛' : (itIsComp ? '🧩' : '🔷')}</span>
                         <span style="font-weight: 600; color: ${itDone ? '#94A3B8' : '#1E293B'}; ${itDone ? 'text-decoration: line-through;' : ''}">${escapeHtml(item.title)}</span>
                       </div>
                       <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
@@ -5819,20 +5946,20 @@
 
         card.innerHTML = `
           <div class="tree-inline-header">
-            <span class="tree-inline-tag" ${isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : (isBug ? 'style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3;"' : (isComponent ? 'style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;"' : ''))}>
-              ${isRoot ? '📁 Project Root' : (isDone ? `✅ Completed ${isBug ? 'Bug / Improvement' : (isComponent ? 'Component' : 'Feature')} (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}: ${escapeHtml(node.title || '')}` : (isBug ? `🐛 Bug / Improvement: ${escapeHtml(node.title || 'Untitled')}` : (isComponent ? `🧩 Component: ${escapeHtml(node.title || 'Untitled')}` : `🔷 Feature: ${escapeHtml(node.title || 'Untitled')}`))))}
+            <span class="tree-inline-tag" ${isCategory ? 'style="background: #F1F5F9; color: #334155; border: 1px solid #CBD5E1;"' : (isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : (isBug ? 'style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3;"' : (isComponent ? 'style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;"' : '')))}>
+              ${isRoot ? '📁 Project Root' : (isCategory ? `📁 Category Container: ${escapeHtml(node.title || '')}` : (isDone ? `✅ Completed ${isBug ? 'Bug / Improvement' : (isComponent ? 'Component' : 'Feature')} (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}: ${escapeHtml(node.title || '')}` : (isBug ? `🐛 Bug / Improvement: ${escapeHtml(node.title || 'Untitled')}` : (isComponent ? `🧩 Component: ${escapeHtml(node.title || 'Untitled')}` : `🔷 Feature: ${escapeHtml(node.title || 'Untitled')}`)))))}
             </span>
             <button type="button" class="tree-inline-close" onclick="closeInlineEditor(event)" title="Close editor">&times;</button>
           </div>
 
-          ${isDone ? `
+          ${(isDone && !isCategory) ? `
           <div class="tree-completed-banner">
             <span>✅</span>
             <span>This ${isBug ? 'bug / improvement' : (isComponent ? 'component' : 'feature')} has been completed and verified (Task #${node.taskId ? node.taskId.slice(-5) : ''}).</span>
           </div>
           ` : ''}
 
-          ${!isRoot ? `
+          ${(!isRoot && !isCategory) ? `
           <div style="margin-bottom: 8px;">
             <div class="tree-type-segmented">
               <button type="button" class="tree-type-btn ${nodeType === 'feature' ? 'is-active is-feature' : ''}" onclick="changeNodeType('${node.id}', 'feature', event)">🔷 Feature</button>
@@ -5842,8 +5969,8 @@
           </div>
           ` : ''}
 
-          <label class="tree-inline-label">${isBug ? 'Bug / Improvement Summary' : (isComponent ? 'Component Name' : 'Title')} <span style="color: #EF4444;">*</span></label>
-          <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" placeholder="${isBug ? 'Bug or improvement summary (e.g. Header text clipped on mobile, add filter option)...' : (isComponent ? 'Component name (e.g. Welcome Screen)...' : 'Feature title...')}" onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
+          <label class="tree-inline-label">${isCategory ? 'Category Name' : (isBug ? 'Bug / Improvement Summary' : (isComponent ? 'Component Name' : 'Title'))} <span style="color: #EF4444;">*</span></label>
+          <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" ${isCategory ? 'readonly style="background: #F8FAFC; cursor: not-allowed;"' : ''} placeholder="${isBug ? 'Bug or improvement summary (e.g. Header text clipped on mobile, add filter option)...' : (isComponent ? 'Component name (e.g. Welcome Screen)...' : 'Feature title...')}" onkeydown="if(event.key==='Enter') { event.preventDefault(); if(!${isCategory}) saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
 
           <div class="tree-inline-label">
             <span>Description & Specifications</span>
@@ -5883,17 +6010,24 @@
           </div>
 
           <div class="tree-inline-actions">
-            <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save</button>
-            <button type="button" class="btn btn-sm btn-secondary btn-feat-action" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
-            <button type="button" class="btn btn-sm btn-secondary btn-bug-action" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug / Improvement</button>
-            ${node.taskId 
-              ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}${isDone ? ' (Completed)' : ''}</button>` 
-              : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do (Assigns Task ID)</button>`}
-            ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete">🗑️</button>` : ''}
+            ${!isCategory ? `<button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save</button>` : ''}
+            ${isCategory ? `
+              ${isFeaturesContainer ? `<button type="button" class="btn btn-sm btn-secondary btn-feat-action" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>` : ''}
+              ${isComponentsContainer ? `<button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF; font-weight: 600;" onclick="openInlineDraft('${node.id}', 'component', event)">🧩 + Component</button>` : ''}
+              ${isImprovementsContainer ? `<button type="button" class="btn btn-sm btn-secondary btn-bug-action" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug / Improvement</button>` : ''}
+            ` : `
+              <button type="button" class="btn btn-sm btn-secondary btn-feat-action" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
+              <button type="button" class="btn btn-sm btn-secondary btn-bug-action" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug / Improvement</button>
+              ${(isComponent || isRoot) ? `<button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF; font-weight: 600;" onclick="openInlineDraft('${node.id}', 'component', event)">🧩 + Component</button>` : ''}
+              ${node.taskId 
+                ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}${isDone ? ' (Completed)' : ''}</button>` 
+                : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do (Assigns Task ID)</button>`}
+              ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete">🗑️</button>` : ''}
+            `}
             <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Cancel</button>
           </div>
 
-          ${showConvertDrawerForNodeId === node.id ? `
+          ${(!isCategory && showConvertDrawerForNodeId === node.id) ? `
             <div class="tree-inline-convert-drawer">
               <div class="tree-inline-convert-title">
                 <span>🚀 Include ${isBug ? 'Bug / Improvement' : 'Feature'} in To Do &amp; Assign Task ID</span>
@@ -5948,7 +6082,7 @@
       } else {
         // Compact single-line row
         const row = document.createElement('div');
-        row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''} ${isComponent ? 'is-component' : ''}`;
+        row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isCategory ? 'is-container-folder' : ''} ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''} ${isComponent ? 'is-component' : ''}`;
         row.onclick = (e) => toggleNodeEditInPlace(node.id, e);
 
         // Every row is a drop target (drop inside feature, or drop onto root)
@@ -5957,7 +6091,7 @@
         row.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature'), isRoot));
 
         // Allow dragging feature node to another feature or To Do column
-        if (!isRoot) {
+        if (!isRoot && !isCategory) {
           row.setAttribute('draggable', 'true');
           row.addEventListener('dragstart', (e) => {
             e.stopPropagation();
@@ -6004,6 +6138,7 @@
         iconSpan.className = 'tree-node-icon';
         let rowIcon = '🔷';
         if (isRoot) rowIcon = '📁';
+        else if (isCategory) rowIcon = '📁';
         else if (isDone) rowIcon = '✅';
         else if (isBug) rowIcon = '🐛';
         else if (isComponent) rowIcon = '🧩';
@@ -6013,7 +6148,12 @@
 
         // Title with strike mark if completed
         const titleSpan = document.createElement('span');
-        titleSpan.className = `tree-node-title ${isDone ? 'is-completed-title' : ''} ${isComponent ? 'is-component-title' : ''}`;
+        let containerClass = '';
+        if (isFeaturesContainer) containerClass = 'is-container-title container-features';
+        else if (isComponentsContainer) containerClass = 'is-container-title container-components';
+        else if (isImprovementsContainer) containerClass = 'is-container-title container-improvements';
+
+        titleSpan.className = `tree-node-title ${isDone ? 'is-completed-title' : ''} ${isComponent ? 'is-component-title' : ''} ${containerClass}`;
         titleSpan.innerText = node.title || (isRoot ? 'Project Root' : 'Untitled');
         if (isDone) {
           titleSpan.style.textDecoration = 'line-through';
@@ -6026,8 +6166,17 @@
         }
         row.appendChild(titleSpan);
 
+        // Category count pill
+        if (isCategory) {
+          const countPill = document.createElement('span');
+          countPill.className = 'tree-container-count-pill';
+          const childCount = Array.isArray(node.children) ? node.children.length : 0;
+          countPill.innerText = `${childCount} item${childCount === 1 ? '' : 's'}`;
+          row.appendChild(countPill);
+        }
+
         // Bug type badge (for bugs / improvements only)
-        if (!isRoot && isBug) {
+        if (!isRoot && !isCategory && isBug) {
           const typePill = document.createElement('span');
           typePill.className = 'tree-type-pill pill-bug';
           typePill.innerHTML = '🐛 Bug / Improvement';
@@ -6035,7 +6184,7 @@
         }
 
         // Component aggregate counter pill (🔷 N • 🐛 N)
-        if (isComponent || hasChildren) {
+        if (!isCategory && (isComponent || hasChildren)) {
           const stats = getComponentStats(node);
           if (stats.features > 0 || stats.bugs > 0) {
             const counterPill = document.createElement('span');
@@ -6059,7 +6208,7 @@
         }
 
         // Task Badge - ONLY assigned after a task is included in To Do
-        if (node.taskId) {
+        if (node.taskId && !isCategory) {
           const badge = document.createElement('span');
           badge.className = 'tree-task-badge';
           const st = effectiveStatus || 'todo';
@@ -6094,70 +6243,120 @@
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'tree-node-actions';
 
-        // 🔷 Add feature
-        const addFeatBtn = document.createElement('button');
-        addFeatBtn.type = 'button';
-        addFeatBtn.className = 'tree-action-btn tree-btn-add-feature';
-        addFeatBtn.innerHTML = '🔷';
-        addFeatBtn.title = 'Add feature';
-        addFeatBtn.onclick = (e) => openInlineDraft(node.id, 'feature', e);
-        actionsDiv.appendChild(addFeatBtn);
+        if (isCategory) {
+          if (isFeaturesContainer) {
+            const addFeatBtn = document.createElement('button');
+            addFeatBtn.type = 'button';
+            addFeatBtn.className = 'tree-action-btn tree-btn-add-feature';
+            addFeatBtn.innerHTML = '🔷';
+            addFeatBtn.title = 'Add feature to features/';
+            addFeatBtn.onclick = (e) => openInlineDraft(node.id, 'feature', e);
+            actionsDiv.appendChild(addFeatBtn);
+          } else if (isComponentsContainer) {
+            const addCompBtn = document.createElement('button');
+            addCompBtn.type = 'button';
+            addCompBtn.className = 'tree-action-btn';
+            addCompBtn.style.color = '#4338CA';
+            addCompBtn.innerHTML = '🧩';
+            addCompBtn.title = 'Add component to components/';
+            addCompBtn.onclick = (e) => openInlineDraft(node.id, 'component', e);
+            actionsDiv.appendChild(addCompBtn);
+          } else if (isImprovementsContainer) {
+            const addBugBtn = document.createElement('button');
+            addBugBtn.type = 'button';
+            addBugBtn.className = 'tree-action-btn tree-btn-add-bug';
+            addBugBtn.innerHTML = '🐛';
+            addBugBtn.title = 'Add bug / improvement to improvements/';
+            addBugBtn.onclick = (e) => openInlineDraft(node.id, 'bug', e);
+            actionsDiv.appendChild(addBugBtn);
+          }
 
-        // 🐛 Add bug / improvement
-        const addBugBtn = document.createElement('button');
-        addBugBtn.type = 'button';
-        addBugBtn.className = 'tree-action-btn tree-btn-add-bug';
-        addBugBtn.innerHTML = '🐛';
-        addBugBtn.title = 'Add bug / improvement';
-        addBugBtn.onclick = (e) => openInlineDraft(node.id, 'bug', e);
-        actionsDiv.appendChild(addBugBtn);
-
-        // ✏️ Edit
-        const editBtn = document.createElement('button');
-        editBtn.type = 'button';
-        editBtn.className = 'tree-action-btn';
-        editBtn.innerHTML = '✏️';
-        editBtn.title = 'Edit in place';
-        editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
-        actionsDiv.appendChild(editBtn);
-
-        if (!node.taskId) {
-          // 🚀 Include in To Do (Assigns Task ID)
-          const convertBtn = document.createElement('button');
-          convertBtn.type = 'button';
-          convertBtn.className = 'tree-action-btn tree-btn-convert';
-          convertBtn.innerHTML = '🚀';
-          convertBtn.title = 'Include in To Do (Assigns Task ID)';
-          convertBtn.onclick = (e) => {
-            e.stopPropagation();
-            activeEditNodeId = node.id;
-            showConvertDrawerForNodeId = node.id;
-            renderBacklogTree();
-          };
-          actionsDiv.appendChild(convertBtn);
+          // ✏️ Edit
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'tree-action-btn';
+          editBtn.innerHTML = '✏️';
+          editBtn.title = 'Edit in place';
+          editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
+          actionsDiv.appendChild(editBtn);
         } else {
-          // Task already created
-          const viewBtn = document.createElement('button');
-          viewBtn.type = 'button';
-          viewBtn.className = 'tree-action-btn';
-          viewBtn.innerHTML = isDone ? '✅' : '📋';
-          viewBtn.title = `Task #${node.taskId.slice(-5)} (${effectiveStatus.toUpperCase()}) - Click to view`;
-          viewBtn.onclick = (e) => {
-            e.stopPropagation();
-            openDetailModal(node.taskId);
-          };
-          actionsDiv.appendChild(viewBtn);
-        }
+          // 🔷 Add feature
+          const addFeatBtn = document.createElement('button');
+          addFeatBtn.type = 'button';
+          addFeatBtn.className = 'tree-action-btn tree-btn-add-feature';
+          addFeatBtn.innerHTML = '🔷';
+          addFeatBtn.title = 'Add feature';
+          addFeatBtn.onclick = (e) => openInlineDraft(node.id, 'feature', e);
+          actionsDiv.appendChild(addFeatBtn);
 
-        // 🗑️ Delete (non-root only)
-        if (!isRoot) {
-          const delBtn = document.createElement('button');
-          delBtn.type = 'button';
-          delBtn.className = 'tree-action-btn tree-btn-delete';
-          delBtn.innerHTML = '🗑️';
-          delBtn.title = 'Delete';
-          delBtn.onclick = (e) => deleteNodeInPlace(node.id, e);
-          actionsDiv.appendChild(delBtn);
+          // 🐛 Add bug / improvement
+          const addBugBtn = document.createElement('button');
+          addBugBtn.type = 'button';
+          addBugBtn.className = 'tree-action-btn tree-btn-add-bug';
+          addBugBtn.innerHTML = '🐛';
+          addBugBtn.title = 'Add bug / improvement';
+          addBugBtn.onclick = (e) => openInlineDraft(node.id, 'bug', e);
+          actionsDiv.appendChild(addBugBtn);
+
+          // 🧩 Add component (if component or root)
+          if (isComponent || isRoot) {
+            const addCompBtn = document.createElement('button');
+            addCompBtn.type = 'button';
+            addCompBtn.className = 'tree-action-btn';
+            addCompBtn.style.color = '#4338CA';
+            addCompBtn.innerHTML = '🧩';
+            addCompBtn.title = 'Add component';
+            addCompBtn.onclick = (e) => openInlineDraft(node.id, 'component', e);
+            actionsDiv.appendChild(addCompBtn);
+          }
+
+          // ✏️ Edit
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'tree-action-btn';
+          editBtn.innerHTML = '✏️';
+          editBtn.title = 'Edit in place';
+          editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
+          actionsDiv.appendChild(editBtn);
+
+          if (!node.taskId) {
+            // 🚀 Include in To Do (Assigns Task ID)
+            const convertBtn = document.createElement('button');
+            convertBtn.type = 'button';
+            convertBtn.className = 'tree-action-btn tree-btn-convert';
+            convertBtn.innerHTML = '🚀';
+            convertBtn.title = 'Include in To Do (Assigns Task ID)';
+            convertBtn.onclick = (e) => {
+              e.stopPropagation();
+              activeEditNodeId = node.id;
+              showConvertDrawerForNodeId = node.id;
+              renderBacklogTree();
+            };
+            actionsDiv.appendChild(convertBtn);
+          } else {
+            // Task already created
+            const viewBtn = document.createElement('button');
+            viewBtn.type = 'button';
+            viewBtn.className = 'tree-action-btn';
+            viewBtn.innerHTML = isDone ? '✅' : '📋';
+            viewBtn.title = `Task #${node.taskId.slice(-5)} (${effectiveStatus.toUpperCase()}) - Click to view`;
+            viewBtn.onclick = (e) => {
+              e.stopPropagation();
+              openDetailModal(node.taskId);
+            };
+            actionsDiv.appendChild(viewBtn);
+          }
+
+          // 🗑️ Delete (non-root only)
+          if (!isRoot) {
+            const delBtn = document.createElement('button');
+            delBtn.type = 'button';
+            delBtn.className = 'tree-action-btn tree-btn-delete';
+            delBtn.innerHTML = '🗑️';
+            delBtn.title = 'Delete';
+            delBtn.onclick = (e) => deleteNodeInPlace(node.id, e);
+            actionsDiv.appendChild(delBtn);
+          }
         }
 
         row.appendChild(actionsDiv);
