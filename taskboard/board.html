@@ -3549,6 +3549,19 @@
         <button class="close-btn" onclick="closeCreateModal()">&times;</button>
       </div>
       <form id="createForm" onsubmit="handleCreateTask(event)">
+        <div class="form-group" style="margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label class="form-label" style="margin-bottom: 0; color: #047857; display: flex; align-items: center; gap: 5px;">
+              <span>📐</span>
+              <span>Link to Product Component / Feature (from product.json)</span>
+            </label>
+            <span style="font-size: 11px; color: var(--text-muted);">Optional</span>
+          </div>
+          <select class="form-select" id="newProductNodeId" onchange="handleProductNodeSelectInCreate(this.value)" style="font-size: 12.5px;">
+            <option value="">-- Not linked / Standalone task --</option>
+          </select>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Task Title</label>
           <input type="text" class="form-input" id="newTitle" required style="font-size: 15px; font-weight: 600;" placeholder="e.g. Add validation to checkin responses">
@@ -5852,6 +5865,7 @@
           showToast(`🚀 Included in To Do! Assigned Task #${data.task.id.slice(-5)}`, 'success');
           await fetchTasks();
           await fetchBacklog(true);
+          await checkProductGitStatus();
         } else {
           alert('Error converting to task: ' + (data.error || 'Unknown error'));
         }
@@ -5895,6 +5909,7 @@
           showToast(`🚀 Included "${node.title}" in ${targetStatus === 'planned' ? 'Planned' : 'To Do'} (Assigned Task #${data.task.id.slice(-5)})`, 'success');
           await fetchTasks();
           await fetchBacklog(true);
+          await checkProductGitStatus();
         } else {
           alert('Failed to include feature in To Do: ' + (data.error || 'Unknown error'));
         }
@@ -6668,6 +6683,15 @@
             ? `<span class="badge badge-bug" style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; font-weight: 700;">🐛 BUG / IMPROVEMENT</span>` 
             : '';
 
+          let productBadge = '';
+          if (task.product_context) {
+            const compMatch = task.product_context.match(/-\s*\*\*Component\*\*:\s*\*\*([^*]+)\*\*/i) ||
+                              task.product_context.match(/-\s*\*\*Parent Component\*\*:\s*\*\*([^*]+)\*\*/i);
+            const pathMatch = task.product_context.match(/-\s*\*\*Path\*\*:\s*`([^`]+)`/i);
+            const label = compMatch ? compMatch[1].trim() : (pathMatch ? pathMatch[1].split('›').pop().trim() : 'Product');
+            productBadge = `<span class="role-badge" style="background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; font-size: 10px; font-weight: 600; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Product Context: ${pathMatch ? escapeHtml(pathMatch[1].trim()) : escapeHtml(label)}">📐 ${escapeHtml(label)}</span>`;
+          }
+
           card.innerHTML = `
             <div class="card-badges">
               ${bugBadge}
@@ -6675,6 +6699,7 @@
               ${statusBadge}
               ${sizeBadge}
               <span class="role-badge">${task.subagent_role || 'Engineer'}</span>
+              ${productBadge}
               ${sessionBadge}
               ${scopeBadge}
             </div>
@@ -6841,6 +6866,7 @@
       const scope = document.getElementById('newScope') ? document.getElementById('newScope').value.trim() : '';
       const scope_size = document.getElementById('newScopeSize') ? document.getElementById('newScopeSize').value : 'small';
       const session_id = document.getElementById('newSessionId') ? document.getElementById('newSessionId').value : undefined;
+      const product_node_id = document.getElementById('newProductNodeId') ? document.getElementById('newProductNodeId').value : undefined;
 
       const images = stagedCreateImages.map(img => ({
         fileName: img.fileName,
@@ -6852,12 +6878,14 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status, scope, scope_size, images, session_id
+          title, description, subtasks, acceptance_criteria, verification_cmd, priority, subagent_role, status, scope, scope_size, images, session_id, product_node_id
         })
       });
 
       closeCreateModal();
-      fetchTasks();
+      await fetchTasks();
+      await fetchBacklog(true);
+      await checkProductGitStatus();
     }
 
     async function openDetailModal(id) {
@@ -6944,6 +6972,18 @@
                 </div>
               </div>
 
+              ${task.product_context ? `
+                <div class="form-group" style="margin-bottom: 14px;">
+                  <label class="form-label" style="color: #047857; display: flex; align-items: center; gap: 5px; margin-bottom: 6px;">
+                    <span>📐</span>
+                    <span>Product Architecture Context (from product.json)</span>
+                  </label>
+                  <div class="product-context-display" style="background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 3px solid #10B981; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; color: #1E293B;">
+                    ${renderMarkdown(task.product_context.replace(/<!--\s*PRODUCT_CONTEXT_JSON[\s\S]*?-->/gi, '').trim())}
+                  </div>
+                </div>
+              ` : ''}
+
               <div class="form-group" style="margin-bottom: 12px;">
                 <label class="form-label">Acceptance Criteria</label>
                 <div class="form-formatted-text">${renderMarkdown(task.acceptance_criteria || 'None')}</div>
@@ -6981,6 +7021,11 @@
                 <div class="form-group" style="margin-bottom: 10px;">
                   <label class="form-label" style="font-size: 12px;">Goal & Description</label>
                   <textarea class="form-textarea" id="editTaskDescription" style="min-height: 140px; font-size: 13px; line-height: 1.5;" placeholder="Describe the objective, background context, specific files to modify, or behavior expected...">${escapeHtml(task.description || '')}</textarea>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 10px;">
+                  <label class="form-label" style="font-size: 12px; color: #047857;">Product Context (Architecture / Specification)</label>
+                  <textarea class="form-textarea" id="editTaskProductContext" style="min-height: 80px; font-size: 12px; font-family: monospace;" placeholder="Product context hierarchy or markdown...">${escapeHtml(task.product_context || '')}</textarea>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
@@ -7550,6 +7595,7 @@
       const scope = document.getElementById('editTaskScope') ? document.getElementById('editTaskScope').value.trim() : '';
       const scope_size = document.getElementById('editTaskScopeSize') ? document.getElementById('editTaskScopeSize').value : 'small';
       const session_id = document.getElementById('editTaskSessionId') ? document.getElementById('editTaskSessionId').value : undefined;
+      const product_context = document.getElementById('editTaskProductContext') ? document.getElementById('editTaskProductContext').value.trim() : undefined;
 
       if (!title) {
         alert('Task title is required');
@@ -7576,6 +7622,7 @@
             scope,
             scope_size,
             session_id,
+            product_context,
             processed_by_agent: 0
           })
         });
@@ -7645,6 +7692,41 @@
         }
       }
 
+      const productNodeSelect = document.getElementById('newProductNodeId');
+      if (productNodeSelect && backlogTree) {
+        const eligibleNodes = [];
+        function collectNodes(n, breadcrumbs = []) {
+          if (!n) return;
+          const currBreadcrumbs = (n.id === 'root') ? [] : [...breadcrumbs, n.title || 'Untitled'];
+          const isContainer = isCategoryFolder(n) || n.type === 'container';
+          if (!isContainer && n.id !== 'root') {
+            eligibleNodes.push({
+              id: n.id,
+              title: n.title,
+              type: n.type || 'feature',
+              taskId: n.taskId,
+              path: currBreadcrumbs.join(' › ')
+            });
+          }
+          if (Array.isArray(n.children)) {
+            n.children.forEach(c => collectNodes(c, currBreadcrumbs));
+          }
+        }
+        collectNodes(backlogTree);
+        let opts = `<option value="">-- Not linked / Standalone task --</option>`;
+        for (const item of eligibleNodes) {
+          const statusTag = item.taskId ? ` [Linked: #${item.taskId.slice(-5)}]` : '';
+          const icon = item.type === 'component' ? '🧩 ' : (item.type === 'bug' ? '🐛 ' : '✨ ');
+          opts += `<option value="${item.id}" ${item.taskId ? 'disabled' : ''}>${icon}${escapeHtml(item.path)}${statusTag}</option>`;
+        }
+        productNodeSelect.innerHTML = opts;
+        if (prefill && prefill.product_node_id) {
+          productNodeSelect.value = prefill.product_node_id;
+        } else {
+          productNodeSelect.value = '';
+        }
+      }
+
       if (prefill) {
         if (prefill.title) document.getElementById('newTitle').value = prefill.title;
         if (prefill.description) document.getElementById('newDescription').value = prefill.description;
@@ -7653,6 +7735,22 @@
         if (prefill.verifyCmd) document.getElementById('newVerifyCmd').value = prefill.verifyCmd;
         if (prefill.scope) document.getElementById('newScope').value = prefill.scope;
         if (prefill.scopeSize) document.getElementById('newScopeSize').value = prefill.scopeSize;
+      }
+    }
+
+    function handleProductNodeSelectInCreate(nodeId) {
+      if (!nodeId || !backlogTree) return;
+      const node = findBacklogNode(backlogTree, nodeId);
+      if (!node) return;
+      const titleInput = document.getElementById('newTitle');
+      const descInput = document.getElementById('newDescription');
+      if (titleInput && (!titleInput.value.trim() || titleInput.dataset.autofilled === 'true')) {
+        titleInput.value = node.title;
+        titleInput.dataset.autofilled = 'true';
+      }
+      if (descInput && (!descInput.value.trim() || descInput.dataset.autofilled === 'true')) {
+        descInput.value = node.description || '';
+        descInput.dataset.autofilled = 'true';
       }
     }
 

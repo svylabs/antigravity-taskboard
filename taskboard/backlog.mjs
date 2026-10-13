@@ -65,6 +65,202 @@ export function findNodeAndParent(node, id, parent = null) {
 }
 
 /**
+ * Recursively find the path of nodes from root to a given node ID.
+ * Returns array of nodes [root, ..., targetNode] or null if not found.
+ */
+export function findNodePath(node, id, currentPath = []) {
+  if (!node) return null;
+  const newPath = [...currentPath, node];
+  if (node.id === id) {
+    return newPath;
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      const found = findNodePath(child, id, newPath);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Find a node in the tree by its title (case-insensitive).
+ */
+export function findNodeByTitle(node, title) {
+  if (!node || !title) return null;
+  const target = title.trim().toLowerCase();
+  if ((node.title || '').trim().toLowerCase() === target) {
+    return node;
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      const found = findNodeByTitle(child, title);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Build rich product architecture context for a node from product.json.
+ * Extracts the hierarchical breadcrumbs, nearest component ancestor,
+ * sibling features, improvements, and child components.
+ */
+export function buildProductContextForNode(tree, id) {
+  if (!tree || !id) return '';
+  const pathNodes = findNodePath(tree, id);
+  if (!pathNodes || pathNodes.length === 0) return '';
+
+  const targetNode = pathNodes[pathNodes.length - 1];
+
+  // 1. Breadcrumb path
+  const pathTitles = pathNodes.map(n => n.title || 'Untitled');
+  const pathString = pathTitles.join(' › ');
+
+  // 2. Identify nearest ancestor component (excluding container folders: features/, components/, improvements/)
+  let parentComponent = null;
+  for (let i = pathNodes.length - 2; i >= 0; i--) {
+    const ancestor = pathNodes[i];
+    if (isContainerFolderTitle(ancestor.title)) continue;
+    parentComponent = ancestor;
+    break;
+  }
+  if (!parentComponent && pathNodes.length > 0) {
+    parentComponent = pathNodes[0];
+  }
+
+  // 3. Collect component siblings / structure
+  const siblingFeatures = [];
+  const siblingImprovements = [];
+  const siblingComponents = [];
+
+  function collectFromChildren(children) {
+    if (!Array.isArray(children)) return;
+    for (const child of children) {
+      if (isContainerFolderTitle(child.title)) {
+        const folderLower = (child.title || '').toLowerCase();
+        if (folderLower.startsWith('feat')) {
+          (child.children || []).forEach(c => siblingFeatures.push(c));
+        } else if (folderLower.startsWith('imp') || folderLower.startsWith('bug')) {
+          (child.children || []).forEach(c => siblingImprovements.push(c));
+        } else if (folderLower.startsWith('comp')) {
+          (child.children || []).forEach(c => siblingComponents.push(c));
+        }
+      } else {
+        if (child.type === 'component') {
+          siblingComponents.push(child);
+        } else if (child.type === 'bug' || (child.title || '').toLowerCase().startsWith('[bug') || (child.title || '').toLowerCase().startsWith('[improvement')) {
+          siblingImprovements.push(child);
+        } else {
+          siblingFeatures.push(child);
+        }
+      }
+    }
+  }
+
+  if (parentComponent) {
+    collectFromChildren(parentComponent.children);
+  }
+
+  // 4. Format Markdown output
+  let md = `### Product Architecture Context\n`;
+  md += `- **Path**: \`${pathString}\`\n`;
+  if (parentComponent && parentComponent.id !== targetNode.id) {
+    md += `- **Parent Component**: **${parentComponent.title}**\n`;
+    if (parentComponent.description && parentComponent.description.trim()) {
+      md += `  *Description*: ${parentComponent.description.trim()}\n`;
+    }
+  }
+
+  // Breakdown of the component
+  const compName = parentComponent ? parentComponent.title : 'Component';
+  md += `\n#### Component Architecture (\`${compName}\`)\n`;
+
+  if (siblingFeatures.length > 0) {
+    md += `- **Features**:\n`;
+    for (const f of siblingFeatures) {
+      const isCurrent = f.id === targetNode.id;
+      const marker = isCurrent ? `🎯 **${f.title}** *(Current Task)*` : (f.taskId ? `[x] **${f.title}** (Task #${f.taskId.split('-').pop()})` : `[ ] **${f.title}**`);
+      const descSnippet = f.description ? ` - ${f.description.trim().split('\n')[0]}` : '';
+      md += `  - ${marker}${descSnippet}\n`;
+    }
+  } else {
+    md += `- **Features**: *(None)*\n`;
+  }
+
+  if (siblingImprovements.length > 0) {
+    md += `- **Bugs & Improvements**:\n`;
+    for (const imp of siblingImprovements) {
+      const isCurrent = imp.id === targetNode.id;
+      const marker = isCurrent ? `🎯 **${imp.title}** *(Current Task)*` : (imp.taskId ? `[x] **${imp.title}** (Task #${imp.taskId.split('-').pop()})` : `[ ] **${imp.title}**`);
+      const descSnippet = imp.description ? ` - ${imp.description.trim().split('\n')[0]}` : '';
+      md += `  - ${marker}${descSnippet}\n`;
+    }
+  }
+
+  if (siblingComponents.length > 0) {
+    md += `- **Child Components & Screens**:\n`;
+    for (const comp of siblingComponents) {
+      const isCurrent = comp.id === targetNode.id;
+      const marker = isCurrent ? `🎯 **${comp.title}** *(Current Task)*` : `🧩 **${comp.title}**`;
+      md += `  - ${marker}\n`;
+    }
+  }
+
+  // 5. Append structured JSON in comment for programmatic consumers
+  const structuredData = {
+    nodeId: targetNode.id,
+    title: targetNode.title,
+    type: targetNode.type || 'feature',
+    path: pathTitles,
+    pathString,
+    component: parentComponent ? {
+      id: parentComponent.id,
+      title: parentComponent.title,
+      description: parentComponent.description || ''
+    } : null,
+    siblings: {
+      features: siblingFeatures.map(f => ({ id: f.id, title: f.title, taskId: f.taskId || null, isCurrent: f.id === targetNode.id })),
+      improvements: siblingImprovements.map(i => ({ id: i.id, title: i.title, taskId: i.taskId || null, isCurrent: i.id === targetNode.id })),
+      components: siblingComponents.map(c => ({ id: c.id, title: c.title, isCurrent: c.id === targetNode.id }))
+    }
+  };
+
+  md += `\n<!-- PRODUCT_CONTEXT_JSON\n${JSON.stringify(structuredData, null, 2)}\n-->\n`;
+
+  return md;
+}
+
+/**
+ * Backfill product_context on existing SQLite tasks if their corresponding product.json node has taskId.
+ */
+export function backfillProductContextForTasks(tree, db) {
+  if (!tree || !db) return;
+  try {
+    const tasksWithoutContext = db.prepare("SELECT id, title, product_context FROM agent_tasks WHERE product_context IS NULL OR product_context = ''").all();
+    if (!tasksWithoutContext || tasksWithoutContext.length === 0) return;
+
+    function walk(node) {
+      if (!node) return;
+      if (node.taskId) {
+        const match = tasksWithoutContext.find(t => t.id === node.taskId);
+        if (match) {
+          const ctx = buildProductContextForNode(tree, node.id);
+          if (ctx) {
+            db.prepare("UPDATE agent_tasks SET product_context = ? WHERE id = ?").run(ctx, node.taskId);
+            console.log(`📐 Backfilled product_context for Task #${node.taskId.slice(-5)} ("${node.title}")`);
+          }
+        }
+      }
+      if (Array.isArray(node.children)) {
+        node.children.forEach(walk);
+      }
+    }
+    walk(tree);
+  } catch (err) {}
+}
+
+/**
  * Count total items in tree (excluding root project node by default).
  */
 export function countNodes(node, includeRoot = false) {
@@ -239,6 +435,11 @@ export function readProductTree(projectDir, projectName, db = null) {
 
   // Normalize legacy container titles
   normalizeBacklogTree(tree);
+
+  // Auto-backfill product context for existing tasks if db is available
+  if (db) {
+    backfillProductContextForTasks(tree, db);
+  }
 
   return tree;
 }
@@ -662,6 +863,10 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   if (isContainerFolderTitle(node.title) || node.type === 'container') {
     throw new Error(`Cannot convert category container "${node.title}" to a task. Please select an item inside it.`);
   }
+
+  // Build product context from product.json hierarchy
+  const product_context = buildProductContextForNode(tree, id);
+
   const isBug = (node.type === 'bug') || (taskData.type === 'bug') || (taskData.title && (taskData.title.toLowerCase().startsWith('[bug') || taskData.title.toLowerCase().startsWith('[improvement'))) || (node.title && (node.title.toLowerCase().startsWith('[bug') || node.title.toLowerCase().startsWith('[improvement')));
   let taskTitle = (taskData.title || node.title || '').trim();
   if (isBug && !taskTitle.toLowerCase().startsWith('[bug') && !taskTitle.toLowerCase().startsWith('[improvement')) {
@@ -669,7 +874,7 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   }
   const taskDescription = (taskData.description !== undefined ? taskData.description : (node.description || '')).trim();
 
-  // Create the task in SQLite with status 'todo'
+  // Create the task in SQLite with status 'todo' (or taskData.status)
   const task = addTaskFn({
     title: taskTitle,
     description: taskDescription,
@@ -679,7 +884,8 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
     scope_size: taskData.scope_size || 'small',
     verification_cmd: taskData.verification_cmd || '',
     acceptance_criteria: taskData.acceptance_criteria || '',
-    status: taskData.status || 'todo'
+    status: taskData.status || 'todo',
+    product_context: taskData.product_context || product_context
   });
 
   // Update node with converted task metadata
@@ -696,7 +902,12 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   const actionPrefix = isBug ? 'fix(product)' : 'feat(product)';
   const typeWord = isBug ? 'bug / improvement' : (node.type === 'component' ? 'component' : 'feature');
   const convertCommitMsg = `${actionPrefix}: assign Task #${task.id.slice(-5)} to ${typeWord} "${node.title}"`;
+  
+  // Save product.json to disk
   writeBacklogTree(projectDir, tree, convertCommitMsg);
+
+  // Commit product.json after assigning task an id
+  commitProductChanges(projectDir, convertCommitMsg);
 
   return { success: true, task, node, tree };
 }

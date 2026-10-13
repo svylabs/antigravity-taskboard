@@ -133,6 +133,7 @@ db.exec(`
     subagent_role TEXT DEFAULT 'Fullstack Engineer',
     scope TEXT DEFAULT '', -- target paths / files / subsystems
     scope_size TEXT DEFAULT 'small', -- 'small', 'medium', 'large'
+    product_context TEXT DEFAULT '',
     execution_logs TEXT,
     order_index INTEGER DEFAULT 0,
     processed_by_agent INTEGER NOT NULL DEFAULT 0, -- 0 = pending, 1 = processed
@@ -197,6 +198,10 @@ try {
 
 try {
   db.exec(`ALTER TABLE agent_tasks ADD COLUMN scope_size TEXT DEFAULT 'small';`);
+} catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE agent_tasks ADD COLUMN product_context TEXT DEFAULT '';`);
 } catch (e) {}
 
 try {
@@ -400,7 +405,8 @@ export function addTask({
   subtasks = null,
   attachments = null,
   images = null,
-  session_id = null
+  session_id = null,
+  product_context = ''
 }) {
   if (status === 'backlog') status = 'todo';
   if (status === 'needs_revision') status = 'planned';
@@ -409,17 +415,23 @@ export function addTask({
   const order_index = (maxOrder?.max_order ?? 0) + 1;
 
   const cols = db.prepare('PRAGMA table_info(agent_tasks)').all().map(c => c.name);
+  const insertCols = ['id', 'title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'order_index', 'processed_by_agent'];
+  const insertVals = [id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, 0];
+
   if (cols.includes('session_id')) {
-    db.prepare(`
-      INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, session_id, processed_by_agent)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, session_id);
-  } else {
-    db.prepare(`
-      INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, processed_by_agent)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-    `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index);
+    insertCols.push('session_id');
+    insertVals.push(session_id);
   }
+  if (cols.includes('product_context')) {
+    insertCols.push('product_context');
+    insertVals.push(product_context || '');
+  }
+
+  const placeholders = insertCols.map(() => '?').join(', ');
+  db.prepare(`
+    INSERT INTO agent_tasks (${insertCols.join(', ')})
+    VALUES (${placeholders})
+  `).run(...insertVals);
 
   if (subtasks) {
     const subtaskList = Array.isArray(subtasks)
@@ -457,7 +469,7 @@ export function addTask({
 
 export function updateTask(id, fields) {
   if (fields.status === 'needs_revision') fields.status = 'planned';
-  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'execution_logs', 'order_index', 'processed_by_agent', 'session_id', 'completed_at'];
+  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'product_context', 'execution_logs', 'order_index', 'processed_by_agent', 'session_id', 'completed_at'];
   const setClauses = [];
   const params = [];
 

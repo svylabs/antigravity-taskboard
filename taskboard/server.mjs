@@ -52,7 +52,12 @@ import {
   convertBacklogNodeToTask,
   getBacklogFilePath,
   commitProductChanges,
-  getProductGitStatus
+  getProductGitStatus,
+  findNodeAndParent,
+  findNodePath,
+  findNodeByTitle,
+  buildProductContextForNode,
+  backfillProductContextForTasks
 } from './backlog.mjs';
 import {
   ensureSessionSchema,
@@ -1130,12 +1135,58 @@ const server = http.createServer(async (req, res) => {
       if (!body.title) {
         return sendJson(res, 400, { success: false, error: 'Title is required' });
       }
+
+      const info = getProjectInfo();
+      let tree = null;
+      let linkedNode = null;
+
+      try {
+        tree = readProductTree(info.projectDir, info.projectName, db);
+        if (body.product_node_id) {
+          const found = findNodeAndParent(tree, body.product_node_id);
+          if (found && found.node) {
+            linkedNode = found.node;
+            if (!body.product_context) {
+              body.product_context = buildProductContextForNode(tree, linkedNode.id);
+            }
+          }
+        } else if (!body.product_context) {
+          // Check if title matches a product node
+          const cleanTitle = body.title.replace(/^\[(Bug|Improvement)[^\]]*\]\s*/i, '').trim().toLowerCase();
+          const match = findNodeByTitle(tree, cleanTitle);
+          if (match && !match.taskId && match.type !== 'container') {
+            linkedNode = match;
+            body.product_context = buildProductContextForNode(tree, match.id);
+          }
+        }
+      } catch (err) {
+        console.warn('Product context resolution warning:', err.message);
+      }
+
       const task = addTask(body);
       const targetSessionId = body.session_id !== undefined ? body.session_id : getActiveSessionId(db);
       if (targetSessionId) {
         setTaskSession(db, task.id, targetSessionId);
         task.session_id = targetSessionId;
       }
+
+      // If a product node was linked, update node with taskId and save & commit product.json
+      if (linkedNode && tree) {
+        try {
+          linkedNode.taskId = task.id;
+          linkedNode.taskStatus = task.status || 'todo';
+          linkedNode.convertedAt = new Date().toISOString();
+          const isBug = (linkedNode.type === 'bug') || (task.title && (task.title.toLowerCase().startsWith('[bug') || task.title.toLowerCase().startsWith('[improvement')));
+          const actionPrefix = isBug ? 'fix(product)' : 'feat(product)';
+          const typeWord = isBug ? 'bug / improvement' : (linkedNode.type === 'component' ? 'component' : 'feature');
+          const commitMsg = `${actionPrefix}: assign Task #${task.id.slice(-5)} to ${typeWord} "${linkedNode.title}"`;
+          writeProductTree(info.projectDir, tree, commitMsg);
+          commitProductChanges(info.projectDir, commitMsg);
+        } catch (err) {
+          console.warn('Failed to commit product.json for linked task:', err.message);
+        }
+      }
+
       return sendJson(res, 201, { success: true, task });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
