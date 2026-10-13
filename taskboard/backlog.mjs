@@ -255,7 +255,7 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
   let nodeType = type;
   if (!nodeType) {
     const lower = title.trim().toLowerCase();
-    if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]')) {
+    if (lower === 'bugs' || lower === 'bug' || lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) {
       nodeType = 'bug';
     } else if (lower === 'features' || lower === 'feature') {
       nodeType = 'feature';
@@ -277,7 +277,7 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
 
   parent.children.push(newNode);
   const parentTitle = (parentId && parentId !== 'root' && parent.title) ? ` under "${parent.title}"` : '';
-  const typeLabel = nodeType === 'bug' ? 'bug' : (nodeType === 'component' ? 'component' : 'feature');
+  const typeLabel = nodeType === 'bug' ? 'bug / improvement' : (nodeType === 'component' ? 'component' : 'feature');
   const commitPrefix = nodeType === 'bug' ? 'fix(product)' : 'feat(product)';
   const commitMsg = `${commitPrefix}: add ${typeLabel} "${newNode.title}"${parentTitle}`;
   writeBacklogTree(projectDir, tree, commitMsg);
@@ -307,7 +307,7 @@ export function updateBacklogNode(projectDir, id, { title, description, type, pr
   }
   node.updatedAt = new Date().toISOString();
 
-  const typeLabel = node.type === 'bug' ? 'bug' : (node.type === 'component' ? 'component' : 'feature');
+  const typeLabel = node.type === 'bug' ? 'bug / improvement' : (node.type === 'component' ? 'component' : 'feature');
   const commitMsg = `docs(product): update ${typeLabel} "${node.title}" specifications`;
   writeBacklogTree(projectDir, tree, commitMsg);
   return { success: true, node, tree };
@@ -454,10 +454,10 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   }
 
   const node = found.node;
-  const isBug = (node.type === 'bug') || (taskData.type === 'bug') || (taskData.title && taskData.title.toLowerCase().startsWith('[bug]')) || (node.title && node.title.toLowerCase().startsWith('[bug]'));
+  const isBug = (node.type === 'bug') || (taskData.type === 'bug') || (taskData.title && (taskData.title.toLowerCase().startsWith('[bug') || taskData.title.toLowerCase().startsWith('[improvement'))) || (node.title && (node.title.toLowerCase().startsWith('[bug') || node.title.toLowerCase().startsWith('[improvement')));
   let taskTitle = (taskData.title || node.title || '').trim();
-  if (isBug && !taskTitle.toLowerCase().startsWith('[bug]')) {
-    taskTitle = `[Bug] ${taskTitle}`;
+  if (isBug && !taskTitle.toLowerCase().startsWith('[bug') && !taskTitle.toLowerCase().startsWith('[improvement')) {
+    taskTitle = `[Bug / Improvement] ${taskTitle}`;
   }
   const taskDescription = (taskData.description !== undefined ? taskData.description : (node.description || '')).trim();
 
@@ -486,7 +486,7 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   }
 
   const actionPrefix = isBug ? 'fix(product)' : 'feat(product)';
-  const typeWord = isBug ? 'bug' : (node.type === 'component' ? 'component' : 'feature');
+  const typeWord = isBug ? 'bug / improvement' : (node.type === 'component' ? 'component' : 'feature');
   const convertCommitMsg = `${actionPrefix}: assign Task #${task.id.slice(-5)} to ${typeWord} "${node.title}"`;
   writeBacklogTree(projectDir, tree, convertCommitMsg);
 
