@@ -1304,6 +1304,60 @@
       transform: scale(1.05);
     }
 
+    .tree-action-btn.tree-btn-add-feature {
+      background: #EFF6FF;
+      border-color: #BFDBFE;
+      color: #1D4ED8;
+      font-weight: 700;
+    }
+
+    .tree-action-btn.tree-btn-add-feature:hover {
+      background: #DBEAFE;
+      border-color: #3B82F6;
+      color: #1E40AF;
+      transform: scale(1.08);
+    }
+
+    .tree-action-btn.tree-btn-add-bug {
+      background: #FFF1F2;
+      border-color: #FECDD3;
+      color: #BE123C;
+      font-weight: 700;
+    }
+
+    .tree-action-btn.tree-btn-add-bug:hover {
+      background: #FFE4E6;
+      border-color: #F43F5E;
+      color: #9F1239;
+      transform: scale(1.08);
+    }
+
+    .btn-feat-action {
+      background: #EFF6FF !important;
+      color: #1D4ED8 !important;
+      border-color: #BFDBFE !important;
+      font-weight: 600 !important;
+    }
+
+    .btn-feat-action:hover {
+      background: #DBEAFE !important;
+      color: #1E40AF !important;
+      border-color: #3B82F6 !important;
+    }
+
+    .btn-bug-action {
+      background: #FFF1F2 !important;
+      color: #BE123C !important;
+      border-color: #FECDD3 !important;
+      font-weight: 600 !important;
+    }
+
+    .btn-bug-action:hover {
+      background: #FFE4E6 !important;
+      color: #9F1239 !important;
+      border-color: #F43F5E !important;
+    }
+
     .tree-action-btn.tree-btn-convert {
       background: #EEF2FF;
       border-color: #C7D2FE;
@@ -3074,8 +3128,8 @@
         <button class="btn btn-agent-start" id="btnStartAgent" onclick="copyLoopPrompt()" title="Start or resume the autonomous agent loop in Antigravity">
           <span>▶</span><span>Start Agent</span>
         </button>
-        <button class="btn btn-secondary" onclick="openInlineDraft('root', event)" title="Add feature to product doc">
-          <span>📖</span><span>Add Feature</span>
+        <button class="btn btn-secondary btn-feat-action" onclick="openInlineDraft('root', event)" title="Add feature to product doc">
+          <span>🔷</span><span>Add Feature</span>
         </button>
         <button class="btn btn-primary" onclick="openCreateModal()">+ New Task</button>
       </div>
@@ -3275,7 +3329,7 @@
       </div>
       <div class="backlog-file-bar" id="backlogFileBar">
         <span class="backlog-file-label" id="backlogFilePath" title="Living product specification stored in product.json and checked into git">📄 product.json</span>
-        <button class="tree-header-btn" onclick="openInlineDraft('root', event)" style="padding: 1px 6px; font-size: 10px;" title="Add feature in place">+ Add Feature</button>
+        <button class="tree-header-btn" onclick="openInlineDraft('root', event)" style="padding: 1px 6px; font-size: 10px; font-weight: 700; color: #1D4ED8; background: #EFF6FF; border-color: #BFDBFE;" title="Add feature in place">+ 🔷 Feature</button>
       </div>
       <div class="backlog-tree-container" id="backlogTreeContainer">
         <!-- Tree rendered dynamically with in-place editing -->
@@ -5189,7 +5243,7 @@
         });
         const data = await res.json();
         if (data.success) {
-          const typeName = newType === 'bug' ? '🐛 Bug' : (newType === 'component' ? '🧩 Component' : '✨ Feature');
+          const typeName = newType === 'bug' ? '🐛 Bug' : (newType === 'component' ? '🧩 Component' : '🔷 Feature');
           showToast(`Changed type to ${typeName}`);
           await fetchBacklog(true);
         } else {
@@ -5218,7 +5272,7 @@
       const isBug = currentType === 'bug';
       const isComponent = currentType === 'component';
 
-      let typeTag = '✨ New Feature';
+      let typeTag = '🔷 New Feature';
       let titlePlaceholder = 'Feature title (e.g. Social Login, Meal Plan Generator)...';
       let descPlaceholder = 'Requirements, specifications, acceptance criteria, or technical details...';
       let submitLabel = 'Add Feature to Product Doc';
@@ -5262,7 +5316,7 @@
 
         <div style="margin-bottom: 8px;">
           <div class="tree-type-segmented">
-            <button type="button" class="tree-type-btn ${currentType === 'feature' ? 'is-active is-feature' : ''}" onclick="selectDraftType('${parentId}', 'feature')">✨ Feature</button>
+            <button type="button" class="tree-type-btn ${currentType === 'feature' ? 'is-active is-feature' : ''}" onclick="selectDraftType('${parentId}', 'feature')">🔷 Feature</button>
             <button type="button" class="tree-type-btn ${currentType === 'bug' ? 'is-active is-bug' : ''}" onclick="selectDraftType('${parentId}', 'bug')">🐛 Bug</button>
             <button type="button" class="tree-type-btn ${currentType === 'component' ? 'is-active is-component' : ''}" onclick="selectDraftType('${parentId}', 'component')">🧩 Component</button>
           </div>
@@ -5360,7 +5414,7 @@
         if (data.success) {
           addingChildUnderParentId = null;
           activeEditNodeId = null;
-          const typeName = type === 'bug' ? '🐛 Bug' : (type === 'component' ? '🧩 Component' : '✨ Feature');
+          const typeName = type === 'bug' ? '🐛 Bug' : (type === 'component' ? '🧩 Component' : '🔷 Feature');
           showToast(`✅ Added ${typeName} "${title}" to product doc`);
           await fetchBacklog(true);
         } else {
@@ -5719,8 +5773,8 @@
                   🧩 <strong>${escapeHtml(node.title || 'Component')}</strong> (${stats.features} feature${stats.features === 1 ? '' : 's'}, ${stats.bugs} bug${stats.bugs === 1 ? '' : 's'})
                 </span>
                 <div style="display: flex; gap: 4px;">
-                  <button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'feature', event)">✨ + Feature</button>
-                  <button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #BE123C; border-color: #FECDD3;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug</button>
+                  <button type="button" class="btn btn-sm btn-secondary btn-feat-action" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
+                  <button type="button" class="btn btn-sm btn-secondary btn-bug-action" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug</button>
                 </div>
               </div>
               <div style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
@@ -5737,7 +5791,7 @@
                   return `
                     <div class="component-item-row" style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; background: white; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 11.5px;">
                       <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px;">
-                        <span>${itIsBug ? '🐛' : '✨'}</span>
+                        <span>${itIsBug ? '🐛' : '🔷'}</span>
                         <span style="font-weight: 600; color: ${itDone ? '#94A3B8' : '#1E293B'}; ${itDone ? 'text-decoration: line-through;' : ''}">${escapeHtml(item.title)}</span>
                       </div>
                       <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
@@ -5763,7 +5817,7 @@
         card.innerHTML = `
           <div class="tree-inline-header">
             <span class="tree-inline-tag" ${isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : (isBug ? 'style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3;"' : (isComponent ? 'style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;"' : ''))}>
-              ${isRoot ? '📁 Project Root' : (isDone ? `✅ Completed ${isBug ? 'Bug' : (isComponent ? 'Component' : 'Feature')} (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}: ${escapeHtml(node.title || '')}` : (isBug ? `🐛 Bug: ${escapeHtml(node.title || 'Untitled')}` : (isComponent ? `🧩 Component: ${escapeHtml(node.title || 'Untitled')}` : `✨ Feature: ${escapeHtml(node.title || 'Untitled')}`))))}
+              ${isRoot ? '📁 Project Root' : (isDone ? `✅ Completed ${isBug ? 'Bug' : (isComponent ? 'Component' : 'Feature')} (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}: ${escapeHtml(node.title || '')}` : (isBug ? `🐛 Bug: ${escapeHtml(node.title || 'Untitled')}` : (isComponent ? `🧩 Component: ${escapeHtml(node.title || 'Untitled')}` : `🔷 Feature: ${escapeHtml(node.title || 'Untitled')}`))))}
             </span>
             <button type="button" class="tree-inline-close" onclick="closeInlineEditor(event)" title="Close editor">&times;</button>
           </div>
@@ -5778,7 +5832,7 @@
           ${!isRoot ? `
           <div style="margin-bottom: 8px;">
             <div class="tree-type-segmented">
-              <button type="button" class="tree-type-btn ${nodeType === 'feature' ? 'is-active is-feature' : ''}" onclick="changeNodeType('${node.id}', 'feature', event)">✨ Feature</button>
+              <button type="button" class="tree-type-btn ${nodeType === 'feature' ? 'is-active is-feature' : ''}" onclick="changeNodeType('${node.id}', 'feature', event)">🔷 Feature</button>
               <button type="button" class="tree-type-btn ${nodeType === 'bug' ? 'is-active is-bug' : ''}" onclick="changeNodeType('${node.id}', 'bug', event)">🐛 Bug</button>
               <button type="button" class="tree-type-btn ${nodeType === 'component' ? 'is-active is-component' : ''}" onclick="changeNodeType('${node.id}', 'component', event)">🧩 Component</button>
             </div>
@@ -5827,8 +5881,8 @@
 
           <div class="tree-inline-actions">
             <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save</button>
-            <button type="button" class="btn btn-sm btn-secondary" onclick="openInlineDraft('${node.id}', 'feature', event)">✨ + Feature</button>
-            <button type="button" class="btn btn-sm btn-secondary" style="color: #BE123C; border-color: #FECDD3;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-feat-action" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
+            <button type="button" class="btn btn-sm btn-secondary btn-bug-action" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug</button>
             ${node.taskId 
               ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}${isDone ? ' (Completed)' : ''}</button>` 
               : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do (Assigns Task ID)</button>`}
@@ -5945,7 +5999,7 @@
         // Icon
         const iconSpan = document.createElement('span');
         iconSpan.className = 'tree-node-icon';
-        let rowIcon = '✨';
+        let rowIcon = '🔷';
         if (isRoot) rowIcon = '📁';
         else if (isDone) rowIcon = '✅';
         else if (isBug) rowIcon = '🐛';
@@ -5977,14 +6031,14 @@
           row.appendChild(typePill);
         }
 
-        // Component aggregate counter pill (✨ N • 🐛 N)
+        // Component aggregate counter pill (🔷 N • 🐛 N)
         if (isComponent || hasChildren) {
           const stats = getComponentStats(node);
           if (stats.features > 0 || stats.bugs > 0) {
             const counterPill = document.createElement('span');
             counterPill.className = 'tree-counter-pill';
             let pillText = '';
-            if (stats.features > 0) pillText += `✨ ${stats.features}`;
+            if (stats.features > 0) pillText += `🔷 ${stats.features}`;
             if (stats.bugs > 0) pillText += (pillText ? ' • ' : '') + `🐛 ${stats.bugs}`;
             counterPill.innerHTML = pillText;
             counterPill.title = `Contains ${stats.features} feature(s) and ${stats.bugs} bug(s)`;
@@ -6037,11 +6091,11 @@
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'tree-node-actions';
 
-        // ✨ Add feature
+        // 🔷 Add feature
         const addFeatBtn = document.createElement('button');
         addFeatBtn.type = 'button';
-        addFeatBtn.className = 'tree-action-btn';
-        addFeatBtn.innerHTML = '✨';
+        addFeatBtn.className = 'tree-action-btn tree-btn-add-feature';
+        addFeatBtn.innerHTML = '🔷';
         addFeatBtn.title = 'Add feature';
         addFeatBtn.onclick = (e) => openInlineDraft(node.id, 'feature', e);
         actionsDiv.appendChild(addFeatBtn);
@@ -6049,7 +6103,7 @@
         // 🐛 Add bug
         const addBugBtn = document.createElement('button');
         addBugBtn.type = 'button';
-        addBugBtn.className = 'tree-action-btn';
+        addBugBtn.className = 'tree-action-btn tree-btn-add-bug';
         addBugBtn.innerHTML = '🐛';
         addBugBtn.title = 'Report bug';
         addBugBtn.onclick = (e) => openInlineDraft(node.id, 'bug', e);
