@@ -2616,6 +2616,68 @@
       transform: translateY(-0.5px);
     }
 
+    .btn-session-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .btn-session-toggle.is-running {
+      background: #ECFDF5;
+      color: #065F46;
+      border-color: #10B981;
+    }
+
+    .btn-session-toggle.is-running:hover {
+      background: #FEF2F2;
+      color: #DC2626;
+      border-color: #F87171;
+    }
+
+    .btn-session-toggle.is-stopped {
+      background: #F8FAFC;
+      color: #475569;
+      border-color: #CBD5E1;
+    }
+
+    .btn-session-toggle.is-stopped:hover {
+      background: #ECFDF5;
+      color: #059669;
+      border-color: #34D399;
+    }
+
+    .session-toggle-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #94A3B8;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .btn-session-toggle.is-running .session-toggle-dot {
+      background: #10B981;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+      animation: sessionPulse 1.8s infinite;
+    }
+
+    @keyframes sessionPulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
     .session-card-badge {
       font-size: 10px;
       font-weight: 600;
@@ -2667,6 +2729,10 @@
             <option value="all">Loading sessions...</option>
           </select>
           <span class="session-stats-tag" id="sessionStatsTag" title="Tasks completed in this sprint">0/0</span>
+          <button type="button" class="btn-session-toggle" id="btnToggleSessionRunning" onclick="handleToggleCurrentSessionRunning()" title="Begin or Stop AI working on this sprint session">
+            <span class="session-toggle-dot"></span>
+            <span id="sessionToggleText">▶ Begin</span>
+          </button>
           <button type="button" class="session-action-btn" id="btnActivateSession" onclick="handleQuickActivateSelectedSession()" style="display: none;" title="Set this sprint as active">🎯</button>
           <button type="button" class="session-action-btn" id="btnEditSession" onclick="openEditSessionModal()" title="Edit session name, goal, or close sprint">✏️</button>
           <button type="button" class="session-action-btn" onclick="openNewSessionModal()" title="Start a new sprint session">➕</button>
@@ -3147,10 +3213,14 @@
           <label class="form-label">Goal / Description (Optional)</label>
           <textarea class="form-textarea" id="newSessionDesc" style="min-height: 80px;" placeholder="What do you plan to accomplish in this session?"></textarea>
         </div>
-        <div class="form-group" style="margin-bottom: 20px;">
+        <div class="form-group" style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
           <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
             <input type="checkbox" id="newSessionSetActive" checked style="accent-color: var(--primary);">
-            <span>Set as currently active session</span>
+            <span>Set as currently active sprint</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer;">
+            <input type="checkbox" id="newSessionStartRunning" checked style="accent-color: #10B981;">
+            <span>Begin session immediately (allow AI to pick up tasks)</span>
           </label>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px;">
@@ -3191,11 +3261,16 @@
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Sprint Active State</label>
-            <button type="button" class="btn btn-secondary" id="btnMakeSessionActive" onclick="handleActivateCurrentSession()" style="width: 100%; justify-content: center; height: 38px; font-size: 12px;">
-              <span>🎯 Make Active</span>
+            <label class="form-label">AI Execution State</label>
+            <button type="button" class="btn btn-secondary" id="btnEditModalToggleRunning" onclick="handleEditModalToggleRunning()" style="width: 100%; justify-content: center; height: 38px; font-size: 12px; font-weight: 600;">
+              <span id="editModalToggleRunningText">▶ Begin Session</span>
             </button>
           </div>
+        </div>
+        <div class="form-group" style="margin-bottom: 14px;">
+          <button type="button" class="btn btn-secondary" id="btnMakeSessionActive" onclick="handleActivateCurrentSession()" style="width: 100%; justify-content: center; height: 34px; font-size: 12px;">
+            <span>🎯 Make Active Sprint</span>
+          </button>
         </div>
 
         <div class="session-modal-stats" id="editSessionStatsBox" style="background: #F8FAFC; border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-bottom: 18px;">
@@ -3956,9 +4031,11 @@
 
           let opts = sortedSessions.map(s => {
             const isAct = s.id === activeSessionId;
-            const prefix = isAct ? '🎯 ' : (s.status === 'completed' ? '✅ ' : '📁 ');
-            const suffix = isAct ? ' (Active)' : (s.status === 'completed' ? ' [Closed]' : '');
-            return `<option value="${s.id}" ${s.id === selectedSessionId ? 'selected' : ''}>${prefix}${escapeHtml(s.name)}${suffix}</option>`;
+            const isRun = s.is_running;
+            const icon = isAct ? '🎯 ' : (isRun ? '⚡ ' : '⏸ ');
+            const runSuffix = isRun ? ' (Running)' : ' (Stopped)';
+            const closedSuffix = s.status === 'completed' ? ' [Closed]' : '';
+            return `<option value="${s.id}" ${s.id === selectedSessionId ? 'selected' : ''}>${icon}${escapeHtml(s.name)}${runSuffix}${closedSuffix}</option>`;
           }).join('');
           opts += `<option value="all" ${selectedSessionId === 'all' ? 'selected' : ''}>🌐 All Tasks</option>`;
           select.innerHTML = opts;
@@ -3970,6 +4047,8 @@
 
     function updateSessionStatsBadge() {
       const statsTag = document.getElementById('sessionStatsTag');
+      const toggleBtn = document.getElementById('btnToggleSessionRunning');
+      const toggleText = document.getElementById('sessionToggleText');
       const activateBtn = document.getElementById('btnActivateSession');
       const editBtn = document.getElementById('btnEditSession');
 
@@ -3984,6 +4063,7 @@
         statsTag.innerText = `${done}/${total}`;
         statsTag.title = `All Tasks: ${done}/${total} done (${rate}%)`;
         statsTag.className = 'session-stats-tag' + (done === total && total > 0 ? ' is-complete' : '');
+        if (toggleBtn) toggleBtn.style.display = 'none';
         if (activateBtn) activateBtn.style.display = 'none';
         if (editBtn) editBtn.style.display = 'none';
         return;
@@ -3998,6 +4078,19 @@
         statsTag.title = `Sprint: ${stats.done}/${stats.total} done (${stats.completion_rate}%)`;
         statsTag.className = 'session-stats-tag' + (stats.done === stats.total && stats.total > 0 ? ' is-complete' : '');
 
+        if (toggleBtn) {
+          toggleBtn.style.display = 'inline-flex';
+          if (current.is_running) {
+            toggleBtn.className = 'btn-session-toggle is-running';
+            toggleBtn.title = `Sprint "${current.name}" is Running (AI active). Click to Stop session.`;
+            if (toggleText) toggleText.innerText = '⏹ Stop';
+          } else {
+            toggleBtn.className = 'btn-session-toggle is-stopped';
+            toggleBtn.title = `Sprint "${current.name}" is Stopped (AI paused). Click to Begin session.`;
+            if (toggleText) toggleText.innerText = '▶ Begin';
+          }
+        }
+
         if (activateBtn) {
           if (current.id !== activeSessionId) {
             activateBtn.style.display = 'inline-flex';
@@ -4009,8 +4102,33 @@
         statsTag.innerText = '0/0';
         statsTag.title = 'No tasks in sprint';
         statsTag.className = 'session-stats-tag';
+        if (toggleBtn) toggleBtn.style.display = 'none';
         if (activateBtn) activateBtn.style.display = 'none';
         if (editBtn) editBtn.style.display = 'none';
+      }
+    }
+
+    async function handleToggleCurrentSessionRunning() {
+      if (!selectedSessionId || selectedSessionId === 'all') return;
+      const current = allSessions.find(s => s.id === selectedSessionId);
+      if (!current) return;
+
+      const endpoint = current.is_running ? `/api/sessions/${selectedSessionId}/stop` : `/api/sessions/${selectedSessionId}/begin`;
+      try {
+        const res = await fetch(endpoint, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          if (data.session && data.session.is_running) {
+            showToast(`🚀 Begun session "${data.session.name}". AI will pick up tasks from this session.`, 'success');
+          } else {
+            showToast(`⏸ Stopped session "${current.name}". AI will pause working on this session.`, 'info');
+          }
+          await fetchTasks();
+        } else {
+          alert('Failed to toggle session: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Failed to toggle session: ' + err.message);
       }
     }
 
@@ -4055,6 +4173,9 @@
       document.getElementById('newSessionName').value = suggestClientSessionName();
       document.getElementById('newSessionDesc').value = '';
       document.getElementById('newSessionSetActive').checked = true;
+      if (document.getElementById('newSessionStartRunning')) {
+        document.getElementById('newSessionStartRunning').checked = true;
+      }
       document.getElementById('newSessionModal').classList.add('active');
     }
 
@@ -4067,6 +4188,7 @@
       const name = document.getElementById('newSessionName').value.trim();
       const description = document.getElementById('newSessionDesc').value.trim();
       const set_active = document.getElementById('newSessionSetActive').checked;
+      const is_running = document.getElementById('newSessionStartRunning') ? document.getElementById('newSessionStartRunning').checked : true;
 
       const submitBtn = document.getElementById('btnSubmitNewSession');
       if (submitBtn) {
@@ -4078,7 +4200,7 @@
         const res = await fetch('/api/sessions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, description, set_active })
+          body: JSON.stringify({ name, description, set_active, is_running })
         });
         const data = await res.json();
         if (data.success && data.session) {
@@ -4118,6 +4240,26 @@
       document.getElementById('statBoxInProgress').innerText = stats.in_progress;
       document.getElementById('statBoxRate').innerText = `${stats.completion_rate}%`;
 
+      const toggleRunBtn = document.getElementById('btnEditModalToggleRunning');
+      const toggleRunText = document.getElementById('editModalToggleRunningText');
+      if (toggleRunBtn && toggleRunText) {
+        if (sess.is_running) {
+          toggleRunBtn.className = 'btn btn-secondary';
+          toggleRunBtn.style.color = '#DC2626';
+          toggleRunBtn.style.borderColor = '#FCA5A5';
+          toggleRunBtn.style.background = '#FEF2F2';
+          toggleRunText.innerText = '⏹ Stop Session (AI Paused)';
+          toggleRunBtn.title = 'Session is currently running. Click to stop AI from working on this session.';
+        } else {
+          toggleRunBtn.className = 'btn btn-secondary';
+          toggleRunBtn.style.color = '#059669';
+          toggleRunBtn.style.borderColor = '#6EE7B7';
+          toggleRunBtn.style.background = '#ECFDF5';
+          toggleRunText.innerText = '▶ Begin Session (AI Active)';
+          toggleRunBtn.title = 'Session is currently stopped. Click to allow AI to pick up tasks from this session.';
+        }
+      }
+
       const makeActiveBtn = document.getElementById('btnMakeSessionActive');
       if (makeActiveBtn) {
         if (sess.id === activeSessionId) {
@@ -4132,6 +4274,31 @@
       }
 
       document.getElementById('editSessionModal').classList.add('active');
+    }
+
+    async function handleEditModalToggleRunning() {
+      const id = document.getElementById('editSessionId').value;
+      if (!id) return;
+      const sess = allSessions.find(s => s.id === id);
+      if (!sess) return;
+      const endpoint = sess.is_running ? `/api/sessions/${id}/stop` : `/api/sessions/${id}/begin`;
+      try {
+        const res = await fetch(endpoint, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          if (data.session && data.session.is_running) {
+            showToast(`🚀 Begun session "${data.session.name}". AI will pick up tasks from this session.`, 'success');
+          } else {
+            showToast(`⏸ Stopped session "${sess.name}". AI will pause working on this session.`, 'info');
+          }
+          await fetchTasks();
+          openEditSessionModal(id);
+        } else {
+          alert('Failed to toggle session state: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Failed to toggle session state: ' + err.message);
+      }
     }
 
     function closeEditSessionModal() {

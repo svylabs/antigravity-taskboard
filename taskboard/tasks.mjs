@@ -23,6 +23,13 @@ import {
   getBacklogFilePath,
   countNodes
 } from './backlog.mjs';
+import {
+  setSessionDb,
+  beginSession,
+  stopSession,
+  getAllSessions,
+  getRunningSessionIds
+} from './sessions.mjs';
 
 export {
   readProductTree,
@@ -111,6 +118,7 @@ if (!fs.existsSync(dbDir)) {
 
 export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+setSessionDb(db);
 
 // Ensure schema exists
 db.exec(`
@@ -292,7 +300,7 @@ export function getPendingReviewTasks() {
   `).all();
 }
 
-export function getNextTodoTask(excludeIds = []) {
+export function getCandidateTodoTasks(limit = 10, excludeIds = []) {
   const priorityOrder = `
     CASE priority
       WHEN 'urgent' THEN 1
@@ -310,6 +318,26 @@ export function getNextTodoTask(excludeIds = []) {
     params.push(...excludeIds);
   }
 
+  // Filter by running sessions if task_sessions exists
+  let sessionClause = '';
+  try {
+    const hasSessions = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='task_sessions'").get();
+    if (hasSessions) {
+      const runningCount = db.prepare("SELECT COUNT(*) as count FROM task_sessions WHERE is_running = 1").get();
+      const totalSessions = db.prepare("SELECT COUNT(*) as count FROM task_sessions").get();
+      if (totalSessions && totalSessions.count > 0) {
+        if (runningCount && runningCount.count > 0) {
+          sessionClause = `AND (t.session_id IN (SELECT id FROM task_sessions WHERE is_running = 1) OR (t.session_id IS NULL AND (SELECT COUNT(*) FROM task_sessions WHERE is_running = 1) > 0))`;
+        } else {
+          // All sessions are stopped! No tasks should be picked up.
+          return [];
+        }
+      }
+    }
+  } catch {}
+
+  params.push(limit);
+
   return db.prepare(`
     SELECT 
       t.*,
@@ -320,7 +348,7 @@ export function getNextTodoTask(excludeIds = []) {
       (SELECT COUNT(*) FROM task_subtasks s WHERE s.task_id = t.id AND s.status = 'done') as subtask_done_count,
       (SELECT COUNT(*) FROM task_attachments a WHERE a.task_id = t.id) as attachment_count
     FROM agent_tasks t 
-    WHERE t.status IN ('planned', 'todo') ${excludeClause}
+    WHERE t.status IN ('planned', 'todo') ${excludeClause} ${sessionClause}
     ORDER BY 
       CASE t.status 
         WHEN 'planned' THEN 1 
@@ -330,8 +358,13 @@ export function getNextTodoTask(excludeIds = []) {
       ${priorityOrder} ASC, 
       t.order_index ASC, 
       t.created_at ASC 
-    LIMIT 1
-  `).get(...params);
+    LIMIT ?
+  `).all(...params);
+}
+
+export function getNextTodoTask(excludeIds = []) {
+  const candidates = getCandidateTodoTasks(1, excludeIds);
+  return candidates.length > 0 ? candidates[0] : null;
 }
 
 export function getTaskById(id) {
@@ -366,7 +399,8 @@ export function addTask({
   scope_size = 'small',
   subtasks = null,
   attachments = null,
-  images = null
+  images = null,
+  session_id = null
 }) {
   if (status === 'backlog') status = 'todo';
   if (status === 'needs_revision') status = 'planned';
@@ -374,10 +408,18 @@ export function addTask({
   const maxOrder = db.prepare('SELECT MAX(order_index) as max_order FROM agent_tasks WHERE status = ?').get(status);
   const order_index = (maxOrder?.max_order ?? 0) + 1;
 
-  db.prepare(`
-    INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, processed_by_agent)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-  `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index);
+  const cols = db.prepare('PRAGMA table_info(agent_tasks)').all().map(c => c.name);
+  if (cols.includes('session_id')) {
+    db.prepare(`
+      INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, session_id, processed_by_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, session_id);
+  } else {
+    db.prepare(`
+      INSERT INTO agent_tasks (id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index, processed_by_agent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+    `).run(id, title, description, acceptance_criteria, verification_cmd, status, priority, subagent_role, scope, scope_size, order_index);
+  }
 
   if (subtasks) {
     const subtaskList = Array.isArray(subtasks)
@@ -415,7 +457,7 @@ export function addTask({
 
 export function updateTask(id, fields) {
   if (fields.status === 'needs_revision') fields.status = 'planned';
-  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'execution_logs', 'order_index', 'processed_by_agent'];
+  const allowed = ['title', 'description', 'acceptance_criteria', 'verification_cmd', 'status', 'priority', 'subagent_role', 'scope', 'scope_size', 'execution_logs', 'order_index', 'processed_by_agent', 'session_id', 'completed_at'];
   const setClauses = [];
   const params = [];
 
@@ -960,84 +1002,97 @@ export function checkPoll(maxConcurrency = 2) {
 
   // If we have capacity for more tasks (activeTasks.length < maxConcurrency)
   if (activeTasks.length < maxConcurrency) {
-    const candidateTask = getNextTodoTask();
-    if (candidateTask) {
-      const analysis = analyzeScopeAndConflict(candidateTask, activeTasks, reviewTasks);
-      
+    const activeIds = activeTasks.map(t => t.id);
+    const candidateTasks = getCandidateTodoTasks(10, activeIds);
+    
+    let chosenCandidate = null;
+    let chosenAnalysis = null;
+    let firstConflictReason = null;
+
+    for (const cand of candidateTasks) {
+      const analysis = analyzeScopeAndConflict(cand, activeTasks, reviewTasks);
       if (analysis.can_run_parallel) {
-        setMetadata('idle_since', null);
-        const subtasks = getSubtasks(candidateTask.id);
-        const attachments = getAttachments(candidateTask.id);
-        
-        if (activeTasks.length > 0) {
-          return {
-            has_work: true,
-            autonomous_mode: autoMode,
-            action: 'parallel_candidate_available',
-            active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
-            pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
-            task: {
-              ...candidateTask,
-              subtasks,
-              attachments
-            },
-            analysis
-          };
-        } else {
-          return {
-            has_work: true,
-            autonomous_mode: autoMode,
-            action: candidateTask.status === 'planned' ? 'planned_task_available' : 'todo_task_available',
-            pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title })),
-            task: {
-              ...candidateTask,
-              subtasks,
-              attachments
-            },
-            analysis
-          };
-        }
+        chosenCandidate = cand;
+        chosenAnalysis = analysis;
+        break;
+      } else if (!firstConflictReason) {
+        firstConflictReason = analysis.reason;
+      }
+    }
+
+    if (chosenCandidate && chosenAnalysis) {
+      setMetadata('idle_since', null);
+      const subtasks = getSubtasks(chosenCandidate.id);
+      const attachments = getAttachments(chosenCandidate.id);
+      
+      if (activeTasks.length > 0) {
+        return {
+          has_work: true,
+          autonomous_mode: autoMode,
+          action: 'parallel_candidate_available',
+          active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size, session_id: t.session_id })),
+          pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
+          task: {
+            ...chosenCandidate,
+            subtasks,
+            attachments
+          },
+          analysis: chosenAnalysis
+        };
       } else {
-        // Candidate task exists but CANNOT run in parallel due to conflict or large scope
-        if (activeTasks.length > 0) {
-          setMetadata('idle_since', null);
-          return {
-            has_work: true,
-            autonomous_mode: autoMode,
-            action: 'monitor_active',
-            active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
-            deferred_candidate: candidateTask.id,
-            deferral_reason: analysis.reason
-          };
-        } else if (reviewTasks.length > 0) {
-          // No active tasks, but candidate conflicts with a task in Pending Review!
-          const now = Date.now();
-          let idleSinceVal = getMetadata('idle_since');
-          let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
-          if (!idleSince) {
-            idleSince = now;
-            setMetadata('idle_since', String(now));
-          }
-          const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
-          const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '28800', 10);
-          const stopLoop = idleSeconds >= idleTimeout;
-          return {
-            has_work: false,
-            autonomous_mode: autoMode,
-            waiting_for_input: true,
-            action: 'waiting_for_user_input',
-            task_id: reviewTasks[0].id,
-            title: reviewTasks[0].title,
-            deferred_candidate: candidateTask.id,
-            deferral_reason: analysis.reason,
-            idle_seconds: idleSeconds,
-            idle_timeout_seconds: idleTimeout,
-            stop_loop: stopLoop,
-            message: stopLoop
-              ? `Waiting for review on "${reviewTasks[0].title}" for 8 hours (${idleSeconds}s). Autonomous loop stopping.`
-              : `Candidate "${candidateTask.title}" (${candidateTask.id}) deferred: ${analysis.reason} Idle for ${idleSeconds}s.`
-          };
+        return {
+          has_work: true,
+          autonomous_mode: autoMode,
+          action: chosenCandidate.status === 'planned' ? 'planned_task_available' : 'todo_task_available',
+          pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title })),
+          task: {
+            ...chosenCandidate,
+            subtasks,
+            attachments
+          },
+          analysis: chosenAnalysis
+        };
+      }
+    } else if (candidateTasks.length > 0) {
+      // Candidate tasks exist but CANNOT run in parallel due to conflict or large scope
+      if (activeTasks.length > 0) {
+        setMetadata('idle_since', null);
+        return {
+          has_work: true,
+          autonomous_mode: autoMode,
+          action: 'monitor_active',
+          active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status, session_id: t.session_id })),
+          deferred_candidate: candidateTasks[0].id,
+          deferral_reason: firstConflictReason || 'Scope conflict with active task'
+        };
+      } else if (reviewTasks.length > 0) {
+        // No active tasks, but candidate conflicts with a task in Pending Review!
+        const now = Date.now();
+        let idleSinceVal = getMetadata('idle_since');
+        let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
+        if (!idleSince) {
+          idleSince = now;
+          setMetadata('idle_since', String(now));
         }
+        const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
+        const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '28800', 10);
+        const stopLoop = idleSeconds >= idleTimeout;
+        return {
+          has_work: false,
+          autonomous_mode: autoMode,
+          waiting_for_input: true,
+          action: 'waiting_for_user_input',
+          task_id: reviewTasks[0].id,
+          title: reviewTasks[0].title,
+          deferred_candidate: candidateTasks[0].id,
+          deferral_reason: firstConflictReason || 'Pending review file lock',
+          idle_seconds: idleSeconds,
+          idle_timeout_seconds: idleTimeout,
+          stop_loop: stopLoop,
+          message: stopLoop
+            ? `Waiting for review on "${reviewTasks[0].title}" for 8 hours (${idleSeconds}s). Autonomous loop stopping.`
+            : `Candidate "${candidateTasks[0].title}" (${candidateTasks[0].id}) deferred: ${firstConflictReason || 'Pending review file lock'} Idle for ${idleSeconds}s.`
+        };
       }
     }
   }
@@ -1119,9 +1174,10 @@ export function markCommentProcessed(commentId) {
 }
 
 // CLI handler
+const isCliEntry = process.argv[1] && (process.argv[1].endsWith('tasks.mjs') || process.argv[1].endsWith('tasks'));
 const [,, command, ...args] = process.argv;
 
-if (command) {
+if (isCliEntry && command) {
   switch (command) {
     case 'info': {
       console.log(JSON.stringify(getProjectInfo(), null, 2));
@@ -1502,9 +1558,45 @@ if (command) {
       console.log('✅ Follow-up task created with ID ' + created.id + ': "' + created.title + '"');
       break;
     }
+    case 'begin-session': {
+      const [sessId] = args;
+      let targetId = sessId;
+      if (!targetId) {
+        const list = getAllSessions(db);
+        if (list.length > 0) targetId = list[0].id;
+      }
+      if (!targetId) {
+        console.error('No sessions found.');
+        process.exit(1);
+      }
+      const updated = beginSession(db, targetId);
+      console.log(JSON.stringify({ success: true, message: `Session "${updated.name}" (${updated.id}) is now running. AI will pick up tasks from this session.`, session: updated }, null, 2));
+      break;
+    }
+    case 'stop-session': {
+      const [sessId] = args;
+      let targetId = sessId;
+      if (!targetId) {
+        const list = getAllSessions(db);
+        if (list.length > 0) targetId = list[0].id;
+      }
+      if (!targetId) {
+        console.error('No sessions found.');
+        process.exit(1);
+      }
+      const updated = stopSession(db, targetId);
+      console.log(JSON.stringify({ success: true, message: `Session "${updated.name}" (${updated.id}) is now stopped. AI will not pick up tasks from this session.`, session: updated }, null, 2));
+      break;
+    }
+    case 'running-sessions':
+    case 'sessions': {
+      const list = getAllSessions(db);
+      console.log(JSON.stringify(list, null, 2));
+      break;
+    }
 
     default: {
-      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup.`);
+      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup, begin-session, stop-session, running-sessions, sessions.`);
     }
   }
 }

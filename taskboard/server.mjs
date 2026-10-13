@@ -61,6 +61,9 @@ import {
   createSession,
   updateSession,
   deleteSession,
+  beginSession,
+  stopSession,
+  getRunningSessionIds,
   setTaskSession,
   onTaskStatusChanged,
   getTodaySessionName
@@ -999,6 +1002,30 @@ const server = http.createServer(async (req, res) => {
     try {
       setActiveSessionId(db, sessionId);
       return sendJson(res, 200, { success: true, activeSessionId: sessionId });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/sessions/:id/begin
+  const sessionBeginMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/begin$/);
+  if (sessionBeginMatch && req.method === 'POST') {
+    const sessionId = sessionBeginMatch[1];
+    try {
+      const session = beginSession(db, sessionId);
+      return sendJson(res, 200, { success: true, session });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/sessions/:id/stop
+  const sessionStopMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/stop$/);
+  if (sessionStopMatch && req.method === 'POST') {
+    const sessionId = sessionStopMatch[1];
+    try {
+      const session = stopSession(db, sessionId);
+      return sendJson(res, 200, { success: true, session });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
     }

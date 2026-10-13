@@ -1,4 +1,20 @@
-import { db } from './tasks.mjs';
+/**
+ * Session management module for antigravity-taskboard.
+ * Provides sprints/sessions capabilities to track tasks completed in a given timeframe.
+ * Supports begin and stop session actions for autonomous AI loop control.
+ */
+
+let _sharedDb = null;
+
+export function setSessionDb(database) {
+  _sharedDb = database;
+}
+
+export function resolveDb(database) {
+  if (database && typeof database.prepare === 'function') return database;
+  if (_sharedDb && typeof _sharedDb.prepare === 'function') return _sharedDb;
+  throw new Error('Database instance is required for session operations. Call setSessionDb(db) or pass db as parameter.');
+}
 
 /**
  * Returns today's date formatted as YYYY-MM-DD in local time.
@@ -14,20 +30,29 @@ export function getTodaySessionName() {
 /**
  * Ensures SQLite schema for sessions exists and migrates agent_tasks table.
  */
-export function ensureSessionSchema(database = db) {
+export function ensureSessionSchema(database) {
+  database = resolveDb(database);
   // 1. Create task_sessions table
   database.prepare(`
     CREATE TABLE IF NOT EXISTS task_sessions (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       description TEXT DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'active',
+      status TEXT NOT NULL DEFAULT 'running',
+      is_running INTEGER NOT NULL DEFAULT 1,
       started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       ended_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+
+  // Migrate is_running if missing
+  const sessionCols = database.prepare('PRAGMA table_info(task_sessions)').all().map(c => c.name);
+  if (!sessionCols.includes('is_running')) {
+    database.prepare('ALTER TABLE task_sessions ADD COLUMN is_running INTEGER NOT NULL DEFAULT 1').run();
+    database.prepare("UPDATE task_sessions SET is_running = 1 WHERE status IN ('active', 'running')").run();
+  }
 
   // 2. Add session_id and completed_at to agent_tasks if not present
   const taskCols = database.prepare('PRAGMA table_info(agent_tasks)').all().map(c => c.name);
@@ -49,7 +74,8 @@ export function ensureSessionSchema(database = db) {
  * Ensures a default session exists. If no sessions exist, creates one with today's date
  * and links any existing unassigned tasks to it.
  */
-export function ensureDefaultSession(database = db) {
+export function ensureDefaultSession(database) {
+  database = resolveDb(database);
   const countRow = database.prepare('SELECT COUNT(*) as count FROM task_sessions').get();
   let activeId = getActiveSessionId(database);
 
@@ -57,8 +83,8 @@ export function ensureDefaultSession(database = db) {
     const defaultName = getTodaySessionName();
     const id = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
     database.prepare(`
-      INSERT INTO task_sessions (id, name, description, status, started_at)
-      VALUES (?, ?, ?, 'active', CURRENT_TIMESTAMP)
+      INSERT INTO task_sessions (id, name, description, status, is_running, started_at)
+      VALUES (?, ?, ?, 'running', 1, CURRENT_TIMESTAMP)
     `).run(id, defaultName, `Sprint session for ${defaultName}`);
 
     // Link any existing tasks without a session to this default session
@@ -70,9 +96,9 @@ export function ensureDefaultSession(database = db) {
     return id;
   }
 
-  // If there's no valid active session in board_metadata, pick the first active one or the newest
+  // If there's no valid active session in board_metadata, pick the first running one or newest
   if (!activeId || !database.prepare('SELECT id FROM task_sessions WHERE id = ?').get(activeId)) {
-    const active = database.prepare("SELECT id FROM task_sessions WHERE status = 'active' ORDER BY created_at DESC LIMIT 1").get()
+    const active = database.prepare("SELECT id FROM task_sessions WHERE is_running = 1 ORDER BY created_at DESC LIMIT 1").get()
       || database.prepare("SELECT id FROM task_sessions ORDER BY created_at DESC LIMIT 1").get();
     if (active) {
       setActiveSessionId(database, active.id);
@@ -86,7 +112,8 @@ export function ensureDefaultSession(database = db) {
 /**
  * Gets the active session ID from board_metadata.
  */
-export function getActiveSessionId(database = db) {
+export function getActiveSessionId(database) {
+  database = resolveDb(database);
   const row = database.prepare("SELECT value FROM board_metadata WHERE key = 'active_session_id'").get();
   return row ? row.value : null;
 }
@@ -94,7 +121,13 @@ export function getActiveSessionId(database = db) {
 /**
  * Sets the active session ID in board_metadata.
  */
-export function setActiveSessionId(database = db, sessionId) {
+export function setActiveSessionId(database, sessionId) {
+  if (typeof database === 'string' && sessionId === undefined) {
+    sessionId = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
   database.prepare(`
     INSERT INTO board_metadata (key, value, updated_at)
     VALUES ('active_session_id', ?, CURRENT_TIMESTAMP)
@@ -105,7 +138,8 @@ export function setActiveSessionId(database = db, sessionId) {
 /**
  * Retrieves all sessions with calculated statistics.
  */
-export function getAllSessions(database = db) {
+export function getAllSessions(database) {
+  database = resolveDb(database);
   ensureSessionSchema(database);
   const activeId = getActiveSessionId(database);
   const sessions = database.prepare(`
@@ -143,6 +177,7 @@ export function getAllSessions(database = db) {
     return {
       ...sess,
       is_active: sess.id === activeId,
+      is_running: Boolean(sess.is_running),
       stats: {
         ...stats,
         completion_rate
@@ -154,7 +189,13 @@ export function getAllSessions(database = db) {
 /**
  * Gets a single session by ID with its stats.
  */
-export function getSessionById(database = db, id) {
+export function getSessionById(database, id) {
+  if (typeof database === 'string' && id === undefined) {
+    id = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
   ensureSessionSchema(database);
   const activeId = getActiveSessionId(database);
   const sess = database.prepare('SELECT * FROM task_sessions WHERE id = ?').get(id);
@@ -180,6 +221,7 @@ export function getSessionById(database = db, id) {
   return {
     ...sess,
     is_active: sess.id === activeId,
+    is_running: Boolean(sess.is_running),
     stats: {
       ...stats,
       completion_rate
@@ -189,9 +231,67 @@ export function getSessionById(database = db, id) {
 }
 
 /**
+ * Begins a session, authorizing AI to work on its tasks.
+ */
+export function beginSession(database, id) {
+  if (typeof database === 'string' && id === undefined) {
+    id = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
+  ensureSessionSchema(database);
+  const sess = database.prepare('SELECT * FROM task_sessions WHERE id = ?').get(id);
+  if (!sess) throw new Error(`Session ${id} not found`);
+
+  database.prepare(`
+    UPDATE task_sessions 
+    SET is_running = 1, status = 'running', started_at = COALESCE(started_at, CURRENT_TIMESTAMP), ended_at = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(id);
+
+  setActiveSessionId(database, id);
+  return getSessionById(database, id);
+}
+
+/**
+ * Stops a session, pausing AI from picking up its tasks.
+ */
+export function stopSession(database, id) {
+  if (typeof database === 'string' && id === undefined) {
+    id = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
+  ensureSessionSchema(database);
+  const sess = database.prepare('SELECT * FROM task_sessions WHERE id = ?').get(id);
+  if (!sess) throw new Error(`Session ${id} not found`);
+
+  database.prepare(`
+    UPDATE task_sessions 
+    SET is_running = 0, status = 'stopped', ended_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ?
+  `).run(id);
+
+  return getSessionById(database, id);
+}
+
+/**
+ * Returns array of running session IDs (where is_running = 1).
+ */
+export function getRunningSessionIds(database) {
+  database = resolveDb(database);
+  ensureSessionSchema(database);
+  const rows = database.prepare('SELECT id FROM task_sessions WHERE is_running = 1').all();
+  return rows.map(r => r.id);
+}
+
+/**
  * Generates an automatic next name if a session with today's date already exists.
  */
-export function suggestNextSessionName(database = db) {
+export function suggestNextSessionName(database) {
+  database = resolveDb(database);
   const base = getTodaySessionName();
   const existing = database.prepare(`
     SELECT name FROM task_sessions WHERE name = ? OR name LIKE ?
@@ -217,15 +317,24 @@ export function suggestNextSessionName(database = db) {
 /**
  * Creates a new session.
  */
-export function createSession(database = db, { name, description = '', status = 'active', set_active = true } = {}) {
+export function createSession(database, opts = {}) {
+  if (database && typeof database.prepare !== 'function') {
+    opts = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
+  const { name, description = '', status = 'running', is_running = true, set_active = true } = opts;
   ensureSessionSchema(database);
   const sessionName = (name && name.trim()) ? name.trim() : suggestNextSessionName(database);
   const id = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  const runningVal = is_running ? 1 : 0;
+  const initialStatus = is_running ? 'running' : (status || 'stopped');
 
   database.prepare(`
-    INSERT INTO task_sessions (id, name, description, status, started_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-  `).run(id, sessionName, description || '', status || 'active');
+    INSERT INTO task_sessions (id, name, description, status, is_running, started_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `).run(id, sessionName, description || '', initialStatus, runningVal);
 
   if (set_active) {
     setActiveSessionId(database, id);
@@ -237,27 +346,44 @@ export function createSession(database = db, { name, description = '', status = 
 /**
  * Updates an existing session.
  */
-export function updateSession(database = db, id, { name, description, status } = {}) {
+export function updateSession(database, id, opts) {
+  if (typeof database === 'string') {
+    opts = id;
+    id = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
+  const { name, description, status, is_running } = opts || {};
   ensureSessionSchema(database);
   const sess = database.prepare('SELECT * FROM task_sessions WHERE id = ?').get(id);
   if (!sess) throw new Error(`Session ${id} not found`);
 
   const newName = name !== undefined && name.trim() ? name.trim() : sess.name;
   const newDesc = description !== undefined ? description : sess.description;
-  const newStatus = status !== undefined ? status : sess.status;
+  let newStatus = status !== undefined ? status : sess.status;
+  let runningVal = is_running !== undefined ? (is_running ? 1 : 0) : sess.is_running;
+
+  if (newStatus === 'completed' && sess.status !== 'completed') {
+    runningVal = 0;
+  } else if (newStatus === 'running') {
+    runningVal = 1;
+  } else if (newStatus === 'stopped') {
+    runningVal = 0;
+  }
 
   let endedAt = sess.ended_at;
-  if (newStatus === 'completed' && sess.status !== 'completed') {
+  if ((newStatus === 'completed' || runningVal === 0) && !endedAt) {
     endedAt = new Date().toISOString();
-  } else if (newStatus === 'active') {
+  } else if (runningVal === 1) {
     endedAt = null;
   }
 
   database.prepare(`
     UPDATE task_sessions 
-    SET name = ?, description = ?, status = ?, ended_at = ?, updated_at = CURRENT_TIMESTAMP
+    SET name = ?, description = ?, status = ?, is_running = ?, ended_at = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ?
-  `).run(newName, newDesc, newStatus, endedAt, id);
+  `).run(newName, newDesc, newStatus, runningVal, endedAt, id);
 
   return getSessionById(database, id);
 }
@@ -265,7 +391,13 @@ export function updateSession(database = db, id, { name, description, status } =
 /**
  * Deletes a session and safely unlinks associated tasks.
  */
-export function deleteSession(database = db, id) {
+export function deleteSession(database, id) {
+  if (typeof database === 'string' && id === undefined) {
+    id = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
   ensureSessionSchema(database);
   const sess = database.prepare('SELECT * FROM task_sessions WHERE id = ?').get(id);
   if (!sess) throw new Error(`Session ${id} not found`);
@@ -288,7 +420,14 @@ export function deleteSession(database = db, id) {
 /**
  * Assigns a task to a session.
  */
-export function setTaskSession(database = db, taskId, sessionId) {
+export function setTaskSession(database, taskId, sessionId) {
+  if (typeof database === 'string' && sessionId === undefined) {
+    sessionId = taskId;
+    taskId = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
   ensureSessionSchema(database);
   database.prepare(`
     UPDATE agent_tasks SET session_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?
@@ -298,7 +437,14 @@ export function setTaskSession(database = db, taskId, sessionId) {
 /**
  * Handles completed status change for a task, recording completion timestamp and session.
  */
-export function onTaskStatusChanged(database = db, taskId, newStatus) {
+export function onTaskStatusChanged(database, taskId, newStatus) {
+  if (typeof database === 'string' && newStatus === undefined) {
+    newStatus = taskId;
+    taskId = database;
+    database = resolveDb();
+  } else {
+    database = resolveDb(database);
+  }
   ensureSessionSchema(database);
   if (newStatus === 'done') {
     const task = database.prepare('SELECT session_id, completed_at FROM agent_tasks WHERE id = ?').get(taskId);
