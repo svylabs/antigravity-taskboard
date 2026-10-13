@@ -148,7 +148,10 @@ export function readProductTree(projectDir, projectName, db = null) {
 export const readBacklogTree = readProductTree;
 
 /**
- * Commit product.json and any associated product_assets to git with an appropriate message.
+ * Commit product.json to git with an appropriate message.
+ * Strictly scopes git operations to 'product.json' ONLY so that no other files
+ * (work-in-progress code from running agents, SQLite databases, logs, assets, etc.)
+ * are ever staged or committed.
  */
 export function commitProductChanges(projectDir, message = null) {
   const pDir = projectDir || process.cwd();
@@ -158,24 +161,17 @@ export function commitProductChanges(projectDir, message = null) {
       return null;
     }
 
-    const pathsToConsider = ['product.json'];
-    const assetsDir = path.join(pDir, 'product_assets');
-    const hasAssetFiles = fs.existsSync(assetsDir) && fs.readdirSync(assetsDir).length > 0;
-    const trackedCheck = spawnSync('git', ['ls-files', 'product_assets'], { cwd: pDir, stdio: 'pipe' });
-    const isAssetsTracked = Boolean(trackedCheck.stdout && trackedCheck.stdout.toString().trim());
-    if (hasAssetFiles || isAssetsTracked) {
-      pathsToConsider.push('product_assets');
-    }
+    const targetFile = 'product.json';
 
-    // Check if git status has any changes for these paths
-    const statusRes = spawnSync('git', ['status', '--porcelain', '--', ...pathsToConsider], { cwd: pDir, stdio: 'pipe' });
+    // Check if git status has any changes strictly for product.json
+    const statusRes = spawnSync('git', ['status', '--porcelain', '--', targetFile], { cwd: pDir, stdio: 'pipe' });
     const statusOut = statusRes.stdout ? statusRes.stdout.toString().trim() : '';
     if (!statusOut) {
       return null;
     }
 
-    // Stage these paths
-    spawnSync('git', ['add', '-A', '--', ...pathsToConsider], { cwd: pDir, stdio: 'pipe' });
+    // Stage ONLY product.json
+    spawnSync('git', ['add', '--', targetFile], { cwd: pDir, stdio: 'pipe' });
 
     // Determine commit message
     const commitMsg = message || 'chore(product): update product specification in product.json';
@@ -188,7 +184,8 @@ export function commitProductChanges(projectDir, message = null) {
     if (!hasUser) {
       commitArgs.push('-c', 'user.name=Antigravity Taskboard', '-c', 'user.email=taskboard@local');
     }
-    commitArgs.push('commit', '-m', commitMsg, '--', ...pathsToConsider);
+    // Commit strictly product.json
+    commitArgs.push('commit', '-m', commitMsg, '--', targetFile);
 
     const commitRes = spawnSync('git', commitArgs, { cwd: pDir, stdio: 'pipe' });
     if (commitRes.status === 0) {
@@ -206,8 +203,7 @@ export function commitProductChanges(projectDir, message = null) {
 
 /**
  * Write product description tree to disk formatted with 2-space indentation for clean git diffs.
- * Automatically stages and commits product.json (and any associated product_assets) to git
- * with an appropriate descriptive commit message.
+ * Automatically stages and commits product.json strictly to git with an appropriate descriptive commit message.
  */
 export function writeProductTree(projectDir, tree, commitMessage = null) {
   const pDir = projectDir || process.cwd();
