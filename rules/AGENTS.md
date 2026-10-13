@@ -95,9 +95,19 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
       - **Download Attachment**: `node taskboard/tasks.mjs get-attachment <ID> [OUTPUT_PATH]`
       - **Get Follow-up Suggestions**: `node taskboard/tasks.mjs followups <TASK_ID>`
       - **Create Follow-up Task**: `node taskboard/tasks.mjs create-followup <TASK_ID> <INDEX>`
+      - **Toggle / Check Autonomous Mode**: `node taskboard/tasks.mjs autonomous [on|off|status]`
 
 12. **Permission Request Alerts & Beeps**:
     * Whenever an agent or subagent needs user approval (e.g. sandbox bypass, destructive action, or subagent entering `waiting_for_input`), it must immediately run:
       `node taskboard/tasks.mjs notify-permission <TASK_ID> "<TOOL_OR_PERMISSION_DETAILS>"`
     * This posts a `comment_type: 'permission'` card comment and sounds the system chime. The web board activates the attention banner and chimes every 5 minutes until acted on.
+
+13. **Autonomous Mode (`autonomous_mode`)**:
+    * When Autonomous Mode is enabled (`autonomous_mode == true` or `node taskboard/tasks.mjs autonomous status` returns true, or toggled on in the taskboard UI):
+      - **Tasks do NOT wait until manually reviewed**: Once verification passes (automated command exits 0 or criteria evaluated) and the walkthrough with 3 follow-up suggestions is posted, the supervisor marks the card directly as `done`:
+        `node taskboard/tasks.mjs update <TASK_ID> done "Verified and auto-approved in Autonomous Mode."`
+      - Any tasks sitting in `verification` (`👀 Pending Review`) are auto-approved to `done` and will not block candidate tasks from running.
+      - The autonomous loop supervisor immediately proceeds to the next candidate task in `planned` / `todo` without halting for human sign-off.
+    * When Autonomous Mode is disabled (default):
+      - Completed tasks hold in `verification` (`👀 Pending Review`) for manual user testing, feedback, and approval.
 

@@ -86,7 +86,14 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 * **If `action == "waiting_for_user_input"`**:
   A task is waiting for user review or input in **`👀 Pending Review`**!
-  The supervisor waits for the user to review, manually test, or comment. If 8 hours elapse without user response, the loop terminates.
+  - **If Autonomous Mode is ON** (`autonomous_mode: true` or `node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs autonomous status`):
+    Auto-approve the task and advance directly to `done`:
+    ```bash
+    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> done "Auto-approved in Autonomous Mode without manual review hold."
+    ```
+    Release file locks and proceed immediately back to Step 1 to pick up the next task.
+  - **If Autonomous Mode is OFF**:
+    The supervisor waits for the user to review, manually test, or comment. If 8 hours elapse without user response, the loop terminates.
 
 * **If `action == "planned_task_available"`**:
   A task is in **`📋 Planned`** with its technical approach and verification criteria established!
@@ -145,7 +152,7 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "###
 
 ---
 
-### Step 3: Verify & Transition to Pending Review for User Approval
+### Step 3: Verify & Transition (Autonomous Mode vs Manual Review Gate)
 When the subagent finishes:
 1. In `in_progress`, evaluate verification:
    * **If automated command**: run it with `run_command` (must exit 0).
@@ -174,12 +181,21 @@ Verified changes against criteria:
 ]
 -->" "Subagent" "walkthrough"
    ```
-4. Transition card status to `verification` (**`👀 Pending Review`**):
-   ```bash
-   node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> verification "Implementation complete; awaiting user manual verification and review."
-   ```
+4. **Transition Card Status Based on Autonomous Mode**:
+   Check if Autonomous Mode is active (`autonomous_mode` in poll output or `node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs autonomous status`):
+   * **If Autonomous Mode is ON**:
+     Do **NOT** pause in Pending Review! Advance the task directly to **`done`**:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> done "Implementation and verification complete. Auto-approved in Autonomous Mode."
+     ```
+     File locks are instantly released. Proceed immediately back to Step 1 to execute the next candidate task without waiting.
+   * **If Autonomous Mode is OFF**:
+     Transition card status to `verification` (**`👀 Pending Review`**):
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> verification "Implementation complete; awaiting user manual verification and review."
+     ```
 5. **Follow-up Tasks Displayed in Taskboard Comment (Not within Antigravity itself)**:
    Do NOT prompt the user within Antigravity chat (never call `ask_question` or block the chat for follow-ups). All 3 follow-up tasks are recorded directly on the task card within the walkthrough comment. The taskboard web UI dynamically renders interactive action buttons inside the comment card (`➕ Create Task`, `✏️ Customize`, `➕ Create Another Task`, `↩️ Go Back`), allowing the user to create tasks directly from the board interface at their convenience.
 6. If automated verification failed:
    * Mark card `failed` with failure logs.
-7. While the card is in **`👀 Pending Review`**, keep the standing 1-minute recurring cron active (`schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop", IsDaemon=false)`). The supervisor pauses code execution to allow user manual testing, but the background cron continues checking every 60s so user feedback, comments, approvals (`done`), or moves back to `todo`/`planned` are detected and picked up autonomously within 1 minute. Once the user approves or requests revision, proceed back to Step 1.
+7. While a card is in **`👀 Pending Review`** (when Autonomous Mode is OFF), keep the standing 1-minute recurring cron active (`schedule(CronExpression="* * * * *", Prompt="Check taskboard for new tasks or comments and execute supervisor loop", IsDaemon=false)`). The supervisor pauses code execution to allow user manual testing, but the background cron continues checking every 60s so user feedback, comments, approvals (`done`), or moves back to `todo`/`planned` are detected and picked up autonomously within 1 minute. Once the user approves or requests revision, proceed back to Step 1.

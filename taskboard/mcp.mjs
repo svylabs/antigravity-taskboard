@@ -22,6 +22,8 @@ import {
   addBacklogNode,
   convertBacklogNodeToTask,
   syncTaskStatusesWithTree,
+  isAutonomousMode,
+  setAutonomousMode,
   db
 } from './tasks.mjs';
 
@@ -208,6 +210,17 @@ const TOOLS = [
       },
       required: ['node_id', 'description']
     }
+  },
+  {
+    name: 'taskboard_set_autonomous_mode',
+    description: 'Enable or disable autonomous execution mode on the taskboard. In autonomous mode, verified tasks advance directly to Done without waiting for manual human review.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        enabled: { type: 'boolean', description: 'True to enable autonomous mode, false to disable' }
+      },
+      required: ['enabled']
+    }
   }
 ];
 
@@ -215,6 +228,10 @@ function handleToolCall(name, args) {
   switch (name) {
     case 'taskboard_poll': {
       return checkPoll();
+    }
+    case 'taskboard_set_autonomous_mode': {
+      const state = setAutonomousMode(args.enabled);
+      return { success: true, autonomous_mode: state, message: state ? 'Autonomous Mode enabled' : 'Autonomous Mode disabled' };
     }
     case 'taskboard_get_next': {
       const task = getNextTodoTask();

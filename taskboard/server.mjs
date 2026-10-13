@@ -25,6 +25,8 @@ import {
   getAttachment,
   addAttachment,
   deleteAttachment,
+  isAutonomousMode,
+  setAutonomousMode,
   db
 } from './tasks.mjs';
 import {
@@ -929,7 +931,24 @@ const server = http.createServer(async (req, res) => {
   // REST API: GET /api/tasks
   if (pathname === '/api/tasks' && req.method === 'GET') {
     const tasks = getAllTasks().filter(t => t.status !== 'backlog');
-    return sendJson(res, 200, { success: true, tasks, project: getProjectInfo().projectName });
+    return sendJson(res, 200, { success: true, tasks, project: getProjectInfo().projectName, autonomous_mode: isAutonomousMode() });
+  }
+
+  // REST API: GET /api/autonomous
+  if (pathname === '/api/autonomous' && req.method === 'GET') {
+    return sendJson(res, 200, { success: true, autonomous_mode: isAutonomousMode() });
+  }
+
+  // REST API: POST /api/autonomous
+  if (pathname === '/api/autonomous' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const enabled = body.enabled !== undefined ? Boolean(body.enabled) : (body.mode === 'on' || body.mode === '1');
+      const state = setAutonomousMode(enabled);
+      return sendJson(res, 200, { success: true, autonomous_mode: state, message: state ? 'Autonomous Mode enabled' : 'Autonomous Mode disabled' });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
   }
 
   // REST API: POST /api/tasks

@@ -226,6 +226,20 @@ export function setMetadata(key, value) {
   }
 }
 
+export function isAutonomousMode() {
+  const meta = getMetadata('autonomous_mode');
+  if (meta !== null) {
+    return meta === '1' || meta === 'true';
+  }
+  const env = process.env.TASKBOARD_AUTONOMOUS_MODE;
+  return env === '1' || env === 'true';
+}
+
+export function setAutonomousMode(enabled) {
+  setMetadata('autonomous_mode', enabled ? '1' : '0');
+  return isAutonomousMode();
+}
+
 export function getAllTasks() {
   return db.prepare(`
     SELECT 
@@ -863,28 +877,31 @@ export function analyzeScopeAndConflict(candidateTask, activeTasks = [], pending
   }
 
   // 4. Check against Pending Review tasks (File Lock)
-  for (const review of pendingReviewTasks) {
-    const reviewPaths = extractTaskPaths(review);
+  // 4. Check against Pending Review tasks (File Lock) - only when Autonomous Mode is OFF
+  if (!isAutonomousMode()) {
+    for (const review of pendingReviewTasks) {
+      const reviewPaths = extractTaskPaths(review);
 
-    if (candidateIsDb && isDbMigrationTask(review, reviewPaths)) {
-      return {
-        can_run_parallel: false,
-        conflict_type: 'database_migration_review',
-        conflicting_task_id: review.id,
-        reason: `Candidate touches database migrations while task "${review.id}" is in Pending Review. Migrations must be reviewed and approved before continuing.`
-      };
-    }
+      if (candidateIsDb && isDbMigrationTask(review, reviewPaths)) {
+        return {
+          can_run_parallel: false,
+          conflict_type: 'database_migration_review',
+          conflicting_task_id: review.id,
+          reason: `Candidate touches database migrations while task "${review.id}" is in Pending Review. Migrations must be reviewed and approved before continuing.`
+        };
+      }
 
-    for (const cp of candidatePaths) {
-      for (const rp of reviewPaths) {
-        if (cp === rp || cp.startsWith(rp + '/') || rp.startsWith(cp + '/')) {
-          return {
-            can_run_parallel: false,
-            conflict_type: 'pending_review_lock',
-            conflicting_task_id: review.id,
-            conflict_path: cp,
-            reason: `Path "${cp}" is locked by task "${review.id}" in Pending Review. Must await user verification.`
-          };
+      for (const cp of candidatePaths) {
+        for (const rp of reviewPaths) {
+          if (cp === rp || cp.startsWith(rp + '/') || rp.startsWith(cp + '/')) {
+            return {
+              can_run_parallel: false,
+              conflict_type: 'pending_review_lock',
+              conflicting_task_id: review.id,
+              conflict_path: cp,
+              reason: `Path "${cp}" is locked by task "${review.id}" in Pending Review. Must await user verification.`
+            };
+          }
         }
       }
     }
@@ -902,6 +919,22 @@ export function analyzeScopeAndConflict(candidateTask, activeTasks = [], pending
 
 // Token-efficient polling and acknowledgement functions
 export function checkPoll(maxConcurrency = 2) {
+  const autoMode = isAutonomousMode();
+
+  // In Autonomous Mode: auto-approve any tasks in verification directly to done!
+  let reviewTasks = getPendingReviewTasks();
+  if (autoMode && reviewTasks.length > 0) {
+    for (const rt of reviewTasks) {
+      updateTask(rt.id, { status: 'done', execution_logs: 'Auto-approved in Autonomous Mode without manual review hold.' });
+      addComment(rt.id, {
+        author: 'Autonomous Supervisor',
+        comment_type: 'comment',
+        content: '⚡ Autonomous Mode is active: Task auto-approved and moved to Done without manual review wait.'
+      });
+    }
+    reviewTasks = getPendingReviewTasks();
+  }
+
   // 1. Unread user comments (Always top priority)
   const unreadComments = db.prepare(`
     SELECT c.id, c.task_id, c.content, c.comment_type, t.title as task_title, t.status as task_status
@@ -915,6 +948,7 @@ export function checkPoll(maxConcurrency = 2) {
     setMetadata('idle_since', null);
     return {
       has_work: true,
+      autonomous_mode: autoMode,
       action: 'unread_user_comments',
       count: unreadComments.length,
       comments: unreadComments
@@ -923,7 +957,6 @@ export function checkPoll(maxConcurrency = 2) {
 
   // 2. Retrieve active running tasks and pending review tasks
   const activeTasks = getActiveTasks();
-  const reviewTasks = getPendingReviewTasks();
 
   // If we have capacity for more tasks (activeTasks.length < maxConcurrency)
   if (activeTasks.length < maxConcurrency) {
@@ -939,6 +972,7 @@ export function checkPoll(maxConcurrency = 2) {
         if (activeTasks.length > 0) {
           return {
             has_work: true,
+            autonomous_mode: autoMode,
             action: 'parallel_candidate_available',
             active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
             pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, scope_size: t.scope_size })),
@@ -952,6 +986,7 @@ export function checkPoll(maxConcurrency = 2) {
         } else {
           return {
             has_work: true,
+            autonomous_mode: autoMode,
             action: candidateTask.status === 'planned' ? 'planned_task_available' : 'todo_task_available',
             pending_review_tasks: reviewTasks.map(t => ({ id: t.id, title: t.title })),
             task: {
@@ -968,6 +1003,7 @@ export function checkPoll(maxConcurrency = 2) {
           setMetadata('idle_since', null);
           return {
             has_work: true,
+            autonomous_mode: autoMode,
             action: 'monitor_active',
             active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
             deferred_candidate: candidateTask.id,
@@ -987,6 +1023,7 @@ export function checkPoll(maxConcurrency = 2) {
           const stopLoop = idleSeconds >= idleTimeout;
           return {
             has_work: false,
+            autonomous_mode: autoMode,
             waiting_for_input: true,
             action: 'waiting_for_user_input',
             task_id: reviewTasks[0].id,
@@ -1010,6 +1047,7 @@ export function checkPoll(maxConcurrency = 2) {
     setMetadata('idle_since', null);
     return {
       has_work: true,
+      autonomous_mode: autoMode,
       action: 'monitor_active',
       active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status })),
       message: `${activeTasks.length} task(s) currently in progress.`
@@ -1030,6 +1068,7 @@ export function checkPoll(maxConcurrency = 2) {
     const stopLoop = idleSeconds >= idleTimeout;
     return {
       has_work: false,
+      autonomous_mode: autoMode,
       waiting_for_input: true,
       action: 'waiting_for_user_input',
       task_id: reviewTasks[0].id,
@@ -1057,6 +1096,7 @@ export function checkPoll(maxConcurrency = 2) {
 
   return {
     has_work: false,
+    autonomous_mode: autoMode,
     action: 'idle',
     idle_seconds: idleSeconds,
     idle_timeout_seconds: idleTimeout,
@@ -1090,6 +1130,20 @@ if (command) {
     case 'poll': {
       // Ultra-lightweight check for loop timers
       console.log(JSON.stringify(checkPoll()));
+      break;
+    }
+    case 'autonomous': {
+      const [sub] = args;
+      if (sub === 'on' || sub === '1' || sub === 'enable' || sub === 'true') {
+        const state = setAutonomousMode(true);
+        console.log(JSON.stringify({ success: true, autonomous_mode: state, message: 'Autonomous Mode ENABLED. Tasks will not wait in Pending Review.' }));
+      } else if (sub === 'off' || sub === '0' || sub === 'disable' || sub === 'false') {
+        const state = setAutonomousMode(false);
+        console.log(JSON.stringify({ success: true, autonomous_mode: state, message: 'Autonomous Mode DISABLED. Tasks will wait in Pending Review for manual approval.' }));
+      } else {
+        const state = isAutonomousMode();
+        console.log(JSON.stringify({ autonomous_mode: state }));
+      }
       break;
     }
     case 'reset-idle': {
@@ -1450,7 +1504,7 @@ if (command) {
     }
 
     default: {
-      console.log(`Supported commands: info, poll, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup.`);
+      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup.`);
     }
   }
 }
