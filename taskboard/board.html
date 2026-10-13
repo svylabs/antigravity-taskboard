@@ -916,18 +916,32 @@
       color: #475569;
     }
 
+    .tree-node-row,
+    .tree-inline-card {
+      position: relative;
+    }
+
+    /* Drop INSIDE */
+    .tree-node-row.drag-over-inside,
+    .tree-inline-card.drag-over-inside,
     .tree-node-row.drag-over-tree-node,
     .tree-node-card.drag-over-tree-node {
       border: 2px solid #6366F1 !important;
       background: #EEF2FF !important;
       box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
       transform: scale(1.01);
+      z-index: 5;
     }
 
-    .tree-node-row.drag-over-tree-node::after {
+    .tree-node-row.drag-over-inside::after,
+    .tree-inline-card.drag-over-inside::after,
+    .tree-node-row.drag-over-tree-node::after,
+    .tree-node-card.drag-over-tree-node::after {
       content: '↳ Drop inside this feature';
       position: absolute;
       right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
       font-size: 11px;
       font-weight: 700;
       color: #4F46E5;
@@ -935,10 +949,93 @@
       padding: 2px 6px;
       border-radius: 4px;
       pointer-events: none;
+      z-index: 10;
     }
 
+    .tree-node-row.is-root.drag-over-inside::after,
+    .tree-inline-card.is-root.drag-over-inside::after,
     .tree-node-row.is-root.drag-over-tree-node::after {
       content: '↳ Move to Project Root';
+    }
+
+    /* Drop BEFORE (Reorder above) */
+    .tree-node-row.drag-over-before,
+    .tree-inline-card.drag-over-before {
+      border-top: 2px solid #2563EB !important;
+      background: #F0F9FF !important;
+      position: relative;
+      z-index: 5;
+    }
+
+    .tree-node-row.drag-over-before::after,
+    .tree-inline-card.drag-over-before::after {
+      content: '⤒ Insert before';
+      position: absolute;
+      top: -11px;
+      right: 10px;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #1D4ED8;
+      background: #DBEAFE;
+      border: 1px solid #93C5FD;
+      padding: 1px 7px;
+      border-radius: 4px;
+      pointer-events: none;
+      box-shadow: 0 2px 4px rgba(30, 64, 175, 0.15);
+      z-index: 10;
+    }
+
+    .tree-node-row.drag-over-before::before,
+    .tree-inline-card.drag-over-before::before {
+      content: '●';
+      position: absolute;
+      top: -8px;
+      left: 6px;
+      font-size: 12px;
+      color: #2563EB;
+      pointer-events: none;
+      z-index: 10;
+      line-height: 1;
+    }
+
+    /* Drop AFTER (Reorder below) */
+    .tree-node-row.drag-over-after,
+    .tree-inline-card.drag-over-after {
+      border-bottom: 2px solid #2563EB !important;
+      background: #F0F9FF !important;
+      position: relative;
+      z-index: 5;
+    }
+
+    .tree-node-row.drag-over-after::after,
+    .tree-inline-card.drag-over-after::after {
+      content: '⤓ Insert after';
+      position: absolute;
+      bottom: -11px;
+      right: 10px;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #1D4ED8;
+      background: #DBEAFE;
+      border: 1px solid #93C5FD;
+      padding: 1px 7px;
+      border-radius: 4px;
+      pointer-events: none;
+      box-shadow: 0 2px 4px rgba(30, 64, 175, 0.15);
+      z-index: 10;
+    }
+
+    .tree-node-row.drag-over-after::before,
+    .tree-inline-card.drag-over-after::before {
+      content: '●';
+      position: absolute;
+      bottom: -8px;
+      left: 6px;
+      font-size: 12px;
+      color: #2563EB;
+      pointer-events: none;
+      z-index: 10;
+      line-height: 1;
     }
 
     .tree-completed-banner {
@@ -4657,7 +4754,7 @@
       return false;
     }
 
-    function handleTreeNodeDragOver(e, targetNodeId) {
+    function handleTreeNodeDragOver(e, targetNodeId, isRoot = false) {
       if (!draggedNodeId) return;
       if (draggedNodeId === targetNodeId) return;
       if (isNodeDescendant(draggedNodeId, targetNodeId)) return;
@@ -4665,8 +4762,45 @@
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = 'move';
-      if (!e.currentTarget.classList.contains('drag-over-tree-node')) {
-        e.currentTarget.classList.add('drag-over-tree-node');
+
+      let placement = 'inside';
+      if (!isRoot) {
+        const rect = e.currentTarget.getBoundingClientRect();
+        // For inline-edit card, use fixed 28px top/bottom zones
+        if (rect.height > 60) {
+          const topDist = e.clientY - rect.top;
+          const bottomDist = rect.bottom - e.clientY;
+          if (topDist < 28) {
+            placement = 'before';
+          } else if (bottomDist < 28) {
+            placement = 'after';
+          } else {
+            placement = 'inside';
+          }
+        } else {
+          // Standard compact row: top 30% before, bottom 30% after, middle 40% inside
+          const relY = (e.clientY - rect.top) / rect.height;
+          if (relY < 0.3) {
+            placement = 'before';
+          } else if (relY > 0.7) {
+            placement = 'after';
+          } else {
+            placement = 'inside';
+          }
+        }
+      }
+
+      const el = e.currentTarget;
+      if (el.dataset.dropPlacement !== placement) {
+        el.dataset.dropPlacement = placement;
+        el.classList.remove('drag-over-before', 'drag-over-after', 'drag-over-inside', 'drag-over-tree-node');
+        if (placement === 'before') {
+          el.classList.add('drag-over-before');
+        } else if (placement === 'after') {
+          el.classList.add('drag-over-after');
+        } else {
+          el.classList.add('drag-over-inside');
+        }
       }
     }
 
@@ -4674,13 +4808,19 @@
       if (e.currentTarget.contains(e.relatedTarget)) {
         return;
       }
-      e.currentTarget.classList.remove('drag-over-tree-node');
+      const el = e.currentTarget;
+      el.classList.remove('drag-over-before', 'drag-over-after', 'drag-over-inside', 'drag-over-tree-node');
+      delete el.dataset.dropPlacement;
     }
 
-    async function handleTreeNodeDrop(e, targetNodeId, targetNodeTitle) {
+    async function handleTreeNodeDrop(e, targetNodeId, targetNodeTitle, isRoot = false) {
       e.preventDefault();
       e.stopPropagation();
-      e.currentTarget.classList.remove('drag-over-tree-node');
+
+      const el = e.currentTarget;
+      const placement = el.dataset.dropPlacement || (isRoot ? 'inside' : 'inside');
+      el.classList.remove('drag-over-before', 'drag-over-after', 'drag-over-inside', 'drag-over-tree-node');
+      delete el.dataset.dropPlacement;
 
       const sourceNodeId = draggedNodeId;
       draggedNodeId = null;
@@ -4691,27 +4831,57 @@
         return;
       }
 
-      await moveFeatureNode(sourceNodeId, targetNodeId, targetNodeTitle);
+      if (placement === 'before') {
+        await moveFeatureNode({ id: sourceNodeId, beforeId: targetNodeId, targetTitle: targetNodeTitle, placement: 'before' });
+      } else if (placement === 'after') {
+        await moveFeatureNode({ id: sourceNodeId, afterId: targetNodeId, targetTitle: targetNodeTitle, placement: 'after' });
+      } else {
+        await moveFeatureNode({ id: sourceNodeId, targetParentId: targetNodeId, targetTitle: targetNodeTitle, placement: 'inside' });
+      }
     }
 
-    async function moveFeatureNode(sourceNodeId, targetParentId, targetTitle) {
+    async function moveFeatureNode(optionsOrId, maybeTargetParentId, maybeTargetTitle) {
+      let payload = {};
+      let targetTitle = '';
+      let placement = 'inside';
+      let parentToExpand = null;
+
+      if (typeof optionsOrId === 'object' && optionsOrId !== null) {
+        const { id, targetParentId, beforeId, afterId } = optionsOrId;
+        targetTitle = optionsOrId.targetTitle || 'feature';
+        placement = optionsOrId.placement || 'inside';
+        payload = { id, targetParentId, beforeId, afterId };
+        if (targetParentId && targetParentId !== 'root') {
+          parentToExpand = targetParentId;
+        }
+      } else {
+        const sourceNodeId = optionsOrId;
+        const targetParentId = maybeTargetParentId;
+        targetTitle = maybeTargetTitle || 'feature';
+        payload = { id: sourceNodeId, targetParentId: targetParentId || 'root' };
+        if (targetParentId && targetParentId !== 'root') {
+          parentToExpand = targetParentId;
+        }
+      }
+
       try {
         const res = await fetch('/api/product/move', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: sourceNodeId,
-            targetParentId: targetParentId || 'root'
-          })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.success && data.tree) {
           backlogTree = data.tree;
-          if (targetParentId && targetParentId !== 'root') {
-            collapsedNodes.delete(targetParentId);
+          if (parentToExpand) {
+            collapsedNodes.delete(parentToExpand);
           }
           renderBacklogTree();
-          showToast(`Moved feature into "${targetTitle || 'feature'}"`, 'success');
+          let toastMsg = `Moved feature into "${targetTitle}"`;
+          if (placement === 'before') toastMsg = `Moved feature before "${targetTitle}"`;
+          else if (placement === 'after') toastMsg = `Moved feature after "${targetTitle}"`;
+          else if (payload.targetParentId === 'root') toastMsg = `Moved feature to Project Root`;
+          showToast(toastMsg, 'success');
         } else {
           alert('Failed to move feature: ' + (data.error || 'Unknown error'));
         }
@@ -4752,7 +4922,7 @@
         if (draggedNodeId && (e.target === container || e.target.id === 'backlogTreeContainer')) {
           e.preventDefault();
           e.stopPropagation();
-          handleTreeNodeDrop(e, 'root', 'Project Root');
+          handleTreeNodeDrop(e, 'root', 'Project Root', true);
         }
       };
 
@@ -5183,9 +5353,9 @@
         const card = document.createElement('div');
         card.className = `tree-inline-card ${isDone ? 'is-completed' : ''}`;
         card.onclick = (e) => e.stopPropagation();
-        card.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id));
+        card.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id, isRoot));
         card.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
-        card.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature')));
+        card.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature'), isRoot));
 
         let currentTitle = node.title || '';
         let currentDesc = node.description || '';
@@ -5316,9 +5486,9 @@
         row.onclick = (e) => toggleNodeEditInPlace(node.id, e);
 
         // Every row is a drop target (drop inside feature, or drop onto root)
-        row.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id));
+        row.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id, isRoot));
         row.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
-        row.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature')));
+        row.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature'), isRoot));
 
         // Allow dragging feature node to another feature or To Do column
         if (!isRoot) {
@@ -5338,7 +5508,10 @@
           row.addEventListener('dragend', () => {
             row.classList.remove('is-dragging');
             draggedNodeId = null;
-            document.querySelectorAll('.drag-over-tree-node').forEach(el => el.classList.remove('drag-over-tree-node'));
+            document.querySelectorAll('.drag-over-tree-node, .drag-over-before, .drag-over-after, .drag-over-inside').forEach(el => {
+              el.classList.remove('drag-over-tree-node', 'drag-over-before', 'drag-over-after', 'drag-over-inside');
+              delete el.dataset.dropPlacement;
+            });
           });
 
           // Drag handle indicator

@@ -726,7 +726,7 @@ const server = http.createServer(async (req, res) => {
     const tree = readProductTree(info.projectDir, info.projectName, db);
     const changed = syncTaskStatusesWithTree(tree, getTaskById);
     if (changed) {
-      writeProductTree(info.projectDir, tree);
+      writeProductTree(info.projectDir, tree, 'docs(product): sync task statuses with product specification');
     }
     const count = countNodes(tree);
     return sendJson(res, 200, {
@@ -786,6 +786,8 @@ const server = http.createServer(async (req, res) => {
         id: body.id,
         targetParentId: body.targetParentId || 'root',
         index: body.index,
+        beforeId: body.beforeId,
+        afterId: body.afterId,
         projectName: info.projectName,
         db
       });
@@ -1216,7 +1218,7 @@ const server = http.createServer(async (req, res) => {
           const tree = readProductTree(info.projectDir, info.projectName, db);
           const changed = syncTaskStatusesWithTree(tree, getTaskById);
           if (changed) {
-            writeProductTree(info.projectDir, tree);
+            writeProductTree(info.projectDir, tree, `docs(product): update feature status to ${body.status} (Task #${id.slice(-5)})`);
           }
         } catch {}
       }

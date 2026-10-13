@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { spawnSync } from 'child_process';
 
 /**
  * Resolves the primary product requirements file path: <projectDir>/product.json
@@ -147,9 +148,68 @@ export function readProductTree(projectDir, projectName, db = null) {
 export const readBacklogTree = readProductTree;
 
 /**
- * Write product description tree to disk formatted with 2-space indentation for clean git diffs.
+ * Commit product.json and any associated product_assets to git with an appropriate message.
  */
-export function writeProductTree(projectDir, tree) {
+export function commitProductChanges(projectDir, message = null) {
+  const pDir = projectDir || process.cwd();
+  try {
+    const isGit = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: pDir, stdio: 'pipe' });
+    if (isGit.status !== 0) {
+      return null;
+    }
+
+    const pathsToConsider = ['product.json'];
+    const assetsDir = path.join(pDir, 'product_assets');
+    const hasAssetFiles = fs.existsSync(assetsDir) && fs.readdirSync(assetsDir).length > 0;
+    const trackedCheck = spawnSync('git', ['ls-files', 'product_assets'], { cwd: pDir, stdio: 'pipe' });
+    const isAssetsTracked = Boolean(trackedCheck.stdout && trackedCheck.stdout.toString().trim());
+    if (hasAssetFiles || isAssetsTracked) {
+      pathsToConsider.push('product_assets');
+    }
+
+    // Check if git status has any changes for these paths
+    const statusRes = spawnSync('git', ['status', '--porcelain', '--', ...pathsToConsider], { cwd: pDir, stdio: 'pipe' });
+    const statusOut = statusRes.stdout ? statusRes.stdout.toString().trim() : '';
+    if (!statusOut) {
+      return null;
+    }
+
+    // Stage these paths
+    spawnSync('git', ['add', '-A', '--', ...pathsToConsider], { cwd: pDir, stdio: 'pipe' });
+
+    // Determine commit message
+    const commitMsg = message || 'chore(product): update product specification in product.json';
+
+    // Check if user.name is configured
+    const userCheck = spawnSync('git', ['config', 'user.name'], { cwd: pDir, stdio: 'pipe' });
+    const hasUser = userCheck.status === 0 && userCheck.stdout && userCheck.stdout.toString().trim();
+
+    const commitArgs = [];
+    if (!hasUser) {
+      commitArgs.push('-c', 'user.name=Antigravity Taskboard', '-c', 'user.email=taskboard@local');
+    }
+    commitArgs.push('commit', '-m', commitMsg, '--', ...pathsToConsider);
+
+    const commitRes = spawnSync('git', commitArgs, { cwd: pDir, stdio: 'pipe' });
+    if (commitRes.status === 0) {
+      console.log(`📝 [git] Committed product changes in ${pDir}: "${commitMsg}"`);
+      return commitMsg;
+    } else {
+      const errStr = (commitRes.stderr?.toString() || commitRes.stdout?.toString() || '').trim();
+      console.warn(`[git commit product.json] Failed to commit: ${errStr}`);
+    }
+  } catch (err) {
+    console.warn(`[git commit product.json] ${err.message}`);
+  }
+  return null;
+}
+
+/**
+ * Write product description tree to disk formatted with 2-space indentation for clean git diffs.
+ * Automatically stages and commits product.json (and any associated product_assets) to git
+ * with an appropriate descriptive commit message.
+ */
+export function writeProductTree(projectDir, tree, commitMessage = null) {
   const pDir = projectDir || process.cwd();
   const filePath = path.join(pDir, 'product.json');
   const dir = path.dirname(filePath);
@@ -164,6 +224,9 @@ export function writeProductTree(projectDir, tree) {
   if (fs.existsSync(legacy) && legacy !== filePath) {
     try { fs.unlinkSync(legacy); } catch {}
   }
+
+  // Automatically commit changes to git
+  commitProductChanges(pDir, commitMessage);
 
   return filePath;
 }
@@ -201,7 +264,9 @@ export function addBacklogNode(projectDir, { parentId = 'root', title, descripti
   };
 
   parent.children.push(newNode);
-  writeBacklogTree(projectDir, tree);
+  const parentTitle = (parentId && parentId !== 'root' && parent.title) ? ` under "${parent.title}"` : '';
+  const commitMsg = `feat(product): add feature "${newNode.title}"${parentTitle}`;
+  writeBacklogTree(projectDir, tree, commitMsg);
 
   return { success: true, node: newNode, tree };
 }
@@ -225,7 +290,8 @@ export function updateBacklogNode(projectDir, id, { title, description, projectN
   }
   node.updatedAt = new Date().toISOString();
 
-  writeBacklogTree(projectDir, tree);
+  const commitMsg = `docs(product): update feature "${node.title}" specifications`;
+  writeBacklogTree(projectDir, tree, commitMsg);
   return { success: true, node, tree };
 }
 
@@ -243,9 +309,11 @@ export function deleteBacklogNode(projectDir, id, projectName, db = null) {
     throw new Error(`Backlog node "${id}" not found or has no parent`);
   }
 
+  const deletedTitle = found.node.title || id;
   const parent = found.parent;
   parent.children = parent.children.filter(c => c.id !== id);
-  writeBacklogTree(projectDir, tree);
+  const commitMsg = `chore(product): remove feature "${deletedTitle}" from product specification`;
+  writeBacklogTree(projectDir, tree, commitMsg);
 
   return { success: true, deletedId: id, tree };
 }
@@ -253,13 +321,14 @@ export function deleteBacklogNode(projectDir, id, projectName, db = null) {
 /**
  * Move or reorder a node to a new parent or index.
  */
-export function moveBacklogNode(projectDir, { id, targetParentId = 'root', index = null, projectName, db = null }) {
+export function moveBacklogNode(projectDir, { id, targetParentId = 'root', index = null, beforeId = null, afterId = null, projectName, db = null }) {
   if (id === 'root') {
     throw new Error('Cannot move project root node');
   }
 
-  if (id === targetParentId) {
-    throw new Error('Cannot move a node into itself');
+  if (id === targetParentId || id === beforeId || id === afterId) {
+    const tree = readBacklogTree(projectDir, projectName, db);
+    return { success: true, tree };
   }
 
   const tree = readBacklogTree(projectDir, projectName, db);
@@ -278,35 +347,75 @@ export function moveBacklogNode(projectDir, { id, targetParentId = 'root', index
     return false;
   }
 
-  if (isDescendant(node, targetParentId)) {
-    throw new Error('Cannot move a node into one of its own descendants');
-  }
+  let targetParent = null;
+  let targetIndex = null;
 
-  // Remove from old parent
-  const oldParent = found.parent;
-  oldParent.children = oldParent.children.filter(c => c.id !== id);
-
-  // Find target parent
-  let targetParent = tree;
-  if (targetParentId && targetParentId !== 'root') {
-    const targetFound = findNodeAndParent(tree, targetParentId);
-    if (!targetFound) {
-      throw new Error(`Target parent "${targetParentId}" not found`);
+  if (beforeId) {
+    const beforeFound = findNodeAndParent(tree, beforeId);
+    if (!beforeFound || !beforeFound.parent) {
+      throw new Error(`Reference node "${beforeId}" not found`);
     }
-    targetParent = targetFound.node;
+    targetParent = beforeFound.parent;
+    if (isDescendant(node, targetParent.id)) {
+      throw new Error('Cannot move a node into one of its own descendants');
+    }
+    // Remove from old parent
+    found.parent.children = found.parent.children.filter(c => c.id !== id);
+    const idx = targetParent.children.findIndex(c => c.id === beforeId);
+    targetIndex = (idx !== -1) ? idx : targetParent.children.length;
+  } else if (afterId) {
+    const afterFound = findNodeAndParent(tree, afterId);
+    if (!afterFound || !afterFound.parent) {
+      throw new Error(`Reference node "${afterId}" not found`);
+    }
+    targetParent = afterFound.parent;
+    if (isDescendant(node, targetParent.id)) {
+      throw new Error('Cannot move a node into one of its own descendants');
+    }
+    // Remove from old parent
+    found.parent.children = found.parent.children.filter(c => c.id !== id);
+    const idx = targetParent.children.findIndex(c => c.id === afterId);
+    targetIndex = (idx !== -1) ? idx + 1 : targetParent.children.length;
+  } else {
+    if (targetParentId && targetParentId !== 'root') {
+      const targetFound = findNodeAndParent(tree, targetParentId);
+      if (!targetFound) {
+        throw new Error(`Target parent "${targetParentId}" not found`);
+      }
+      targetParent = targetFound.node;
+    } else {
+      targetParent = tree;
+    }
+
+    if (isDescendant(node, targetParent.id)) {
+      throw new Error('Cannot move a node into one of its own descendants');
+    }
+
+    // Remove from old parent
+    found.parent.children = found.parent.children.filter(c => c.id !== id);
+    targetIndex = (typeof index === 'number' && index >= 0 && index <= targetParent.children.length) ? index : targetParent.children.length;
   }
 
   if (!Array.isArray(targetParent.children)) {
     targetParent.children = [];
   }
 
-  if (typeof index === 'number' && index >= 0 && index <= targetParent.children.length) {
-    targetParent.children.splice(index, 0, node);
+  targetParent.children.splice(targetIndex, 0, node);
+
+  let commitMsg = `chore(product): move feature "${node.title}"`;
+  if (beforeId) {
+    const refTitle = (tree && findNodeAndParent(tree, beforeId)?.node?.title) || beforeId;
+    commitMsg = `chore(product): reorder feature "${node.title}" before "${refTitle}"`;
+  } else if (afterId) {
+    const refTitle = (tree && findNodeAndParent(tree, afterId)?.node?.title) || afterId;
+    commitMsg = `chore(product): reorder feature "${node.title}" after "${refTitle}"`;
+  } else if (!targetParentId || targetParentId === 'root') {
+    commitMsg = `chore(product): move feature "${node.title}" to project root`;
   } else {
-    targetParent.children.push(node);
+    commitMsg = `chore(product): move feature "${node.title}" under "${targetParent.title || targetParentId}"`;
   }
 
-  writeBacklogTree(projectDir, tree);
+  writeBacklogTree(projectDir, tree, commitMsg);
   return { success: true, tree };
 }
 
@@ -354,7 +463,8 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
     node.title = taskTitle;
   }
 
-  writeBacklogTree(projectDir, tree);
+  const convertCommitMsg = `feat(product): assign Task #${task.id.slice(-5)} to feature "${node.title}"`;
+  writeBacklogTree(projectDir, tree, convertCommitMsg);
 
   return { success: true, task, node, tree };
 }
@@ -484,7 +594,8 @@ export function addProductAttachment(projectDir, nodeId, { fileName, buffer, mim
   };
 
   found.node.attachments.push(attachment);
-  writeProductTree(projectDir, tree);
+  const commitMsg = `chore(product): add attachment "${cleanName}" to feature "${found.node.title}"`;
+  writeProductTree(projectDir, tree, commitMsg);
 
   return { success: true, attachment, tree };
 }
@@ -501,6 +612,7 @@ export function deleteProductAttachment(projectDir, nodeId, attId, projectName, 
 
   if (Array.isArray(found.node.attachments)) {
     const att = found.node.attachments.find(a => a.id === attId);
+    const attName = att ? (att.fileName || att.storedName) : attId;
     if (att && att.storedName) {
       const assetsDir = getProductAssetsDir(projectDir);
       const diskPath = path.join(assetsDir, att.storedName);
@@ -509,7 +621,8 @@ export function deleteProductAttachment(projectDir, nodeId, attId, projectName, 
       }
     }
     found.node.attachments = found.node.attachments.filter(a => a.id !== attId);
-    writeProductTree(projectDir, tree);
+    const commitMsg = `chore(product): remove attachment "${attName}" from feature "${found.node.title}"`;
+    writeProductTree(projectDir, tree, commitMsg);
   }
 
   return { success: true, tree };
