@@ -123,6 +123,28 @@ export function ensureComponentContainers(componentNode) {
       });
     }
   }
+
+  // Relocate any direct non-container children into their respective containers
+  const nonContainers = componentNode.children.filter(c => !isContainerFolderTitle(c.title));
+  if (nonContainers.length > 0) {
+    const featContainer = componentNode.children.find(c => (c.title || '').trim().toLowerCase() === 'features/');
+    const compContainer = componentNode.children.find(c => (c.title || '').trim().toLowerCase() === 'components/');
+    const impContainer = componentNode.children.find(c => (c.title || '').trim().toLowerCase() === 'improvements/');
+
+    componentNode.children = componentNode.children.filter(c => isContainerFolderTitle(c.title));
+
+    for (const item of nonContainers) {
+      const isBug = item.type === 'bug' || (item.title || '').toLowerCase().includes('bug') || (item.title || '').toLowerCase().includes('improvement');
+      const isComp = item.type === 'component';
+      if (isBug && impContainer) {
+        impContainer.children.push(item);
+      } else if (isComp && compContainer) {
+        compContainer.children.push(item);
+      } else if (featContainer) {
+        featContainer.children.push(item);
+      }
+    }
+  }
 }
 
 /**
@@ -142,6 +164,8 @@ export function normalizeBacklogTree(node) {
       } else if (lower === 'components') {
         child.title = 'components/';
         child.type = 'container';
+      } else if (child.type === 'component' || (Array.isArray(child.children) && child.children.some(c => isContainerFolderTitle(c.title)))) {
+        ensureComponentContainers(child);
       }
       normalizeBacklogTree(child);
     });
