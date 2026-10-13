@@ -1,0 +1,95 @@
+{
+  "id": "root",
+  "title": "antigravity-taskboard",
+  "description": "Project-scoped Kanban board with continuous autonomous subagent loop orchestration and file-based project description backlog tree",
+  "createdAt": "2026-10-13T04:00:00.000Z",
+  "children": [
+    {
+      "id": "node_core_engine",
+      "title": "Core Engine & Agent Loop",
+      "description": "Autonomous task loop supervisor, delta polling change detection, and verification gates",
+      "createdAt": "2026-10-13T04:00:00.000Z",
+      "children": [
+        {
+          "id": "node_pre_exec_gate",
+          "title": "Pre-execution Verification Gate",
+          "description": "Ensure automated test command, textual acceptance criteria, or explicit exemption exists before coding",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        },
+        {
+          "id": "node_scope_gates",
+          "title": "Scope-Aware Execution & Parallel Gates",
+          "description": "Strict sequential execution for large tasks and disjoint parallel execution for small/medium tasks",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        },
+        {
+          "id": "node_delta_poller",
+          "title": "Token-Saving Delta Poller",
+          "description": "Ultra-lightweight poll delta with processed_by_agent flags and 8-hour inactivity auto-termination",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "node_file_backlog",
+      "title": "File-based Project Backlog Tree",
+      "description": "Hierarchical project description tree stored in backlog.json and checked into version control instead of SQLite",
+      "createdAt": "2026-10-13T04:00:00.000Z",
+      "children": [
+        {
+          "id": "node_json_storage",
+          "title": "JSON Tree Storage & Auto-initialization",
+          "description": "Store backlog tree in backlog.json in project root, cleanly version-controlled and checked into git",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        },
+        {
+          "id": "node_task_conversion",
+          "title": "Just-in-Time Task Conversion Flow",
+          "description": "Convert backlog description nodes to actionable SQLite execution tasks with proper descriptions and criteria",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        },
+        {
+          "id": "node_cli_backlog",
+          "title": "CLI Backlog Management",
+          "description": "CLI subcommands to view ASCII tree, add nodes, convert to tasks, and delete nodes",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "node_web_ui",
+      "title": "Web Taskboard UI",
+      "description": "Real-time taskboard UI with responsive column view and interactive hierarchical backlog tree",
+      "createdAt": "2026-10-13T04:00:00.000Z",
+      "children": [
+        {
+          "id": "node_tree_component",
+          "title": "Interactive Backlog Tree Component",
+          "description": "Hierarchical tree rendering displaying titles, expand/collapse toggles, node actions, and task conversion",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        },
+        {
+          "id": "node_project_switcher",
+          "title": "Multi-project Switcher",
+          "description": "Workspace project auto-discovery, live HTTP health checks, and 1-click auto-booting",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        },
+        {
+          "id": "node_attention_system",
+          "title": "Audio Attention & Notification Synthesizer",
+          "description": "Web Audio API synthesizer, attention alerts, and non-blocking volume controls",
+          "createdAt": "2026-10-13T04:00:00.000Z",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

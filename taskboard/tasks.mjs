@@ -2,6 +2,33 @@
 import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
+import {
+  readBacklogTree,
+  writeBacklogTree,
+  addBacklogNode,
+  updateBacklogNode,
+  deleteBacklogNode,
+  moveBacklogNode,
+  convertBacklogNodeToTask,
+  syncTaskStatusesWithTree,
+  formatTreeAscii,
+  getBacklogFilePath,
+  countNodes
+} from './backlog.mjs';
+
+export {
+  readBacklogTree,
+  writeBacklogTree,
+  addBacklogNode,
+  updateBacklogNode,
+  deleteBacklogNode,
+  moveBacklogNode,
+  convertBacklogNodeToTask,
+  syncTaskStatusesWithTree,
+  formatTreeAscii,
+  getBacklogFilePath,
+  countNodes
+};
 
 export function playSystemNotificationSound() {
   if (process.env.TASKBOARD_DISABLE_SOUND === '1') return;
@@ -77,7 +104,7 @@ db.exec(`
     description TEXT NOT NULL,
     acceptance_criteria TEXT,
     verification_cmd TEXT,
-    status TEXT NOT NULL DEFAULT 'backlog', -- 'backlog', 'todo', 'in_progress', 'verification', 'done', 'failed'
+    status TEXT NOT NULL DEFAULT 'todo', -- 'todo', 'planned', 'in_progress', 'verification', 'done', 'failed'
     priority TEXT NOT NULL DEFAULT 'medium', -- 'low', 'medium', 'high', 'urgent'
     subagent_role TEXT DEFAULT 'Fullstack Engineer',
     scope TEXT DEFAULT '', -- target paths / files / subsystems
@@ -302,7 +329,7 @@ export function addTask({
   description = '',
   acceptance_criteria = '',
   verification_cmd = '',
-  status = 'backlog',
+  status = 'todo',
   priority = 'medium',
   subagent_role = 'Fullstack Engineer',
   scope = '',
@@ -311,6 +338,7 @@ export function addTask({
   attachments = null,
   images = null
 }) {
+  if (status === 'backlog') status = 'todo';
   if (status === 'needs_revision') status = 'planned';
   const id = `task-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const maxOrder = db.prepare('SELECT MAX(order_index) as max_order FROM agent_tasks WHERE status = ?').get(status);
@@ -1085,11 +1113,29 @@ if (command) {
       break;
     }
     case 'list': {
-      const { projectName, dbPath } = getProjectInfo();
-      const tasks = getAllTasks();
-      const columns = ['backlog', 'todo', 'planned', 'in_progress', 'verification', 'done', 'failed'];
+      const { projectName, projectDir, dbPath } = getProjectInfo();
+      const tasks = getAllTasks().filter(t => t.status !== 'backlog');
+      const columns = ['todo', 'planned', 'in_progress', 'verification', 'done', 'failed'];
       console.log(`\n================== 📋 KANBAN: [${projectName}] ==================`);
       console.log(`📂 DB: ${dbPath}\n`);
+
+      // Display Backlog Tree from backlog.json
+      try {
+        const tree = readBacklogTree(projectDir, projectName, db);
+        syncTaskStatusesWithTree(tree, getTaskById);
+        const backlogCount = countNodes(tree);
+        console.log(`▶ [PROJECT BACKLOG TREE] (${backlogCount} items in ${getBacklogFilePath(projectDir)})`);
+        const ascii = formatTreeAscii(tree).trim();
+        if (ascii) {
+          console.log(ascii.split('\n').map(l => '    ' + l).join('\n'));
+        } else {
+          console.log('    (empty)');
+        }
+        console.log('');
+      } catch (err) {
+        console.log(`▶ [PROJECT BACKLOG TREE] (error: ${err.message})\n`);
+      }
+
       for (const col of columns) {
         const inCol = tasks.filter(t => t.status === col);
         const colTitle = col === 'verification' ? 'PENDING REVIEW' : col.toUpperCase();
@@ -1110,6 +1156,59 @@ if (command) {
         }
         console.log('');
       }
+      console.log('==================================================================\n');
+      break;
+    }
+    case 'backlog': {
+      const { projectName, projectDir } = getProjectInfo();
+      const sub = args[0];
+      if (sub === 'add') {
+        const title = args[1];
+        const parentId = args[2] || 'root';
+        const description = args.slice(3).join(' ') || '';
+        if (!title) {
+          console.log(JSON.stringify({ error: 'Title is required. Usage: backlog add "<TITLE>" [PARENT_ID] [DESCRIPTION]' }));
+          break;
+        }
+        const result = addBacklogNode(projectDir, { parentId, title, description, projectName, db });
+        console.log(`✅ Added node to backlog: "${result.node.title}" (${result.node.id})`);
+        break;
+      }
+      if (sub === 'convert') {
+        const nodeId = args[1];
+        const description = args[2] || '';
+        const priority = args[3] || 'medium';
+        const role = args[4] || 'Fullstack Engineer';
+        if (!nodeId) {
+          console.log(JSON.stringify({ error: 'Node ID is required. Usage: backlog convert <NODE_ID> "<DESCRIPTION>" [PRIORITY] [ROLE]' }));
+          break;
+        }
+        const result = convertBacklogNodeToTask(projectDir, nodeId, { description, priority, subagent_role: role }, addTask, projectName, db);
+        console.log(`🚀 Converted backlog node to task: ${result.task.id} ("${result.task.title}")`);
+        break;
+      }
+      if (sub === 'delete') {
+        const nodeId = args[1];
+        if (!nodeId) {
+          console.log(JSON.stringify({ error: 'Node ID is required. Usage: backlog delete <NODE_ID>' }));
+          break;
+        }
+        deleteBacklogNode(projectDir, nodeId, projectName, db);
+        console.log(`🗑️ Deleted backlog node: ${nodeId}`);
+        break;
+      }
+      if (sub === 'json') {
+        const tree = readBacklogTree(projectDir, projectName, db);
+        syncTaskStatusesWithTree(tree, getTaskById);
+        console.log(JSON.stringify(tree, null, 2));
+        break;
+      }
+      // Default: print ASCII tree
+      const tree = readBacklogTree(projectDir, projectName, db);
+      syncTaskStatusesWithTree(tree, getTaskById);
+      console.log(`\n================== 🌳 PROJECT BACKLOG: [${projectName}] ==================`);
+      console.log(`📄 File: ${getBacklogFilePath(projectDir)}\n`);
+      console.log(formatTreeAscii(tree));
       console.log('==================================================================\n');
       break;
     }

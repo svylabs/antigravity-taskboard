@@ -22,6 +22,7 @@ Define tasks with pre-execution acceptance criteria checklists, automated verifi
 
 ## ⚡ Core Features
 
+* **Hierarchical Project Description Backlog Tree (`backlog.json`)**: Backlog is not a list of tasks in SQLite; it is a structured tree of the project description, stored in `backlog.json` at the project root and checked into git. Built from the top down (project root $\to$ modules/epics $\to$ features $\to$ sub-requirements). In the tree view, only titles are displayed for clean scanning. Any item can be converted into an actionable task in SQLite (`📋 To Do`) at any time by adding a proper description, priority, and verification criteria.
 * **Pre-Execution Verification Gate**: Ensures subagents never write untested code or make assumptions without explicit criteria, automated test commands, or an explicit exemption.
 * **Scope-Aware Parallel Execution**: Automatically detects file conflicts and scope size. Disjoint small/medium tasks run in parallel, while large tasks and database migrations execute strictly sequentially.
 * **Pending Review File Locks**: Files modified by tasks currently waiting in **`👀 Pending Review`** remain locked until user sign-off.
@@ -127,9 +128,28 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs check-conflict <T
 node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs reset-idle
 ```
 
-### 2. Task Lifecycle & Status Updates
+### 2. Project Description Backlog Tree (`backlog.json`)
+The backlog is stored as a hierarchical JSON tree in `backlog.json` at the project root and committed to version control.
 ```bash
-# Print ASCII Kanban board with badges and counts
+# Print ASCII project description backlog tree
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs backlog
+
+# Output raw JSON of the backlog tree
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs backlog json
+
+# Add a requirement node under a parent (default parent is "root" for project root)
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs backlog add "<TITLE>" [PARENT_ID] "[OPTIONAL_DESCRIPTION]"
+
+# Convert a backlog requirement node into an actionable task in To Do
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs backlog convert <NODE_ID> "<PROPER_TASK_DESCRIPTION>" [PRIORITY] [ROLE]
+
+# Delete a requirement node (and its children) from backlog.json
+node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs backlog delete <NODE_ID>
+```
+
+### 3. Task Lifecycle & Status Updates
+```bash
+# Print ASCII Kanban board with badges, counts, and backlog tree summary
 node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs list
 
 # Dump full board state in JSON

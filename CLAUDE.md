@@ -42,6 +42,9 @@ You can interact with the taskboard either via **MCP Tools** (if configured) or 
 
 ### Using MCP Tools:
 * `taskboard_poll()`: Ultra-lightweight check (<10 tokens) for active work, unread user comments, or new To-Do tasks.
+* `taskboard_get_backlog()`: Retrieve the project description backlog tree from `backlog.json`.
+* `taskboard_add_backlog_item(title, parentId, description)`: Add a requirement to the backlog tree in `backlog.json`.
+* `taskboard_convert_backlog_item(node_id, description, priority, subagent_role)`: Convert a backlog node to an active task in `todo`.
 * `taskboard_get_next()`: Fetch the next To-Do task with description, subtasks, criteria, and comment history.
 * `taskboard_get_subtasks(task_id)`: Retrieve all ordered subtasks for a task.
 * `taskboard_add_subtask(task_id, title, verification_cmd)`: Add an ordered subtask.
@@ -53,6 +56,12 @@ You can interact with the taskboard either via **MCP Tools** (if configured) or 
 ```bash
 # Check if there is work to do (<10 tokens)
 node taskboard/tasks.mjs poll
+
+# Backlog tree operations (stored in backlog.json, not SQLite)
+node taskboard/tasks.mjs backlog
+node taskboard/tasks.mjs backlog add "<TITLE>" [PARENT_ID] "[DESCRIPTION]"
+node taskboard/tasks.mjs backlog convert <NODE_ID> "<PROPER_DESCRIPTION>" [PRIORITY] [ROLE]
+node taskboard/tasks.mjs backlog delete <NODE_ID>
 
 # Get next task (includes subtasks)
 node taskboard/tasks.mjs next

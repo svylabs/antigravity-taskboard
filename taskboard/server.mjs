@@ -24,8 +24,21 @@ import {
   getAttachments,
   getAttachment,
   addAttachment,
-  deleteAttachment
+  deleteAttachment,
+  db
 } from './tasks.mjs';
+import {
+  readBacklogTree,
+  writeBacklogTree,
+  addBacklogNode,
+  updateBacklogNode,
+  deleteBacklogNode,
+  moveBacklogNode,
+  convertBacklogNodeToTask,
+  syncTaskStatusesWithTree,
+  getBacklogFilePath,
+  countNodes
+} from './backlog.mjs';
 import { handleRepoRequest } from './repo_viewer.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -677,9 +690,134 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // REST API: GET /api/backlog
+  if (pathname === '/api/backlog' && req.method === 'GET') {
+    const info = getProjectInfo();
+    const tree = readBacklogTree(info.projectDir, info.projectName, db);
+    syncTaskStatusesWithTree(tree, getTaskById);
+    const count = countNodes(tree);
+    return sendJson(res, 200, {
+      success: true,
+      tree,
+      count,
+      project: info.projectName,
+      filePath: getBacklogFilePath(info.projectDir)
+    });
+  }
+
+  // REST API: POST /api/backlog - Save/replace the entire tree
+  if (pathname === '/api/backlog' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      if (!body.tree) {
+        return sendJson(res, 400, { success: false, error: 'Tree data is required' });
+      }
+      const info = getProjectInfo();
+      writeBacklogTree(info.projectDir, body.tree);
+      return sendJson(res, 200, { success: true, tree: body.tree });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/backlog/nodes - Add a child or sibling node
+  if (pathname === '/api/backlog/nodes' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      if (!body.title) {
+        return sendJson(res, 400, { success: false, error: 'Title is required' });
+      }
+      const info = getProjectInfo();
+      const result = addBacklogNode(info.projectDir, {
+        parentId: body.parentId || 'root',
+        title: body.title,
+        description: body.description || '',
+        projectName: info.projectName,
+        db
+      });
+      return sendJson(res, 201, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/backlog/move - Move/reorder a node
+  if (pathname === '/api/backlog/move' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      if (!body.id) {
+        return sendJson(res, 400, { success: false, error: 'Node ID is required' });
+      }
+      const info = getProjectInfo();
+      const result = moveBacklogNode(info.projectDir, {
+        id: body.id,
+        targetParentId: body.targetParentId || 'root',
+        index: body.index,
+        projectName: info.projectName,
+        db
+      });
+      return sendJson(res, 200, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/backlog/nodes/:id/convert - Convert backlog node to task in SQLite
+  const backlogConvertMatch = pathname.match(/^\/api\/backlog\/nodes\/([^/]+)\/convert$/);
+  if (backlogConvertMatch && req.method === 'POST') {
+    const nodeId = backlogConvertMatch[1];
+    try {
+      const body = await parseBody(req);
+      const info = getProjectInfo();
+      const result = convertBacklogNodeToTask(
+        info.projectDir,
+        nodeId,
+        body,
+        addTask,
+        info.projectName,
+        db
+      );
+      return sendJson(res, 201, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: PATCH /api/backlog/nodes/:id - Update node title and/or description
+  const backlogNodePatchMatch = pathname.match(/^\/api\/backlog\/nodes\/([^/]+)$/);
+  if (backlogNodePatchMatch && req.method === 'PATCH') {
+    const nodeId = backlogNodePatchMatch[1];
+    try {
+      const body = await parseBody(req);
+      const info = getProjectInfo();
+      const result = updateBacklogNode(info.projectDir, nodeId, {
+        title: body.title,
+        description: body.description,
+        projectName: info.projectName,
+        db
+      });
+      return sendJson(res, 200, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: DELETE /api/backlog/nodes/:id - Delete node and children
+  const backlogNodeDeleteMatch = pathname.match(/^\/api\/backlog\/nodes\/([^/]+)$/);
+  if (backlogNodeDeleteMatch && req.method === 'DELETE') {
+    const nodeId = backlogNodeDeleteMatch[1];
+    try {
+      const info = getProjectInfo();
+      const result = deleteBacklogNode(info.projectDir, nodeId, info.projectName, db);
+      return sendJson(res, 200, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
   // REST API: GET /api/tasks
   if (pathname === '/api/tasks' && req.method === 'GET') {
-    const tasks = getAllTasks();
+    const tasks = getAllTasks().filter(t => t.status !== 'backlog');
     return sendJson(res, 200, { success: true, tasks, project: getProjectInfo().projectName });
   }
 
