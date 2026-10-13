@@ -1366,7 +1366,10 @@
       const scopeBadge = task.scope ? `<span class="scope-badge" title="${escapeHtml(task.scope)}">🏷️ ${escapeHtml(task.scope)}</span>` : '';
       const sizeBadge = task.scope_size && task.scope_size !== 'small' ? `<span class="role-badge" style="${sizeStyle}">${escapeHtml(task.scope_size.toUpperCase())}</span>` : '';
       const sessionObj = allSessions.find(s => s.id === task.session_id);
-      const sessionBadge = sessionObj ? `<span class="role-badge" style="background: #ECFDF5; color: #047857; font-size: 10px;" title="Sprint Session: ${escapeHtml(sessionObj.name)}">🎯 ${escapeHtml(sessionObj.name)}</span>` : '';
+      const curSessFilter = document.getElementById('sessionFilterSelect') ? document.getElementById('sessionFilterSelect').value : 'all';
+      const sessionBadge = (sessionObj && curSessFilter === 'all')
+        ? `<span class="role-badge" style="background: #F1F5F9; color: #475569; font-size: 10px; border: 1px solid #E2E8F0;" title="Sprint Session: ${escapeHtml(sessionObj.name)}">🎯 ${escapeHtml(sessionObj.name)}</span>` 
+        : '';
 
       card.innerHTML = `
         <div class="card-top-row">
