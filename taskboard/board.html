@@ -731,6 +731,50 @@
     .column-backlog-tree {
       background: #F8FAFC;
       border: 1px solid #E2E8F0;
+      position: relative;
+      width: var(--product-doc-width, 360px);
+      min-width: 320px;
+      max-width: min(90vw, 1200px);
+      flex-shrink: 0;
+      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .column-backlog-tree.is-resizing {
+      transition: none !important;
+      user-select: none;
+    }
+
+    .column-resizer {
+      position: absolute;
+      top: 0;
+      right: -6px;
+      width: 12px;
+      height: 100%;
+      cursor: col-resize;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none;
+    }
+
+    .column-resizer::after {
+      content: '';
+      width: 4px;
+      height: 36px;
+      border-radius: 4px;
+      background: #CBD5E1;
+      transition: all 0.2s ease;
+      opacity: 0.7;
+    }
+
+    .column-resizer:hover::after,
+    .column-backlog-tree.is-resizing .column-resizer::after {
+      background: #3B82F6;
+      height: 64px;
+      width: 5px;
+      opacity: 1;
+      box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
     }
 
     .backlog-header-btns {
@@ -2368,6 +2412,14 @@
         max-height: calc(100vh - 170px);
         border-radius: 14px;
       }
+      .column-backlog-tree {
+        width: calc(100vw - 28px) !important;
+        min-width: calc(100vw - 28px) !important;
+        max-width: calc(100vw - 28px) !important;
+      }
+      .column-resizer, #btnResizeProductDoc {
+        display: none !important;
+      }
       .modal-overlay {
         padding: 8px;
       }
@@ -2663,7 +2715,8 @@
   <!-- Kanban Columns -->
   <div class="board-container" id="board">
     <!-- Product Doc Tree Column -->
-    <div class="column column-backlog-tree" data-status="backlog">
+    <div class="column column-backlog-tree" data-status="backlog" id="colProductDoc">
+      <div class="column-resizer" id="productDocResizer" title="Drag to resize Product Doc horizontally"></div>
       <div class="column-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="col-title">📖 Product Doc</span>
@@ -2672,6 +2725,7 @@
         <div class="backlog-header-btns">
           <button class="tree-header-btn" onclick="openInlineDraft('root', event)" title="Add feature in place">➕</button>
           <button class="tree-header-btn" id="btnToggleExpandTree" onclick="toggleExpandAllBacklogTree()" title="Expand / Collapse all items">↕️</button>
+          <button class="tree-header-btn" id="btnResizeProductDoc" onclick="cycleProductDocWidth()" title="Cycle width: Standard (360px) → Wide (600px) → Ultra-wide (880px)">↔️</button>
         </div>
       </div>
       <div class="backlog-file-bar" id="backlogFileBar">
@@ -3683,6 +3737,103 @@
         allIds.forEach(id => collapsedNodes.add(id));
       }
       renderBacklogTree();
+    }
+
+    // --- Product Doc Column Resizer ---
+    const PRODUCT_DOC_WIDTH_PRESETS = [360, 600, 880];
+
+    function applyProductDocWidth(width, save = true) {
+      const col = document.getElementById('colProductDoc');
+      if (!col) return;
+      const maxAllowed = Math.min(window.innerWidth * 0.9, 1200);
+      const clampedWidth = Math.round(Math.max(320, Math.min(width, maxAllowed)));
+      col.style.setProperty('--product-doc-width', `${clampedWidth}px`);
+      col.style.width = `${clampedWidth}px`;
+      if (save) {
+        try {
+          localStorage.setItem('tb_product_doc_width', String(clampedWidth));
+        } catch (e) {}
+      }
+    }
+
+    function cycleProductDocWidth() {
+      const col = document.getElementById('colProductDoc');
+      if (!col) return;
+      const currentWidth = col.getBoundingClientRect().width;
+      let nextPreset = PRODUCT_DOC_WIDTH_PRESETS[0];
+      for (const preset of PRODUCT_DOC_WIDTH_PRESETS) {
+        if (preset > currentWidth + 25) {
+          nextPreset = preset;
+          break;
+        }
+      }
+      applyProductDocWidth(nextPreset, true);
+      const label = nextPreset === 360 ? 'Standard (360px)' : nextPreset === 600 ? 'Wide (600px)' : 'Ultra-wide (880px)';
+      showToast(`↔️ Product Doc width: ${label}`);
+    }
+
+    function initProductDocResizer() {
+      const col = document.getElementById('colProductDoc');
+      const resizer = document.getElementById('productDocResizer');
+      if (!col || !resizer) return;
+
+      // Restore saved width if present
+      try {
+        const saved = localStorage.getItem('tb_product_doc_width');
+        if (saved) {
+          const parsed = parseInt(saved, 10);
+          if (parsed && !isNaN(parsed)) {
+            applyProductDocWidth(parsed, false);
+          }
+        }
+      } catch (e) {}
+
+      let startX = 0;
+      let startWidth = 0;
+      let isDragging = false;
+
+      function onPointerDown(e) {
+        if (window.innerWidth <= 640) return; // Ignore on mobile
+        isDragging = true;
+        startX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        startWidth = col.getBoundingClientRect().width;
+        col.classList.add('is-resizing');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        window.addEventListener('mousemove', onPointerMove, { passive: false });
+        window.addEventListener('touchmove', onPointerMove, { passive: false });
+        window.addEventListener('mouseup', onPointerUp);
+        window.addEventListener('touchend', onPointerUp);
+        e.preventDefault();
+      }
+
+      function onPointerMove(e) {
+        if (!isDragging) return;
+        const currentX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
+        const dx = currentX - startX;
+        const newWidth = startWidth + dx;
+        applyProductDocWidth(newWidth, false);
+      }
+
+      function onPointerUp() {
+        if (!isDragging) return;
+        isDragging = false;
+        col.classList.remove('is-resizing');
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+
+        window.removeEventListener('mousemove', onPointerMove);
+        window.removeEventListener('touchmove', onPointerMove);
+        window.removeEventListener('mouseup', onPointerUp);
+        window.removeEventListener('touchend', onPointerUp);
+
+        const finalWidth = col.getBoundingClientRect().width;
+        applyProductDocWidth(finalWidth, true);
+      }
+
+      resizer.addEventListener('mousedown', onPointerDown);
+      resizer.addEventListener('touchstart', onPointerDown, { passive: false });
     }
 
     function toggleNodeCollapse(nodeId, e) {
@@ -6389,6 +6540,7 @@
     syncAudioPopoverControls();
     fetchTasks();
     fetchBacklog(true);
+    initProductDocResizer();
     loadProjects();
     setInterval(fetchTasks, 3000);
     setInterval(() => fetchBacklog(false), 5000);
