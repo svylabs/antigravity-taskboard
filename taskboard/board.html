@@ -2371,11 +2371,11 @@
         width: 285px;
         min-width: 285px;
       }
-      .sprint-strip {
-        padding: 6px 16px;
+      .session-switcher {
+        padding: 3px 6px;
       }
-      .sprint-strip-heading {
-        display: none;
+      .session-select {
+        max-width: 130px;
       }
       .form-row-2col,
       .form-row-3col {
@@ -2442,11 +2442,14 @@
       .column-tabs-bar {
         padding: 6px 10px;
       }
-      .sprint-strip {
-        padding: 6px 12px;
+      .session-switcher {
+        order: 2;
+        width: 100%;
+        justify-content: space-between;
       }
-      .sprint-stats-box {
-        display: none;
+      .session-select {
+        flex: 1;
+        max-width: none;
       }
       .board-container {
         padding: 12px 10px;
@@ -2527,239 +2530,89 @@
       .task-card {
         padding: 12px;
       }
-    /* Modern Sprint Navigation Strip (Linear / GitHub Projects style) */
-    .sprint-strip {
-      display: flex;
+    /* Session / Sprint Switcher (Matches .project-switcher in header-actions) */
+    .session-switcher {
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 7px 28px;
+      gap: 6px;
       background: #F8FAFC;
-      border-top: 1px solid #F1F5F9;
-      border-bottom: 1px solid var(--border);
-      min-height: 44px;
-      box-sizing: border-box;
-    }
-
-    .sprint-strip-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      min-width: 0;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    .sprint-strip-heading {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.6px;
-      color: #64748B;
-      text-transform: uppercase;
-      flex-shrink: 0;
-      user-select: none;
-    }
-
-    .sprint-heading-icon {
-      font-size: 13px;
-    }
-
-    .sprint-pills-container {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      overflow-x: auto;
-      scrollbar-width: none;
-      -webkit-overflow-scrolling: touch;
-      padding: 2px 0;
-      flex: 1;
-    }
-
-    .sprint-pills-container::-webkit-scrollbar {
-      display: none;
-    }
-
-    .sprint-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 11px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #475569;
-      background: #FFFFFF;
-      border: 1px solid #E2E8F0;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.15s ease;
-      flex-shrink: 0;
-      user-select: none;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
-    }
-
-    .sprint-pill:hover {
-      background: #F1F5F9;
-      color: #0F172A;
-      border-color: #CBD5E1;
-      transform: translateY(-0.5px);
-    }
-
-    .sprint-pill.is-active-sprint {
-      border-color: #86EFAC;
-      background: #F0FDF4;
-      color: #166534;
-    }
-
-    .sprint-pill.is-active-sprint .sprint-pill-count {
-      background: #DCFCE7;
-      color: #15803D;
-    }
-
-    .sprint-pill.is-selected {
-      background: #0F172A !important;
-      color: #FFFFFF !important;
-      border-color: #0F172A !important;
-      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25) !important;
-    }
-
-    .sprint-pill.is-selected .sprint-pill-count {
-      background: rgba(255, 255, 255, 0.2) !important;
-      color: #FFFFFF !important;
-    }
-
-    .sprint-pill.is-selected .sprint-live-dot {
-      background: #34D399;
-      box-shadow: 0 0 6px rgba(52, 211, 153, 0.9);
-    }
-
-    .sprint-pill.is-completed {
-      opacity: 0.85;
-    }
-
-    .sprint-live-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #10B981;
-      display: inline-block;
-      flex-shrink: 0;
-      animation: sprintPulse 2s infinite ease-in-out;
-    }
-
-    @keyframes sprintPulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.6; transform: scale(0.85); }
-    }
-
-    .sprint-pill-label {
-      max-width: 150px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .sprint-pill-count {
-      font-size: 10.5px;
-      font-weight: 700;
-      background: #F1F5F9;
-      color: #64748B;
-      padding: 1px 6px;
+      border: 1px solid var(--border);
+      padding: 4px 8px;
       border-radius: 10px;
-      font-family: monospace;
-      letter-spacing: -0.2px;
-      transition: all 0.15s ease;
     }
 
-    .sprint-pill-add {
-      background: transparent;
-      border: 1px dashed #CBD5E1;
-      color: #64748B;
-      box-shadow: none;
-    }
-
-    .sprint-pill-add:hover {
-      background: #FFFFFF;
-      border-color: var(--primary);
-      color: var(--primary);
-      border-style: solid;
-    }
-
-    .sprint-more-select {
-      outline: none;
-      -webkit-appearance: none;
-      appearance: none;
-      padding-right: 20px;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%2364748B' d='M0 0l5 5 5-5z'/%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 8px center;
-    }
-
-    .sprint-strip-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .sprint-stats-box {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 11.5px;
-      font-weight: 600;
-      color: #475569;
-      background: #FFFFFF;
-      border: 1px solid #E2E8F0;
-      padding: 4px 10px;
-      border-radius: 14px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
-    }
-
-    .sprint-stats-text {
-      white-space: nowrap;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
-
-    .sprint-progress-track {
-      width: 75px;
-      height: 6px;
-      background: #E2E8F0;
-      border-radius: 3px;
-      overflow: hidden;
-      display: inline-block;
-    }
-
-    .sprint-progress-fill {
-      height: 100%;
-      background: linear-gradient(90deg, #10B981, #059669);
-      border-radius: 3px;
-      transition: width 0.3s ease;
-    }
-
-    .btn-sprint-action {
+    .session-switcher-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 10px;
-      font-size: 11.5px;
-      font-weight: 600;
-      border-radius: 8px;
-      border: 1px solid #CBD5E1;
-      background: #FFFFFF;
-      color: #334155;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      user-select: none;
+      white-space: nowrap;
     }
 
-    .btn-sprint-action:hover {
+    .session-select {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      cursor: pointer;
+      outline: none;
+      max-width: 175px;
+      transition: border-color 0.15s ease;
+    }
+
+    .session-select:focus {
+      border-color: var(--primary);
+    }
+
+    .session-stats-tag {
+      font-size: 11px;
+      font-weight: 700;
+      font-family: monospace;
+      padding: 2px 7px;
+      border-radius: 10px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
+      cursor: default;
+      transition: all 0.15s ease;
+    }
+
+    .session-stats-tag.is-complete {
+      background: #ECFDF5;
+      color: #059669;
+      border-color: #A7F3D0;
+    }
+
+    .session-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 25px;
+      height: 25px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .session-action-btn:hover {
       background: #F1F5F9;
       border-color: #94A3B8;
-      color: #0F172A;
+      color: var(--text-main);
       transform: translateY(-0.5px);
     }
 
@@ -2807,6 +2660,18 @@
           </select>
         </div>
 
+        <!-- Sprint / Session Switcher -->
+        <div class="session-switcher" id="sessionSwitcherContainer">
+          <span class="session-switcher-label">🎯 SPRINT:</span>
+          <select id="sessionFilterSelect" class="session-select" onchange="handleSessionFilterChange(this.value)" title="Filter tasks by sprint session or view all">
+            <option value="all">Loading sessions...</option>
+          </select>
+          <span class="session-stats-tag" id="sessionStatsTag" title="Tasks completed in this sprint">0/0</span>
+          <button type="button" class="session-action-btn" id="btnActivateSession" onclick="handleQuickActivateSelectedSession()" style="display: none;" title="Set this sprint as active">🎯</button>
+          <button type="button" class="session-action-btn" id="btnEditSession" onclick="openEditSessionModal()" title="Edit session name, goal, or close sprint">✏️</button>
+          <button type="button" class="session-action-btn" onclick="openNewSessionModal()" title="Start a new sprint session">➕</button>
+        </div>
+
         <div class="sync-badge">
           <div class="pulse-dot"></div>
           <span id="syncText">Syncing SQLite</span>
@@ -2834,36 +2699,6 @@
           <span>📖</span><span>Add Feature</span>
         </button>
         <button class="btn btn-primary" onclick="openCreateModal()">+ New Task</button>
-      </div>
-    </div>
-
-    <!-- Modern Sprint Navigation Strip (Linear / GitHub Projects style) -->
-    <div class="sprint-strip" id="sprintStrip">
-      <div class="sprint-strip-left">
-        <div class="sprint-strip-heading" title="Filter tasks by sprint or view all tasks">
-          <span class="sprint-heading-icon">🎯</span>
-          <span>SPRINTS:</span>
-        </div>
-        <div class="sprint-pills-container" id="sprintPillsList">
-          <!-- Dynamically populated sprint pills -->
-        </div>
-      </div>
-
-      <div class="sprint-strip-right" id="sprintStripRight">
-        <div class="sprint-stats-box" id="sprintStatsBox" title="Sprint completion progress">
-          <span id="sessionStatsText" class="sprint-stats-text">0/0 Done (0%)</span>
-          <div class="sprint-progress-track" title="Completion bar">
-            <div class="sprint-progress-fill" id="sessionProgressFill" style="width: 0%;"></div>
-          </div>
-        </div>
-
-        <button class="btn-sprint-action" id="btnActivateSession" onclick="handleQuickActivateSelectedSession()" style="display: none;" title="Set this session as the active sprint">
-          <span>🎯 Activate</span>
-        </button>
-
-        <button class="btn-sprint-action" id="btnEditSession" onclick="openEditSessionModal()" title="Edit session goal, name, or mark completed">
-          <span>✏️ Edit</span>
-        </button>
       </div>
     </div>
 
@@ -4108,103 +3943,37 @@
         localStorage.setItem('tb_selected_session', selectedSessionId);
       }
 
-      renderSprintPills();
-      updateSessionStatsBadge();
-    }
+      const select = document.getElementById('sessionFilterSelect');
+      if (select) {
+        if (allSessions.length === 0) {
+          select.innerHTML = `<option value="all">🌐 All Tasks</option>`;
+        } else {
+          const sortedSessions = [...allSessions].sort((a, b) => {
+            if (a.id === activeSessionId) return -1;
+            if (b.id === activeSessionId) return 1;
+            return (b.created_at || '').localeCompare(a.created_at || '');
+          });
 
-    function renderSprintPills() {
-      const container = document.getElementById('sprintPillsList');
-      if (!container) return;
-
-      const isAllSelected = selectedSessionId === 'all';
-      
-      // Calculate overall counts for "All Tasks"
-      const nonBacklog = tasks.filter(t => t.status !== 'backlog');
-      const allDone = nonBacklog.filter(t => t.status === 'done').length;
-      const allTotal = nonBacklog.length;
-
-      let html = '';
-
-      // 1. All Tasks Pill
-      html += `
-        <button type="button" class="sprint-pill ${isAllSelected ? 'is-selected' : ''}" onclick="handleSessionFilterChange('all')" title="View all tasks across all sessions">
-          <span class="sprint-pill-label">🌐 All Tasks</span>
-          <span class="sprint-pill-count">${allDone}/${allTotal}</span>
-        </button>
-      `;
-
-      // 2. Sort sessions: active first, then most recently created
-      const sortedSessions = [...allSessions].sort((a, b) => {
-        if (a.id === activeSessionId) return -1;
-        if (b.id === activeSessionId) return 1;
-        return (b.created_at || '').localeCompare(a.created_at || '');
-      });
-
-      // Show up to 5 visible pills
-      const visibleSessions = sortedSessions.slice(0, 5);
-      const remainingSessions = sortedSessions.slice(5);
-
-      // If selectedSessionId is in remaining, promote it into visible
-      if (selectedSessionId && selectedSessionId !== 'all' && !visibleSessions.some(s => s.id === selectedSessionId)) {
-        const found = remainingSessions.find(s => s.id === selectedSessionId);
-        if (found) {
-          visibleSessions.push(found);
+          let opts = sortedSessions.map(s => {
+            const isAct = s.id === activeSessionId;
+            const prefix = isAct ? '🎯 ' : (s.status === 'completed' ? '✅ ' : '📁 ');
+            const suffix = isAct ? ' (Active)' : (s.status === 'completed' ? ' [Closed]' : '');
+            return `<option value="${s.id}" ${s.id === selectedSessionId ? 'selected' : ''}>${prefix}${escapeHtml(s.name)}${suffix}</option>`;
+          }).join('');
+          opts += `<option value="all" ${selectedSessionId === 'all' ? 'selected' : ''}>🌐 All Tasks</option>`;
+          select.innerHTML = opts;
         }
       }
 
-      visibleSessions.forEach(s => {
-        const isSelected = s.id === selectedSessionId;
-        const isActive = s.id === activeSessionId;
-        const isClosed = s.status === 'completed';
-        const stats = s.stats || { done: 0, total: 0 };
-
-        let classes = ['sprint-pill'];
-        if (isSelected) classes.push('is-selected');
-        if (isActive) classes.push('is-active-sprint');
-        if (isClosed) classes.push('is-completed');
-
-        html += `
-          <button type="button" class="${classes.join(' ')}" onclick="handleSessionFilterChange('${s.id}')" title="${escapeHtml(s.name)}${isActive ? ' (Active Sprint)' : ''}${isClosed ? ' [Closed]' : ''}">
-            ${isActive ? '<span class="sprint-live-dot" title="Active Sprint"></span>' : ''}
-            <span class="sprint-pill-label">${escapeHtml(s.name)}</span>
-            <span class="sprint-pill-count">${stats.done}/${stats.total}</span>
-          </button>
-        `;
-      });
-
-      // 3. Dropdown for older sessions if count > 5
-      const hiddenSessions = remainingSessions.filter(s => !visibleSessions.some(v => v.id === s.id));
-      if (hiddenSessions.length > 0) {
-        html += `
-          <select class="sprint-pill sprint-more-select" onchange="handleSessionFilterChange(this.value)" title="More past sprints">
-            <option value="" disabled selected>More (${hiddenSessions.length})...</option>
-            ${hiddenSessions.map(s => `
-              <option value="${s.id}">
-                ${s.id === activeSessionId ? '🎯 ' : ''}${escapeHtml(s.name)} (${(s.stats && s.stats.done) || 0}/${(s.stats && s.stats.total) || 0})
-              </option>
-            `).join('')}
-          </select>
-        `;
-      }
-
-      // 4. Add New Sprint Pill
-      html += `
-        <button type="button" class="sprint-pill sprint-pill-add" onclick="openNewSessionModal()" title="Start a new sprint session">
-          <span>➕ New Sprint</span>
-        </button>
-      `;
-
-      container.innerHTML = html;
+      updateSessionStatsBadge();
     }
 
     function updateSessionStatsBadge() {
-      const statsBox = document.getElementById('sprintStatsBox');
-      const statsText = document.getElementById('sessionStatsText');
-      const progressFill = document.getElementById('sessionProgressFill');
+      const statsTag = document.getElementById('sessionStatsTag');
       const activateBtn = document.getElementById('btnActivateSession');
       const editBtn = document.getElementById('btnEditSession');
 
-      if (!statsText) return;
+      if (!statsTag) return;
 
       if (selectedSessionId === 'all') {
         const nonBacklog = tasks.filter(t => t.status !== 'backlog');
@@ -4212,8 +3981,9 @@
         const total = nonBacklog.length;
         const rate = total > 0 ? Math.round((done / total) * 100) : 0;
 
-        statsText.innerText = `${done}/${total} Done (${rate}%)`;
-        if (progressFill) progressFill.style.width = `${rate}%`;
+        statsTag.innerText = `${done}/${total}`;
+        statsTag.title = `All Tasks: ${done}/${total} done (${rate}%)`;
+        statsTag.className = 'session-stats-tag' + (done === total && total > 0 ? ' is-complete' : '');
         if (activateBtn) activateBtn.style.display = 'none';
         if (editBtn) editBtn.style.display = 'none';
         return;
@@ -4224,8 +3994,9 @@
       const current = allSessions.find(s => s.id === selectedSessionId);
       if (current) {
         const stats = current.stats || { total: 0, done: 0, completion_rate: 0 };
-        statsText.innerText = `${stats.done}/${stats.total} Done (${stats.completion_rate}%)`;
-        if (progressFill) progressFill.style.width = `${stats.completion_rate}%`;
+        statsTag.innerText = `${stats.done}/${stats.total}`;
+        statsTag.title = `Sprint: ${stats.done}/${stats.total} done (${stats.completion_rate}%)`;
+        statsTag.className = 'session-stats-tag' + (stats.done === stats.total && stats.total > 0 ? ' is-complete' : '');
 
         if (activateBtn) {
           if (current.id !== activeSessionId) {
@@ -4235,9 +4006,11 @@
           }
         }
       } else {
-        statsText.innerText = '0/0 Done (0%)';
-        if (progressFill) progressFill.style.width = '0%';
+        statsTag.innerText = '0/0';
+        statsTag.title = 'No tasks in sprint';
+        statsTag.className = 'session-stats-tag';
         if (activateBtn) activateBtn.style.display = 'none';
+        if (editBtn) editBtn.style.display = 'none';
       }
     }
 
@@ -4245,7 +4018,6 @@
       if (!newId) return;
       selectedSessionId = newId;
       localStorage.setItem('tb_selected_session', newId);
-      renderSprintPills();
       updateSessionStatsBadge();
       renderBoard();
     }
