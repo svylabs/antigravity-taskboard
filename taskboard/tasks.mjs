@@ -3,6 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import { spawn } from 'child_process';
 import {
+  readProductTree,
+  writeProductTree,
+  addProductNode,
+  updateProductNode,
+  deleteProductNode,
+  moveProductNode,
+  convertProductNodeToTask,
+  getProductFilePath,
   readBacklogTree,
   writeBacklogTree,
   addBacklogNode,
@@ -17,6 +25,14 @@ import {
 } from './backlog.mjs';
 
 export {
+  readProductTree,
+  writeProductTree,
+  addProductNode,
+  updateProductNode,
+  deleteProductNode,
+  moveProductNode,
+  convertProductNodeToTask,
+  getProductFilePath,
   readBacklogTree,
   writeBacklogTree,
   addBacklogNode,
@@ -1119,12 +1135,12 @@ if (command) {
       console.log(`\n================== 📋 KANBAN: [${projectName}] ==================`);
       console.log(`📂 DB: ${dbPath}\n`);
 
-      // Display Backlog Tree from backlog.json
+      // Display Product Tree from product.json
       try {
-        const tree = readBacklogTree(projectDir, projectName, db);
+        const tree = readProductTree(projectDir, projectName, db);
         syncTaskStatusesWithTree(tree, getTaskById);
-        const backlogCount = countNodes(tree);
-        console.log(`▶ [PROJECT BACKLOG TREE] (${backlogCount} items in ${getBacklogFilePath(projectDir)})`);
+        const productCount = countNodes(tree);
+        console.log(`▶ [PROJECT PRODUCT TREE] (${productCount} items in ${getProductFilePath(projectDir)})`);
         const ascii = formatTreeAscii(tree).trim();
         if (ascii) {
           console.log(ascii.split('\n').map(l => '    ' + l).join('\n'));
@@ -1133,7 +1149,7 @@ if (command) {
         }
         console.log('');
       } catch (err) {
-        console.log(`▶ [PROJECT BACKLOG TREE] (error: ${err.message})\n`);
+        console.log(`▶ [PROJECT PRODUCT TREE] (error: ${err.message})\n`);
       }
 
       for (const col of columns) {
@@ -1159,6 +1175,7 @@ if (command) {
       console.log('==================================================================\n');
       break;
     }
+    case 'product':
     case 'backlog': {
       const { projectName, projectDir } = getProjectInfo();
       const sub = args[0];
@@ -1167,11 +1184,11 @@ if (command) {
         const parentId = args[2] || 'root';
         const description = args.slice(3).join(' ') || '';
         if (!title) {
-          console.log(JSON.stringify({ error: 'Title is required. Usage: backlog add "<TITLE>" [PARENT_ID] [DESCRIPTION]' }));
+          console.log(JSON.stringify({ error: 'Title is required. Usage: product add "<TITLE>" [PARENT_ID] [DESCRIPTION]' }));
           break;
         }
-        const result = addBacklogNode(projectDir, { parentId, title, description, projectName, db });
-        console.log(`✅ Added node to backlog: "${result.node.title}" (${result.node.id})`);
+        const result = addProductNode(projectDir, { parentId, title, description, projectName, db });
+        console.log(`✅ Added node to product tree: "${result.node.title}" (${result.node.id})`);
         break;
       }
       if (sub === 'convert') {
@@ -1180,34 +1197,34 @@ if (command) {
         const priority = args[3] || 'medium';
         const role = args[4] || 'Fullstack Engineer';
         if (!nodeId) {
-          console.log(JSON.stringify({ error: 'Node ID is required. Usage: backlog convert <NODE_ID> "<DESCRIPTION>" [PRIORITY] [ROLE]' }));
+          console.log(JSON.stringify({ error: 'Node ID is required. Usage: product convert <NODE_ID> "<DESCRIPTION>" [PRIORITY] [ROLE]' }));
           break;
         }
-        const result = convertBacklogNodeToTask(projectDir, nodeId, { description, priority, subagent_role: role }, addTask, projectName, db);
-        console.log(`🚀 Converted backlog node to task: ${result.task.id} ("${result.task.title}")`);
+        const result = convertProductNodeToTask(projectDir, nodeId, { description, priority, subagent_role: role }, addTask, projectName, db);
+        console.log(`🚀 Converted product node to task: ${result.task.id} ("${result.task.title}")`);
         break;
       }
       if (sub === 'delete') {
         const nodeId = args[1];
         if (!nodeId) {
-          console.log(JSON.stringify({ error: 'Node ID is required. Usage: backlog delete <NODE_ID>' }));
+          console.log(JSON.stringify({ error: 'Node ID is required. Usage: product delete <NODE_ID>' }));
           break;
         }
-        deleteBacklogNode(projectDir, nodeId, projectName, db);
-        console.log(`🗑️ Deleted backlog node: ${nodeId}`);
+        deleteProductNode(projectDir, nodeId, projectName, db);
+        console.log(`🗑️ Deleted product node: ${nodeId}`);
         break;
       }
       if (sub === 'json') {
-        const tree = readBacklogTree(projectDir, projectName, db);
+        const tree = readProductTree(projectDir, projectName, db);
         syncTaskStatusesWithTree(tree, getTaskById);
         console.log(JSON.stringify(tree, null, 2));
         break;
       }
       // Default: print ASCII tree
-      const tree = readBacklogTree(projectDir, projectName, db);
+      const tree = readProductTree(projectDir, projectName, db);
       syncTaskStatusesWithTree(tree, getTaskById);
-      console.log(`\n================== 🌳 PROJECT BACKLOG: [${projectName}] ==================`);
-      console.log(`📄 File: ${getBacklogFilePath(projectDir)}\n`);
+      console.log(`\n================== 📐 PROJECT PRODUCT: [${projectName}] ==================`);
+      console.log(`📄 File: ${getProductFilePath(projectDir)}\n`);
       console.log(formatTreeAscii(tree));
       console.log('==================================================================\n');
       break;

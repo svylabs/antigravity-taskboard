@@ -136,8 +136,45 @@ const TOOLS = [
     }
   },
   {
+    name: 'taskboard_get_product_tree',
+    description: 'Get the hierarchical product description & requirements tree from product.json (root is project, with nested features, modules, and specifications).',
+    inputSchema: {
+      type: 'object',
+      properties: {}
+    }
+  },
+  {
+    name: 'taskboard_add_product_item',
+    description: 'Add a product requirement or feature node to the tree in product.json.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        parentId: { type: 'string', description: 'Parent node ID (default "root" for project root)' },
+        title: { type: 'string', description: 'Title of the feature or requirement' },
+        description: { type: 'string', description: 'Optional description of the feature or requirement' }
+      },
+      required: ['title']
+    }
+  },
+  {
+    name: 'taskboard_convert_product_item',
+    description: 'Convert a product feature/requirement node into an actionable task in SQLite with a proper description, placing it into To Do.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        node_id: { type: 'string', description: 'Product node ID to convert' },
+        description: { type: 'string', description: 'Detailed description for the actionable task' },
+        priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Task priority' },
+        subagent_role: { type: 'string', description: 'Assigned subagent role' },
+        verification_cmd: { type: 'string', description: 'Optional verification command' },
+        acceptance_criteria: { type: 'string', description: 'Optional acceptance criteria' }
+      },
+      required: ['node_id', 'description']
+    }
+  },
+  {
     name: 'taskboard_get_backlog',
-    description: 'Get the hierarchical project description backlog tree from backlog.json (root is project, with nested requirements and modules).',
+    description: 'Alias for taskboard_get_product_tree: Get the product description tree from product.json.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -145,7 +182,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_add_backlog_item',
-    description: 'Add a project description requirement node to the backlog tree in backlog.json.',
+    description: 'Alias for taskboard_add_product_item: Add a feature node to product.json.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -158,11 +195,11 @@ const TOOLS = [
   },
   {
     name: 'taskboard_convert_backlog_item',
-    description: 'Convert a backlog requirement node into an actionable task in SQLite with a proper description, placing it into To Do.',
+    description: 'Alias for taskboard_convert_product_item: Convert a node into an actionable task in SQLite.',
     inputSchema: {
       type: 'object',
       properties: {
-        node_id: { type: 'string', description: 'Backlog node ID to convert' },
+        node_id: { type: 'string', description: 'Node ID to convert' },
         description: { type: 'string', description: 'Detailed description for the actionable task' },
         priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'], description: 'Task priority' },
         subagent_role: { type: 'string', description: 'Assigned subagent role' },
@@ -228,12 +265,14 @@ function handleToolCall(name, args) {
     case 'taskboard_list': {
       return { project: getProjectInfo().projectName, tasks: getAllTasks().filter(t => t.status !== 'backlog') };
     }
+    case 'taskboard_get_product_tree':
     case 'taskboard_get_backlog': {
       const { projectDir, projectName } = getProjectInfo();
       const tree = readBacklogTree(projectDir, projectName, db);
       syncTaskStatusesWithTree(tree, getTaskById);
       return { project: projectName, tree };
     }
+    case 'taskboard_add_product_item':
     case 'taskboard_add_backlog_item': {
       const { projectDir, projectName } = getProjectInfo();
       const result = addBacklogNode(projectDir, {
@@ -245,6 +284,7 @@ function handleToolCall(name, args) {
       });
       return { success: true, node: result.node };
     }
+    case 'taskboard_convert_product_item':
     case 'taskboard_convert_backlog_item': {
       const { projectDir, projectName } = getProjectInfo();
       const result = convertBacklogNodeToTask(

@@ -28,6 +28,19 @@ import {
   db
 } from './tasks.mjs';
 import {
+  readProductTree,
+  writeProductTree,
+  addProductNode,
+  updateProductNode,
+  deleteProductNode,
+  moveProductNode,
+  convertProductNodeToTask,
+  syncTaskStatusesWithTree,
+  getProductFilePath,
+  getProductAssetsDir,
+  addProductAttachment,
+  deleteProductAttachment,
+  countNodes,
   readBacklogTree,
   writeBacklogTree,
   addBacklogNode,
@@ -35,10 +48,10 @@ import {
   deleteBacklogNode,
   moveBacklogNode,
   convertBacklogNodeToTask,
-  syncTaskStatusesWithTree,
-  getBacklogFilePath,
-  countNodes
+  getBacklogFilePath
 } from './backlog.mjs';
+
+
 import { handleRepoRequest } from './repo_viewer.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -690,10 +703,10 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // REST API: GET /api/backlog
-  if (pathname === '/api/backlog' && req.method === 'GET') {
+  // REST API: GET /api/product or GET /api/backlog
+  if ((pathname === '/api/product' || pathname === '/api/backlog') && req.method === 'GET') {
     const info = getProjectInfo();
-    const tree = readBacklogTree(info.projectDir, info.projectName, db);
+    const tree = readProductTree(info.projectDir, info.projectName, db);
     syncTaskStatusesWithTree(tree, getTaskById);
     const count = countNodes(tree);
     return sendJson(res, 200, {
@@ -701,34 +714,34 @@ const server = http.createServer(async (req, res) => {
       tree,
       count,
       project: info.projectName,
-      filePath: getBacklogFilePath(info.projectDir)
+      filePath: getProductFilePath(info.projectDir)
     });
   }
 
-  // REST API: POST /api/backlog - Save/replace the entire tree
-  if (pathname === '/api/backlog' && req.method === 'POST') {
+  // REST API: POST /api/product or POST /api/backlog - Save/replace the entire tree
+  if ((pathname === '/api/product' || pathname === '/api/backlog') && req.method === 'POST') {
     try {
       const body = await parseBody(req);
       if (!body.tree) {
         return sendJson(res, 400, { success: false, error: 'Tree data is required' });
       }
       const info = getProjectInfo();
-      writeBacklogTree(info.projectDir, body.tree);
+      writeProductTree(info.projectDir, body.tree);
       return sendJson(res, 200, { success: true, tree: body.tree });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
     }
   }
 
-  // REST API: POST /api/backlog/nodes - Add a child or sibling node
-  if (pathname === '/api/backlog/nodes' && req.method === 'POST') {
+  // REST API: POST /api/product/nodes or POST /api/backlog/nodes - Add a child or sibling node
+  if ((pathname === '/api/product/nodes' || pathname === '/api/backlog/nodes') && req.method === 'POST') {
     try {
       const body = await parseBody(req);
       if (!body.title) {
         return sendJson(res, 400, { success: false, error: 'Title is required' });
       }
       const info = getProjectInfo();
-      const result = addBacklogNode(info.projectDir, {
+      const result = addProductNode(info.projectDir, {
         parentId: body.parentId || 'root',
         title: body.title,
         description: body.description || '',
@@ -741,15 +754,15 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // REST API: POST /api/backlog/move - Move/reorder a node
-  if (pathname === '/api/backlog/move' && req.method === 'POST') {
+  // REST API: POST /api/product/move or POST /api/backlog/move - Move/reorder a node
+  if ((pathname === '/api/product/move' || pathname === '/api/backlog/move') && req.method === 'POST') {
     try {
       const body = await parseBody(req);
       if (!body.id) {
         return sendJson(res, 400, { success: false, error: 'Node ID is required' });
       }
       const info = getProjectInfo();
-      const result = moveBacklogNode(info.projectDir, {
+      const result = moveProductNode(info.projectDir, {
         id: body.id,
         targetParentId: body.targetParentId || 'root',
         index: body.index,
@@ -762,14 +775,14 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // REST API: POST /api/backlog/nodes/:id/convert - Convert backlog node to task in SQLite
-  const backlogConvertMatch = pathname.match(/^\/api\/backlog\/nodes\/([^/]+)\/convert$/);
-  if (backlogConvertMatch && req.method === 'POST') {
-    const nodeId = backlogConvertMatch[1];
+  // REST API: POST /api/product/nodes/:id/convert or POST /api/backlog/nodes/:id/convert
+  const productConvertMatch = pathname.match(/^\/api\/(?:product|backlog)\/nodes\/([^/]+)\/convert$/);
+  if (productConvertMatch && req.method === 'POST') {
+    const nodeId = productConvertMatch[1];
     try {
       const body = await parseBody(req);
       const info = getProjectInfo();
-      const result = convertBacklogNodeToTask(
+      const result = convertProductNodeToTask(
         info.projectDir,
         nodeId,
         body,
@@ -783,14 +796,14 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // REST API: PATCH /api/backlog/nodes/:id - Update node title and/or description
-  const backlogNodePatchMatch = pathname.match(/^\/api\/backlog\/nodes\/([^/]+)$/);
-  if (backlogNodePatchMatch && req.method === 'PATCH') {
-    const nodeId = backlogNodePatchMatch[1];
+  // REST API: PATCH /api/product/nodes/:id or PATCH /api/backlog/nodes/:id
+  const productNodePatchMatch = pathname.match(/^\/api\/(?:product|backlog)\/nodes\/([^/]+)$/);
+  if (productNodePatchMatch && req.method === 'PATCH') {
+    const nodeId = productNodePatchMatch[1];
     try {
       const body = await parseBody(req);
       const info = getProjectInfo();
-      const result = updateBacklogNode(info.projectDir, nodeId, {
+      const result = updateProductNode(info.projectDir, nodeId, {
         title: body.title,
         description: body.description,
         projectName: info.projectName,
@@ -802,17 +815,115 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // REST API: DELETE /api/backlog/nodes/:id - Delete node and children
-  const backlogNodeDeleteMatch = pathname.match(/^\/api\/backlog\/nodes\/([^/]+)$/);
-  if (backlogNodeDeleteMatch && req.method === 'DELETE') {
-    const nodeId = backlogNodeDeleteMatch[1];
+  // REST API: DELETE /api/product/nodes/:id or DELETE /api/backlog/nodes/:id
+  const productNodeDeleteMatch = pathname.match(/^\/api\/(?:product|backlog)\/nodes\/([^/]+)$/);
+  if (productNodeDeleteMatch && req.method === 'DELETE') {
+    const nodeId = productNodeDeleteMatch[1];
     try {
       const info = getProjectInfo();
-      const result = deleteBacklogNode(info.projectDir, nodeId, info.projectName, db);
+      const result = deleteProductNode(info.projectDir, nodeId, info.projectName, db);
       return sendJson(res, 200, result);
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
     }
+  }
+
+  // REST API: POST /api/product/nodes/:id/attachments - Upload file/image artifact for product doc item
+  const productAttachmentPostMatch = pathname.match(/^\/api\/(?:product|backlog)\/nodes\/([^/]+)\/attachments$/);
+  if (productAttachmentPostMatch && req.method === 'POST') {
+    const nodeId = productAttachmentPostMatch[1];
+    try {
+      const body = await parseBody(req);
+      const rawBase64 = body.dataBase64 || body.base64;
+      const fileName = body.fileName || body.name || `artifact_${Date.now()}.png`;
+      let mimeType = body.mimeType || body.type;
+
+      if (!rawBase64) {
+        return sendJson(res, 400, { success: false, error: 'File data (dataBase64) is required' });
+      }
+
+      let cleanBase64 = rawBase64;
+      const commaIdx = cleanBase64.indexOf(',');
+      if (commaIdx !== -1 && cleanBase64.slice(0, commaIdx).includes('base64')) {
+        const header = cleanBase64.slice(0, commaIdx);
+        if (!mimeType) {
+          const m = header.match(/data:([^;]+)/);
+          if (m) mimeType = m[1];
+        }
+        cleanBase64 = cleanBase64.slice(commaIdx + 1);
+      }
+
+      const buffer = Buffer.from(cleanBase64, 'base64');
+      if (buffer.length === 0) {
+        return sendJson(res, 400, { success: false, error: 'Empty file data' });
+      }
+      if (buffer.length > 25 * 1024 * 1024) {
+        return sendJson(res, 413, { success: false, error: 'File size exceeds 25MB limit' });
+      }
+
+      const info = getProjectInfo();
+      const result = addProductAttachment(info.projectDir, nodeId, {
+        fileName,
+        buffer,
+        mimeType,
+        projectName: info.projectName,
+        db
+      });
+      return sendJson(res, 201, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: DELETE /api/product/nodes/:id/attachments/:attId - Delete artifact from product doc item
+  const productAttachmentDeleteMatch = pathname.match(/^\/api\/(?:product|backlog)\/nodes\/([^/]+)\/attachments\/([^/]+)$/);
+  if (productAttachmentDeleteMatch && req.method === 'DELETE') {
+    const nodeId = productAttachmentDeleteMatch[1];
+    const attId = productAttachmentDeleteMatch[2];
+    try {
+      const info = getProjectInfo();
+      const result = deleteProductAttachment(info.projectDir, nodeId, attId, info.projectName, db);
+      return sendJson(res, 200, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: GET /api/product/assets/:filename - Serve product asset files from disk
+  const productAssetGetMatch = pathname.match(/^\/api\/(?:product\/assets|product_assets)\/([^/]+)$/);
+  if (productAssetGetMatch && (req.method === 'GET' || req.method === 'HEAD')) {
+    const filename = path.basename(productAssetGetMatch[1]);
+    const info = getProjectInfo();
+    const filePath = path.join(getProductAssetsDir(info.projectDir), filename);
+    if (!fs.existsSync(filePath)) {
+      res.writeHead(404, { 'Content-Type': 'text/plain' });
+      return res.end('Asset not found');
+    }
+    const ext = path.extname(filename).toLowerCase();
+    const mimeTypes = {
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
+      '.webp': 'image/webp',
+      '.pdf': 'application/pdf',
+      '.md': 'text/markdown',
+      '.json': 'application/json',
+      '.txt': 'text/plain'
+    };
+    const contentType = mimeTypes[ext] || 'application/octet-stream';
+    const stat = fs.statSync(filePath);
+    const isDownload = urlObj.searchParams.get('download') === '1';
+    res.writeHead(200, {
+      'Content-Type': contentType,
+      'Content-Length': stat.size,
+      'Content-Disposition': isDownload ? `attachment; filename="${encodeURIComponent(filename)}"` : 'inline',
+      'Cache-Control': 'public, max-age=86400',
+      'Access-Control-Allow-Origin': '*'
+    });
+    if (req.method === 'HEAD') return res.end();
+    return fs.createReadStream(filePath).pipe(res);
   }
 
   // REST API: GET /api/tasks

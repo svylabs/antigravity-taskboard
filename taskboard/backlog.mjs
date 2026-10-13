@@ -2,21 +2,45 @@ import fs from 'fs';
 import path from 'path';
 
 /**
- * Resolves the primary backlog file path: <projectDir>/backlog.json
+ * Resolves the primary product requirements file path: <projectDir>/product.json
+ * Automatically migrates existing backlog.json to product.json if found.
  */
-export function getBacklogFilePath(projectDir) {
+export function getProductFilePath(projectDir) {
   const pDir = projectDir || process.cwd();
-  const primary = path.join(pDir, 'backlog.json');
+  const primary = path.join(pDir, 'product.json');
   if (fs.existsSync(primary)) return primary;
 
-  const fallback = path.join(pDir, '.agents', 'taskboard', 'backlog.json');
+  // Auto-migrate legacy backlog.json if it exists
+  const legacy = path.join(pDir, 'backlog.json');
+  if (fs.existsSync(legacy)) {
+    try {
+      fs.renameSync(legacy, primary);
+      console.log(`📦 Renamed ${legacy} -> ${primary}`);
+      return primary;
+    } catch {
+      return legacy;
+    }
+  }
+
+  const fallback = path.join(pDir, '.agents', 'taskboard', 'product.json');
   if (fs.existsSync(fallback)) return fallback;
+
+  const legacyFallback = path.join(pDir, '.agents', 'taskboard', 'backlog.json');
+  if (fs.existsSync(legacyFallback)) {
+    try {
+      fs.renameSync(legacyFallback, fallback);
+      return fallback;
+    } catch {
+      return legacyFallback;
+    }
+  }
 
   return primary;
 }
+export const getBacklogFilePath = getProductFilePath;
 
 /**
- * Generate a clean, unique ID for a backlog node.
+ * Generate a clean, unique ID for a product node.
  */
 export function generateNodeId() {
   return 'node_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
@@ -54,12 +78,12 @@ export function countNodes(node, includeRoot = false) {
 }
 
 /**
- * Read the backlog tree from disk.
+ * Read the product description tree from disk.
  * If file does not exist, initializes with project root node and migrates legacy SQLite backlog tasks if any.
  */
-export function readBacklogTree(projectDir, projectName, db = null) {
+export function readProductTree(projectDir, projectName, db = null) {
   const pDir = projectDir || process.cwd();
-  const filePath = getBacklogFilePath(pDir);
+  const filePath = getProductFilePath(pDir);
   const pName = projectName || path.basename(pDir) || 'Project';
 
   let tree = null;
@@ -111,7 +135,7 @@ export function readBacklogTree(projectDir, projectName, db = null) {
       } catch {}
     }
 
-    writeBacklogTree(pDir, tree);
+    writeProductTree(pDir, tree);
   }
 
   // Ensure root ID and title
@@ -120,21 +144,30 @@ export function readBacklogTree(projectDir, projectName, db = null) {
 
   return tree;
 }
+export const readBacklogTree = readProductTree;
 
 /**
- * Write backlog tree to disk formatted with 2-space indentation for clean git diffs.
+ * Write product description tree to disk formatted with 2-space indentation for clean git diffs.
  */
-export function writeBacklogTree(projectDir, tree) {
+export function writeProductTree(projectDir, tree) {
   const pDir = projectDir || process.cwd();
-  const filePath = path.join(pDir, 'backlog.json');
+  const filePath = path.join(pDir, 'product.json');
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
   const content = JSON.stringify(tree, null, 2) + '\n';
   fs.writeFileSync(filePath, content, 'utf-8');
+
+  // Clean up any remaining legacy backlog.json if it exists
+  const legacy = path.join(pDir, 'backlog.json');
+  if (fs.existsSync(legacy) && legacy !== filePath) {
+    try { fs.unlinkSync(legacy); } catch {}
+  }
+
   return filePath;
 }
+export const writeBacklogTree = writeProductTree;
 
 /**
  * Add a new node to the tree under parentId (default 'root').
@@ -365,3 +398,90 @@ export function formatTreeAscii(node, prefix = '', isLast = true, isRoot = true)
 
   return out;
 }
+
+// Product alias exports
+export const addProductNode = addBacklogNode;
+export const updateProductNode = updateBacklogNode;
+export const deleteProductNode = deleteBacklogNode;
+export const moveProductNode = moveBacklogNode;
+export const convertProductNodeToTask = convertBacklogNodeToTask;
+
+/**
+ * Returns the product assets directory: <projectDir>/product_assets
+ * Files stored here are checked into git alongside product.json (no SQLite).
+ */
+export function getProductAssetsDir(projectDir) {
+  const pDir = projectDir || process.cwd();
+  const dir = path.join(pDir, 'product_assets');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  return dir;
+}
+
+/**
+ * Save an uploaded file or image directly to <projectDir>/product_assets/
+ * and record its metadata in product.json under the given node.
+ */
+export function addProductAttachment(projectDir, nodeId, { fileName, buffer, mimeType, projectName, db = null }) {
+  const assetsDir = getProductAssetsDir(projectDir);
+  const attId = 'att_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 7);
+  const cleanName = (fileName || 'artifact.bin').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const storedName = `${attId}_${cleanName}`;
+  const diskPath = path.join(assetsDir, storedName);
+
+  fs.writeFileSync(diskPath, buffer);
+
+  const tree = readProductTree(projectDir, projectName, db);
+  const found = findNodeAndParent(tree, nodeId);
+  if (!found) {
+    try { fs.unlinkSync(diskPath); } catch {}
+    throw new Error(`Product item "${nodeId}" not found`);
+  }
+
+  if (!Array.isArray(found.node.attachments)) {
+    found.node.attachments = [];
+  }
+
+  const attachment = {
+    id: attId,
+    fileName: cleanName,
+    storedName,
+    url: `/api/product/assets/${storedName}`,
+    mimeType: mimeType || 'application/octet-stream',
+    size: buffer.length,
+    uploadedAt: new Date().toISOString()
+  };
+
+  found.node.attachments.push(attachment);
+  writeProductTree(projectDir, tree);
+
+  return { success: true, attachment, tree };
+}
+
+/**
+ * Delete an attachment file from product_assets and remove it from product.json.
+ */
+export function deleteProductAttachment(projectDir, nodeId, attId, projectName, db = null) {
+  const tree = readProductTree(projectDir, projectName, db);
+  const found = findNodeAndParent(tree, nodeId);
+  if (!found) {
+    throw new Error(`Product item "${nodeId}" not found`);
+  }
+
+  if (Array.isArray(found.node.attachments)) {
+    const att = found.node.attachments.find(a => a.id === attId);
+    if (att && att.storedName) {
+      const assetsDir = getProductAssetsDir(projectDir);
+      const diskPath = path.join(assetsDir, att.storedName);
+      if (fs.existsSync(diskPath)) {
+        try { fs.unlinkSync(diskPath); } catch {}
+      }
+    }
+    found.node.attachments = found.node.attachments.filter(a => a.id !== attId);
+    writeProductTree(projectDir, tree);
+  }
+
+  return { success: true, tree };
+}
+
