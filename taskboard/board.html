@@ -3589,14 +3589,9 @@
 
       container.innerHTML = '';
 
-      // Inline draft at top if adding directly to root
-      if (addingChildUnderParentId === 'root') {
-        container.appendChild(buildInlineDraftElement('root'));
-      }
-
       container.appendChild(buildTreeNodeElement(backlogTree, 0, true));
 
-      if (!backlogTree.children || backlogTree.children.length === 0) {
+      if ((!backlogTree.children || backlogTree.children.length === 0) && addingChildUnderParentId !== 'root') {
         const emptyBox = document.createElement('div');
         emptyBox.className = 'tree-empty-state';
         emptyBox.innerHTML = `
@@ -3612,6 +3607,7 @@
     function buildInlineDraftElement(parentId) {
       const draft = document.createElement('div');
       draft.className = 'tree-inline-card is-draft';
+      draft.onclick = (e) => e.stopPropagation();
       const isRoot = parentId === 'root';
       const parentNode = !isRoot ? findBacklogNode(backlogTree, parentId) : null;
       const parentTitle = parentNode ? parentNode.title : 'Product';
@@ -3624,7 +3620,7 @@
         <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
         <input type="text" class="tree-inline-title" id="draft-title-${parentId}" placeholder="Feature title (e.g. Twilio Voice Verification)..." onkeydown="handleDraftKeydown(event, '${parentId}')">
         <label class="tree-inline-label">Description & Specifications <span style="font-weight: 400; color: #94A3B8;">(Optional)</span></label>
-        <textarea class="tree-inline-desc" id="draft-desc-${parentId}" rows="2" placeholder="Describe requirements, acceptance criteria, or technical details..."></textarea>
+        <textarea class="tree-inline-desc" id="draft-desc-${parentId}" rows="2" placeholder="Describe requirements, acceptance criteria, or technical details..." onkeydown="handleDraftKeydown(event, '${parentId}')"></textarea>
         <div class="tree-inline-actions">
           <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineDraft('${parentId}', event)">Add to Product Doc</button>
           <button type="button" class="btn btn-sm btn-ghost" onclick="cancelInlineDraft(event)">Cancel</button>
@@ -3635,8 +3631,8 @@
 
     function handleDraftKeydown(e, parentId) {
       if (e.key === 'Enter') {
-        const descEl = document.getElementById(`draft-desc-${parentId}`);
-        if (!descEl || !descEl.value.trim()) {
+        const isInput = e.target && e.target.tagName && e.target.tagName.toLowerCase() === 'input';
+        if (isInput || e.ctrlKey || e.metaKey) {
           e.preventDefault();
           saveInlineDraft(parentId, e);
         }
@@ -3648,13 +3644,14 @@
     function openInlineDraft(parentId = 'root', e) {
       if (e) e.stopPropagation();
       addingChildUnderParentId = parentId;
-      if (parentId !== 'root') {
-        collapsedNodes.delete(parentId);
-      }
+      collapsedNodes.delete(parentId);
       renderBacklogTree();
       setTimeout(() => {
         const el = document.getElementById(`draft-title-${parentId}`);
-        if (el) el.focus();
+        if (el) {
+          el.focus();
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
       }, 50);
     }
 
@@ -3665,7 +3662,10 @@
     }
 
     async function saveInlineDraft(parentId, e) {
-      if (e) e.stopPropagation();
+      if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+      }
       const titleEl = document.getElementById(`draft-title-${parentId}`);
       const descEl = document.getElementById(`draft-desc-${parentId}`);
       if (!titleEl) return;
@@ -3673,6 +3673,7 @@
       const description = descEl ? descEl.value.trim() : '';
       if (!title) {
         titleEl.focus();
+        showToast('⚠️ Please enter a title for the feature');
         return;
       }
 
@@ -3685,12 +3686,9 @@
         const data = await res.json();
         if (data.success) {
           addingChildUnderParentId = null;
+          activeEditNodeId = null;
           showToast(`✅ Added "${title}" to product doc`);
           await fetchBacklog();
-          if (data.node && data.node.id) {
-            activeEditNodeId = data.node.id;
-            renderBacklogTree();
-          }
         } else {
           alert('Error adding feature: ' + (data.error || 'Unknown error'));
         }
@@ -3728,7 +3726,10 @@
     }
 
     async function saveInlineEdit(nodeId, e) {
-      if (e) e.stopPropagation();
+      if (e) {
+        if (typeof e.stopPropagation === 'function') e.stopPropagation();
+        if (typeof e.preventDefault === 'function') e.preventDefault();
+      }
       const titleEl = document.getElementById(`inline-title-${nodeId}`);
       const descEl = document.getElementById(`inline-desc-${nodeId}`);
       if (!titleEl) return;
@@ -3747,6 +3748,8 @@
         });
         const data = await res.json();
         if (data.success) {
+          activeEditNodeId = null;
+          showConvertDrawerForNodeId = null;
           showToast(`💾 Saved "${title}" in product.json`);
           await fetchBacklog();
         } else {
@@ -3951,6 +3954,7 @@
         // Render in-place editor card
         const card = document.createElement('div');
         card.className = 'tree-inline-card';
+        card.onclick = (e) => e.stopPropagation();
         card.innerHTML = `
           <div class="tree-inline-header">
             <span class="tree-inline-tag">
@@ -3960,13 +3964,13 @@
           </div>
 
           <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
-          <input type="text" class="tree-inline-title" id="inline-title-${node.id}" value="${escapeHtml(node.title || '')}" placeholder="Feature title..." onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) saveInlineEdit('${node.id}', event)">
+          <input type="text" class="tree-inline-title" id="inline-title-${node.id}" value="${escapeHtml(node.title || '')}" placeholder="Feature title..." onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
 
           <div class="tree-inline-label">
             <span>Description & Specifications</span>
             <button type="button" class="btn btn-sm btn-ghost" onclick="insertMermaidTemplate('${node.id}', event)" title="Insert Mermaid diagram snippet">📊 + Mermaid Diagram</button>
           </div>
-          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="Document specifications, user stories, acceptance criteria, or mermaid diagrams..." oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) saveInlineEdit('${node.id}', event)">${escapeHtml(node.description || '')}</textarea>
+          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="Document specifications, user stories, acceptance criteria, or mermaid diagrams..." oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">${escapeHtml(node.description || '')}</textarea>
 
           <div class="tree-mermaid-box" id="mermaid-preview-${node.id}" style="display: none;"></div>
 
@@ -4004,7 +4008,7 @@
               ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}</button>` 
               : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Convert to Task</button>`}
             ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete feature">🗑️</button>` : ''}
-            <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Done</button>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Cancel</button>
           </div>
 
           ${showConvertDrawerForNodeId === node.id ? `
