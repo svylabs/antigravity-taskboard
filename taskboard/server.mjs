@@ -52,7 +52,19 @@ import {
   convertBacklogNodeToTask,
   getBacklogFilePath
 } from './backlog.mjs';
-
+import {
+  ensureSessionSchema,
+  getAllSessions,
+  getSessionById,
+  getActiveSessionId,
+  setActiveSessionId,
+  createSession,
+  updateSession,
+  deleteSession,
+  setTaskSession,
+  onTaskStatusChanged,
+  getTodaySessionName
+} from './sessions.mjs';
 
 import { handleRepoRequest } from './repo_viewer.mjs';
 
@@ -795,6 +807,13 @@ const server = http.createServer(async (req, res) => {
         info.projectName,
         db
       );
+      if (result && result.task) {
+        const targetSessionId = body.session_id !== undefined ? body.session_id : getActiveSessionId(db);
+        if (targetSessionId) {
+          setTaskSession(db, result.task.id, targetSessionId);
+          result.task.session_id = targetSessionId;
+        }
+      }
       return sendJson(res, 201, result);
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
@@ -933,8 +952,92 @@ const server = http.createServer(async (req, res) => {
 
   // REST API: GET /api/tasks
   if (pathname === '/api/tasks' && req.method === 'GET') {
-    const tasks = getAllTasks().filter(t => t.status !== 'backlog');
-    return sendJson(res, 200, { success: true, tasks, project: getProjectInfo().projectName, autonomous_mode: isAutonomousMode() });
+    const filterSessionId = urlObj.searchParams.get('session_id');
+    let tasks = getAllTasks().filter(t => t.status !== 'backlog');
+    if (filterSessionId && filterSessionId !== 'all') {
+      tasks = tasks.filter(t => t.session_id === filterSessionId);
+    }
+    return sendJson(res, 200, {
+      success: true,
+      tasks,
+      project: getProjectInfo().projectName,
+      autonomous_mode: isAutonomousMode(),
+      activeSessionId: getActiveSessionId(db),
+      sessions: getAllSessions(db)
+    });
+  }
+
+  // REST API: GET /api/sessions
+  if (pathname === '/api/sessions' && req.method === 'GET') {
+    return sendJson(res, 200, {
+      success: true,
+      activeSessionId: getActiveSessionId(db),
+      sessions: getAllSessions(db)
+    });
+  }
+
+  // REST API: POST /api/sessions
+  if (pathname === '/api/sessions' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const session = createSession(db, {
+        name: body.name,
+        description: body.description,
+        status: body.status,
+        set_active: body.set_active !== false
+      });
+      return sendJson(res, 201, { success: true, session });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/sessions/:id/activate
+  const sessionActivateMatch = pathname.match(/^\/api\/sessions\/([^/]+)\/activate$/);
+  if (sessionActivateMatch && req.method === 'POST') {
+    const sessionId = sessionActivateMatch[1];
+    try {
+      setActiveSessionId(db, sessionId);
+      return sendJson(res, 200, { success: true, activeSessionId: sessionId });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: GET /api/sessions/:id
+  const sessionGetMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  if (sessionGetMatch && req.method === 'GET') {
+    const sessionId = sessionGetMatch[1];
+    const session = getSessionById(db, sessionId);
+    if (!session) {
+      return sendJson(res, 404, { success: false, error: 'Session not found' });
+    }
+    return sendJson(res, 200, { success: true, session });
+  }
+
+  // REST API: PATCH /api/sessions/:id
+  const sessionPatchMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  if (sessionPatchMatch && req.method === 'PATCH') {
+    const sessionId = sessionPatchMatch[1];
+    try {
+      const body = await parseBody(req);
+      const session = updateSession(db, sessionId, body);
+      return sendJson(res, 200, { success: true, session });
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: DELETE /api/sessions/:id
+  const sessionDeleteMatch = pathname.match(/^\/api\/sessions\/([^/]+)$/);
+  if (sessionDeleteMatch && req.method === 'DELETE') {
+    const sessionId = sessionDeleteMatch[1];
+    try {
+      const result = deleteSession(db, sessionId);
+      return sendJson(res, 200, result);
+    } catch (e) {
+      return sendJson(res, 400, { success: false, error: e.message });
+    }
   }
 
   // REST API: GET /api/autonomous
@@ -962,6 +1065,11 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, { success: false, error: 'Title is required' });
       }
       const task = addTask(body);
+      const targetSessionId = body.session_id !== undefined ? body.session_id : getActiveSessionId(db);
+      if (targetSessionId) {
+        setTaskSession(db, task.id, targetSessionId);
+        task.session_id = targetSessionId;
+      }
       return sendJson(res, 201, { success: true, task });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
@@ -1070,8 +1178,12 @@ const server = http.createServer(async (req, res) => {
     const id = patchMatch[1];
     try {
       const body = await parseBody(req);
-      const updated = updateTask(id, body);
+      updateTask(id, body);
+      if (body.session_id !== undefined) {
+        setTaskSession(db, id, body.session_id);
+      }
       if (body.status !== undefined) {
+        onTaskStatusChanged(db, id, body.status);
         try {
           const info = getProjectInfo();
           const tree = readProductTree(info.projectDir, info.projectName, db);
@@ -1081,6 +1193,7 @@ const server = http.createServer(async (req, res) => {
           }
         } catch {}
       }
+      const updated = getTaskById(id);
       return sendJson(res, 200, { success: true, task: updated });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
@@ -1194,6 +1307,11 @@ function getNetworkIp() {
 }
 
 async function startServer() {
+  try {
+    ensureSessionSchema(db);
+  } catch (e) {
+    console.error('Failed to initialize session schema:', e);
+  }
   const info = getProjectInfo();
   const savedRegistryPort = getProjectRegistryPort(info.projectName, info.projectDir);
   const targetPort = cliOpts.port || (process.env.TASKBOARD_PORT ? parseInt(process.env.TASKBOARD_PORT, 10) : (savedRegistryPort || REQUESTED_PORT));

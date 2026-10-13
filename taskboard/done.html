@@ -870,6 +870,14 @@
           </select>
         </div>
 
+        <!-- Session Filter -->
+        <div class="filter-group">
+          <span class="filter-label">🎯 Session:</span>
+          <select class="form-select" id="sessionFilterSelect" onchange="handleFilterChange()">
+            <option value="all" selected>All Sessions</option>
+          </select>
+        </div>
+
         <!-- Sort Order -->
         <div class="filter-group">
           <span class="filter-label">Sort:</span>
@@ -951,6 +959,7 @@
   <script>
     let allTasks = [];
     let doneTasks = [];
+    let allSessions = [];
     let currentGroupBy = 'scope';
     let searchQuery = '';
     const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
@@ -1006,6 +1015,7 @@
         if (data.success) {
           allTasks = data.tasks || [];
           doneTasks = allTasks.filter(t => t.status === 'done');
+          allSessions = data.sessions || [];
           if (data.project) {
             document.getElementById('projectBadge').innerText = data.project;
           }
@@ -1081,6 +1091,19 @@
         if (r === currentRole) opt.selected = true;
         roleSelect.appendChild(opt);
       });
+
+      const sessionSelect = document.getElementById('sessionFilterSelect');
+      if (sessionSelect) {
+        const currentSession = sessionSelect.value;
+        sessionSelect.innerHTML = '<option value="all">All Sessions</option>';
+        allSessions.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.innerText = `🎯 ${s.name} (${s.stats ? s.stats.done : 0} done)`;
+          if (s.id === currentSession) opt.selected = true;
+          sessionSelect.appendChild(opt);
+        });
+      }
     }
 
     function handleSearch(val) {
@@ -1102,6 +1125,7 @@
       const roleFilter = document.getElementById('roleFilterSelect').value;
       const priorityFilter = document.getElementById('priorityFilterSelect').value;
       const timeFilter = document.getElementById('timeFilterSelect').value;
+      const sessionFilter = document.getElementById('sessionFilterSelect') ? document.getElementById('sessionFilterSelect').value : 'all';
       const sortVal = document.getElementById('sortSelect').value;
 
       const now = Date.now();
@@ -1109,6 +1133,10 @@
       const THIRTY_DAYS_MS = 30 * ONE_DAY_MS;
 
       let filtered = doneTasks.filter(task => {
+        // Session filter
+        if (sessionFilter && sessionFilter !== 'all') {
+          if (task.session_id !== sessionFilter) return false;
+        }
         // Search query filter
         if (searchQuery) {
           const matchTitle = (task.title || '').toLowerCase().includes(searchQuery);
@@ -1337,12 +1365,15 @@
 
       const scopeBadge = task.scope ? `<span class="scope-badge" title="${escapeHtml(task.scope)}">🏷️ ${escapeHtml(task.scope)}</span>` : '';
       const sizeBadge = task.scope_size && task.scope_size !== 'small' ? `<span class="role-badge" style="${sizeStyle}">${escapeHtml(task.scope_size.toUpperCase())}</span>` : '';
+      const sessionObj = allSessions.find(s => s.id === task.session_id);
+      const sessionBadge = sessionObj ? `<span class="role-badge" style="background: #ECFDF5; color: #047857; font-size: 10px;" title="Sprint Session: ${escapeHtml(sessionObj.name)}">🎯 ${escapeHtml(sessionObj.name)}</span>` : '';
 
       card.innerHTML = `
         <div class="card-top-row">
           <div class="card-badges">
             <span class="badge badge-${task.priority}">${escapeHtml(task.priority)}</span>
             <span class="role-badge">${escapeHtml(task.subagent_role || 'Engineer')}</span>
+            ${sessionBadge}
             ${scopeBadge}
             ${sizeBadge}
           </div>
