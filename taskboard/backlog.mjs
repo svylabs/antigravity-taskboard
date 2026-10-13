@@ -258,15 +258,32 @@ export function moveBacklogNode(projectDir, { id, targetParentId = 'root', index
     throw new Error('Cannot move project root node');
   }
 
+  if (id === targetParentId) {
+    throw new Error('Cannot move a node into itself');
+  }
+
   const tree = readBacklogTree(projectDir, projectName, db);
   const found = findNodeAndParent(tree, id);
   if (!found || !found.parent) {
     throw new Error(`Backlog node "${id}" not found`);
   }
 
+  const node = found.node;
+
+  function isDescendant(parent, targetId) {
+    if (!parent || !Array.isArray(parent.children)) return false;
+    for (const child of parent.children) {
+      if (child.id === targetId || isDescendant(child, targetId)) return true;
+    }
+    return false;
+  }
+
+  if (isDescendant(node, targetParentId)) {
+    throw new Error('Cannot move a node into one of its own descendants');
+  }
+
   // Remove from old parent
   const oldParent = found.parent;
-  const node = found.node;
   oldParent.children = oldParent.children.filter(c => c.id !== id);
 
   // Find target parent

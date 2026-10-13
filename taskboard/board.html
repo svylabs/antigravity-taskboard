@@ -889,10 +889,56 @@
       color: #94A3B8 !important;
     }
 
+    .tree-node-row[draggable="true"] {
+      cursor: grab;
+    }
+
     .tree-node-row.is-dragging {
       opacity: 0.45;
       border: 1px dashed #3B82F6;
       background: #EFF6FF;
+      cursor: grabbing !important;
+    }
+
+    .tree-drag-handle {
+      color: #94A3B8;
+      font-size: 11px;
+      cursor: grab;
+      padding: 0 1px;
+      user-select: none;
+      opacity: 0.4;
+      transition: opacity 0.15s ease, color 0.15s ease;
+      letter-spacing: -1px;
+    }
+
+    .tree-node-row:hover .tree-drag-handle {
+      opacity: 0.9;
+      color: #475569;
+    }
+
+    .tree-node-row.drag-over-tree-node,
+    .tree-node-card.drag-over-tree-node {
+      border: 2px solid #6366F1 !important;
+      background: #EEF2FF !important;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25) !important;
+      transform: scale(1.01);
+    }
+
+    .tree-node-row.drag-over-tree-node::after {
+      content: '↳ Drop inside this feature';
+      position: absolute;
+      right: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #4F46E5;
+      background: #E0E7FF;
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    .tree-node-row.is-root.drag-over-tree-node::after {
+      content: '↳ Move to Project Root';
     }
 
     .tree-completed-banner {
@@ -4601,6 +4647,79 @@
       return null;
     }
 
+    function isNodeDescendant(ancestorId, targetId) {
+      if (!backlogTree || !ancestorId || !targetId || ancestorId === targetId) return false;
+      const ancestor = findBacklogNode(backlogTree, ancestorId);
+      if (!ancestor || !Array.isArray(ancestor.children)) return false;
+      for (const child of ancestor.children) {
+        if (findBacklogNode(child, targetId)) return true;
+      }
+      return false;
+    }
+
+    function handleTreeNodeDragOver(e, targetNodeId) {
+      if (!draggedNodeId) return;
+      if (draggedNodeId === targetNodeId) return;
+      if (isNodeDescendant(draggedNodeId, targetNodeId)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (!e.currentTarget.classList.contains('drag-over-tree-node')) {
+        e.currentTarget.classList.add('drag-over-tree-node');
+      }
+    }
+
+    function handleTreeNodeDragLeave(e) {
+      if (e.currentTarget.contains(e.relatedTarget)) {
+        return;
+      }
+      e.currentTarget.classList.remove('drag-over-tree-node');
+    }
+
+    async function handleTreeNodeDrop(e, targetNodeId, targetNodeTitle) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove('drag-over-tree-node');
+
+      const sourceNodeId = draggedNodeId;
+      draggedNodeId = null;
+
+      if (!sourceNodeId || sourceNodeId === targetNodeId) return;
+      if (isNodeDescendant(sourceNodeId, targetNodeId)) {
+        showToast('Cannot move a feature into its own sub-feature', 'warning');
+        return;
+      }
+
+      await moveFeatureNode(sourceNodeId, targetNodeId, targetNodeTitle);
+    }
+
+    async function moveFeatureNode(sourceNodeId, targetParentId, targetTitle) {
+      try {
+        const res = await fetch('/api/product/move', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: sourceNodeId,
+            targetParentId: targetParentId || 'root'
+          })
+        });
+        const data = await res.json();
+        if (data.success && data.tree) {
+          backlogTree = data.tree;
+          if (targetParentId && targetParentId !== 'root') {
+            collapsedNodes.delete(targetParentId);
+          }
+          renderBacklogTree();
+          showToast(`Moved feature into "${targetTitle || 'feature'}"`, 'success');
+        } else {
+          alert('Failed to move feature: ' + (data.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error moving feature: ' + err.message);
+      }
+    }
+
     function renderBacklogTree() {
       const container = document.getElementById('backlogTreeContainer');
       const countBadge = document.getElementById('count-backlog');
@@ -4622,6 +4741,20 @@
       }
 
       container.innerHTML = '';
+
+      container.ondragover = (e) => {
+        if (draggedNodeId) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+        }
+      };
+      container.ondrop = (e) => {
+        if (draggedNodeId && (e.target === container || e.target.id === 'backlogTreeContainer')) {
+          e.preventDefault();
+          e.stopPropagation();
+          handleTreeNodeDrop(e, 'root', 'Project Root');
+        }
+      };
 
       container.appendChild(buildTreeNodeElement(backlogTree, 0, true));
 
@@ -5050,6 +5183,9 @@
         const card = document.createElement('div');
         card.className = `tree-inline-card ${isDone ? 'is-completed' : ''}`;
         card.onclick = (e) => e.stopPropagation();
+        card.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id));
+        card.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
+        card.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature')));
 
         let currentTitle = node.title || '';
         let currentDesc = node.description || '';
@@ -5179,7 +5315,12 @@
         row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isDone ? 'is-completed' : ''}`;
         row.onclick = (e) => toggleNodeEditInPlace(node.id, e);
 
-        // Allow dragging feature node to To Do column to include it as an active task
+        // Every row is a drop target (drop inside feature, or drop onto root)
+        row.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id));
+        row.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
+        row.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature')));
+
+        // Allow dragging feature node to another feature or To Do column
         if (!isRoot) {
           row.setAttribute('draggable', 'true');
           row.addEventListener('dragstart', (e) => {
@@ -5197,7 +5338,15 @@
           row.addEventListener('dragend', () => {
             row.classList.remove('is-dragging');
             draggedNodeId = null;
+            document.querySelectorAll('.drag-over-tree-node').forEach(el => el.classList.remove('drag-over-tree-node'));
           });
+
+          // Drag handle indicator
+          const dragHandle = document.createElement('span');
+          dragHandle.className = 'tree-drag-handle';
+          dragHandle.innerHTML = '⋮⋮';
+          dragHandle.title = 'Drag to move into another feature, or drop onto To Do';
+          row.appendChild(dragHandle);
         }
 
         // Toggle Chevron
