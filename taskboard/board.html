@@ -3512,15 +3512,46 @@
     let addingChildUnderParentId = null;
     let showConvertDrawerForNodeId = null;
 
-    async function fetchBacklog() {
+    let lastProductTreeJson = null;
+
+    async function fetchBacklog(forceRender = false) {
       try {
         const res = await fetch('/api/product');
         const data = await res.json();
         if (data.success && data.tree) {
+          const newJson = JSON.stringify(data.tree);
+          const hasChanged = newJson !== lastProductTreeJson;
+          lastProductTreeJson = newJson;
+
           backlogTree = data.tree;
           backlogCount = data.count || 0;
           backlogFilePath = data.filePath || 'product.json';
-          renderBacklogTree();
+
+          // Update badges without destroying DOM tree
+          const countBadge = document.getElementById('count-backlog');
+          const tabCountBadge = document.getElementById('tab-count-backlog');
+          const fileLabel = document.getElementById('backlogFilePath');
+          if (countBadge) countBadge.innerText = backlogCount;
+          if (tabCountBadge) tabCountBadge.innerText = backlogCount;
+          if (fileLabel && backlogFilePath) {
+            const base = backlogFilePath.split('/').pop() || 'product.json';
+            fileLabel.innerText = '📄 ' + base;
+            fileLabel.title = `Living product specification stored in ${backlogFilePath} (checked into git)`;
+          }
+
+          // Do NOT re-render during background polling if user is drafting, editing, or typing in Product Doc
+          const container = document.getElementById('backlogTreeContainer');
+          const isFocusedInDoc = container && container.contains(document.activeElement);
+          const isDrafting = addingChildUnderParentId !== null;
+          const isEditing = activeEditNodeId !== null;
+
+          if (!forceRender && (isDrafting || isEditing || isFocusedInDoc)) {
+            return;
+          }
+
+          if (hasChanged || forceRender) {
+            renderBacklogTree();
+          }
         }
       } catch (err) {
         console.error('Failed to sync product doc tree:', err);
@@ -3612,15 +3643,23 @@
       const parentNode = !isRoot ? findBacklogNode(backlogTree, parentId) : null;
       const parentTitle = parentNode ? parentNode.title : 'Product';
 
+      // Preserve any text already typed if element previously existed
+      let preservedTitle = '';
+      let preservedDesc = '';
+      const existingTitleEl = document.getElementById(`draft-title-${parentId}`);
+      const existingDescEl = document.getElementById(`draft-desc-${parentId}`);
+      if (existingTitleEl && existingTitleEl.value !== undefined) preservedTitle = existingTitleEl.value;
+      if (existingDescEl && existingDescEl.value !== undefined) preservedDesc = existingDescEl.value;
+
       draft.innerHTML = `
         <div class="tree-inline-header">
           <span class="tree-inline-tag">➕ New ${isRoot ? 'Feature' : 'Sub-feature under "' + escapeHtml(parentTitle) + '"'}</span>
           <button type="button" class="tree-inline-close" onclick="cancelInlineDraft(event)">&times;</button>
         </div>
         <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
-        <input type="text" class="tree-inline-title" id="draft-title-${parentId}" placeholder="Feature title (e.g. Twilio Voice Verification)..." onkeydown="handleDraftKeydown(event, '${parentId}')">
+        <input type="text" class="tree-inline-title" id="draft-title-${parentId}" value="${escapeHtml(preservedTitle)}" placeholder="Feature title (e.g. Twilio Voice Verification)..." onkeydown="handleDraftKeydown(event, '${parentId}')">
         <label class="tree-inline-label">Description & Specifications <span style="font-weight: 400; color: #94A3B8;">(Optional)</span></label>
-        <textarea class="tree-inline-desc" id="draft-desc-${parentId}" rows="2" placeholder="Describe requirements, acceptance criteria, or technical details..." onkeydown="handleDraftKeydown(event, '${parentId}')"></textarea>
+        <textarea class="tree-inline-desc" id="draft-desc-${parentId}" rows="2" placeholder="Describe requirements, acceptance criteria, or technical details..." onkeydown="handleDraftKeydown(event, '${parentId}')">${escapeHtml(preservedDesc)}</textarea>
         <div class="tree-inline-actions">
           <button type="button" class="btn btn-sm btn-primary" onclick="saveInlineDraft('${parentId}', event)">Add to Product Doc</button>
           <button type="button" class="btn btn-sm btn-ghost" onclick="cancelInlineDraft(event)">Cancel</button>
@@ -3688,7 +3727,7 @@
           addingChildUnderParentId = null;
           activeEditNodeId = null;
           showToast(`✅ Added "${title}" to product doc`);
-          await fetchBacklog();
+          await fetchBacklog(true);
         } else {
           alert('Error adding feature: ' + (data.error || 'Unknown error'));
         }
@@ -3751,7 +3790,7 @@
           activeEditNodeId = null;
           showConvertDrawerForNodeId = null;
           showToast(`💾 Saved "${title}" in product.json`);
-          await fetchBacklog();
+          await fetchBacklog(true);
         } else {
           alert('Error saving feature: ' + (data.error || 'Unknown error'));
         }
@@ -3808,7 +3847,7 @@
           showConvertDrawerForNodeId = null;
           showToast(`🚀 Converted to Task #${data.task.id.slice(-6)} in 📋 To Do!`);
           await fetchTasks();
-          await fetchBacklog();
+          await fetchBacklog(true);
         } else {
           alert('Error converting to task: ' + (data.error || 'Unknown error'));
         }
@@ -3829,7 +3868,7 @@
         if (data.success) {
           if (activeEditNodeId === nodeId) activeEditNodeId = null;
           showToast(`🗑️ Deleted "${node.title}"`);
-          await fetchBacklog();
+          await fetchBacklog(true);
         } else {
           alert('Error deleting feature: ' + (data.error || 'Unknown error'));
         }
@@ -3865,7 +3904,7 @@
           const data = await res.json();
           if (data.success) {
             showToast(`📎 Uploaded "${file.name}"`);
-            await fetchBacklog();
+            await fetchBacklog(true);
           } else {
             alert('Upload error: ' + (data.error || 'Unknown error'));
           }
@@ -3886,7 +3925,7 @@
         const data = await res.json();
         if (data.success) {
           showToast(`🗑️ Deleted "${fileName}"`);
-          await fetchBacklog();
+          await fetchBacklog(true);
         } else {
           alert('Error deleting attachment: ' + (data.error || 'Unknown error'));
         }
@@ -3955,6 +3994,14 @@
         const card = document.createElement('div');
         card.className = 'tree-inline-card';
         card.onclick = (e) => e.stopPropagation();
+
+        let currentTitle = node.title || '';
+        let currentDesc = node.description || '';
+        const existingTitleInput = document.getElementById(`inline-title-${node.id}`);
+        const existingDescInput = document.getElementById(`inline-desc-${node.id}`);
+        if (existingTitleInput && existingTitleInput.value !== undefined) currentTitle = existingTitleInput.value;
+        if (existingDescInput && existingDescInput.value !== undefined) currentDesc = existingDescInput.value;
+
         card.innerHTML = `
           <div class="tree-inline-header">
             <span class="tree-inline-tag">
@@ -3964,13 +4011,13 @@
           </div>
 
           <label class="tree-inline-label">Title <span style="color: #EF4444;">*</span></label>
-          <input type="text" class="tree-inline-title" id="inline-title-${node.id}" value="${escapeHtml(node.title || '')}" placeholder="Feature title..." onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
+          <input type="text" class="tree-inline-title" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" placeholder="Feature title..." onkeydown="if(event.key==='Enter') { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
 
           <div class="tree-inline-label">
             <span>Description & Specifications</span>
             <button type="button" class="btn btn-sm btn-ghost" onclick="insertMermaidTemplate('${node.id}', event)" title="Insert Mermaid diagram snippet">📊 + Mermaid Diagram</button>
           </div>
-          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="Document specifications, user stories, acceptance criteria, or mermaid diagrams..." oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">${escapeHtml(node.description || '')}</textarea>
+          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="Document specifications, user stories, acceptance criteria, or mermaid diagrams..." oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">${escapeHtml(currentDesc)}</textarea>
 
           <div class="tree-mermaid-box" id="mermaid-preview-${node.id}" style="display: none;"></div>
 
@@ -4323,7 +4370,6 @@
           container.appendChild(archiveBox);
         }
       });
-      renderBacklogTree();
     }
 
     function getCardStateClass(task) {
@@ -6230,10 +6276,10 @@
     // Initial load & auto-sync
     syncAudioPopoverControls();
     fetchTasks();
-    fetchBacklog();
+    fetchBacklog(true);
     loadProjects();
     setInterval(fetchTasks, 3000);
-    setInterval(fetchBacklog, 5000);
+    setInterval(() => fetchBacklog(false), 5000);
     setInterval(loadProjects, 10000);
 
     function scrollToColumn(status, btn) {
