@@ -139,7 +139,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_get_product_tree',
-    description: 'Get the hierarchical product description & requirements tree from product.json (root is project, with nested features, modules, and specifications).',
+    description: 'Get the hierarchical product description & requirements tree from product.yaml (root is project, with nested features, modules, and specifications).',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -147,7 +147,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_add_product_item',
-    description: 'Add a product requirement or feature node to the tree in product.json.',
+    description: 'Add a product requirement or feature node to the tree in product.yaml.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -176,7 +176,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_get_backlog',
-    description: 'Alias for taskboard_get_product_tree: Get the product description tree from product.json.',
+    description: 'Alias for taskboard_get_product_tree: Get the product description tree from product.yaml.',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -184,7 +184,7 @@ const TOOLS = [
   },
   {
     name: 'taskboard_add_backlog_item',
-    description: 'Alias for taskboard_add_product_item: Add a feature node to product.json.',
+    description: 'Alias for taskboard_add_product_item: Add a feature node to product.yaml.',
     inputSchema: {
       type: 'object',
       properties: {

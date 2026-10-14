@@ -1377,7 +1377,7 @@
       transform: scale(1.08);
     }
 
-    /* Explicit Save product.json button styles */
+    /* Explicit Save product.yaml button styles */
     .btn-save-product {
       display: inline-flex;
       align-items: center;
@@ -3257,9 +3257,9 @@
         <button class="btn btn-agent-start" id="btnStartAgent" onclick="copyLoopPrompt()" title="Start or resume the autonomous agent loop in Antigravity">
           <span>▶</span><span>Start Agent</span>
         </button>
-        <button class="btn btn-save-product-top" id="btnSaveProductTop" onclick="saveProductCommit(event)" style="display: none;" title="Unsaved changes in product.json - click to commit to git">
+        <button class="btn btn-save-product-top" id="btnSaveProductTop" onclick="saveProductCommit(event)" style="display: none;" title="Unsaved changes in product.yaml - click to commit to git">
           <span>💾</span>
-          <span id="saveProductTopLabel">Save product.json</span>
+          <span id="saveProductTopLabel">Save product.yaml</span>
           <span class="save-product-badge"></span>
         </button>
         <button class="btn btn-secondary btn-feat-action" onclick="openInlineDraft('root', event)" title="Add feature to product doc">
@@ -3462,9 +3462,9 @@
         </div>
       </div>
       <div class="backlog-file-bar" id="backlogFileBar">
-        <span class="backlog-file-label" id="backlogFilePath" title="Living product specification stored in product.json and checked into git">📄 product.json</span>
+        <span class="backlog-file-label" id="backlogFilePath" title="Living product specification stored in product.yaml and checked into git">📄 product.yaml</span>
         <div style="display: flex; align-items: center; gap: 6px;">
-          <button class="btn-save-product" id="btnSaveProduct" onclick="saveProductCommit(event)" title="Commit product.json changes to git">
+          <button class="btn-save-product" id="btnSaveProduct" onclick="saveProductCommit(event)" title="Commit product.yaml changes to git">
             <span id="saveProductIcon">💾</span>
             <span id="saveProductLabel">Save</span>
             <span class="save-product-badge" id="saveProductBadge" style="display: none;"></span>
@@ -3553,7 +3553,7 @@
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <label class="form-label" style="margin-bottom: 0; color: #047857; display: flex; align-items: center; gap: 5px;">
               <span>📐</span>
-              <span>Link to Product Component / Feature (from product.json)</span>
+              <span>Link to Product Component / Feature (from product.yaml)</span>
             </label>
             <span style="font-size: 11px; color: var(--text-muted);">Optional</span>
           </div>
@@ -4933,7 +4933,7 @@
     // --- Product Doc Tree State & In-Place Functions ---
     let backlogTree = null;
     let backlogCount = 0;
-    let backlogFilePath = 'product.json';
+    let backlogFilePath = 'product.yaml';
     const collapsedNodes = new Set();
     let activeEditNodeId = null;
     let addingChildUnderParentId = null;
@@ -4954,14 +4954,14 @@
         if (hasUnsavedProductChanges) {
           btnSave.classList.add('is-dirty');
           btnSave.classList.remove('is-saved');
-          btnSave.title = 'Unsaved changes to product.json - click to commit to git';
+          btnSave.title = 'Unsaved changes to product.yaml - click to commit to git';
           if (label) label.innerText = 'Save';
           if (badge) badge.style.display = 'inline-block';
         } else {
           btnSave.classList.remove('is-dirty');
           if (label) label.innerText = 'Save';
           if (badge) badge.style.display = 'none';
-          btnSave.title = 'Commit product.json changes to git';
+          btnSave.title = 'Commit product.yaml changes to git';
         }
       }
 
@@ -4987,7 +4987,7 @@
         const res = await fetch('/api/product/commit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: 'chore(product): update product specification in product.json' })
+          body: JSON.stringify({ message: 'chore(product): update product specification in product.yaml' })
         });
         const data = await res.json();
         if (data.success) {
@@ -5002,18 +5002,18 @@
           }
           if (topBtn) {
             topBtn.style.display = 'none';
-            topBtn.innerHTML = '<span>💾</span><span>Save product.json</span><span class="save-product-badge"></span>';
+            topBtn.innerHTML = '<span>💾</span><span>Save product.yaml</span><span class="save-product-badge"></span>';
           }
-          showToast('💾 Committed product.json to git!', 'success');
+          showToast('💾 Committed product.yaml to git!', 'success');
         } else {
-          alert('Failed to commit product.json: ' + (data.error || 'Unknown error'));
+          alert('Failed to commit product.yaml: ' + (data.error || 'Unknown error'));
           if (label) label.innerText = 'Save';
-          if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.json</span><span class="save-product-badge"></span>';
+          if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.yaml</span><span class="save-product-badge"></span>';
         }
       } catch (err) {
-        alert('Error committing product.json: ' + err.message);
+        alert('Error committing product.yaml: ' + err.message);
         if (label) label.innerText = 'Save';
-        if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.json</span><span class="save-product-badge"></span>';
+        if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.yaml</span><span class="save-product-badge"></span>';
       }
     }
 
@@ -5021,7 +5021,7 @@
     window.addEventListener('beforeunload', (e) => {
       if (hasUnsavedProductChanges) {
         e.preventDefault();
-        e.returnValue = 'You have unsaved changes to product.json. Please save your changes before leaving.';
+        e.returnValue = 'You have unsaved changes to product.yaml. Please save your changes before leaving.';
         return e.returnValue;
       }
     });
@@ -5037,7 +5037,7 @@
 
           backlogTree = data.tree;
           backlogCount = data.count || 0;
-          backlogFilePath = data.filePath || 'product.json';
+          backlogFilePath = data.filePath || 'product.yaml';
 
           if (typeof data.dirty === 'boolean') {
             setUnsavedProductChanges(data.dirty);
@@ -5050,7 +5050,7 @@
           if (countBadge) countBadge.innerText = backlogCount;
           if (tabCountBadge) tabCountBadge.innerText = backlogCount;
           if (fileLabel && backlogFilePath) {
-            const base = backlogFilePath.split('/').pop() || 'product.json';
+            const base = backlogFilePath.split('/').pop() || 'product.yaml';
             fileLabel.innerText = '📄 ' + base;
             fileLabel.title = `Living product specification stored in ${backlogFilePath} (checked into git)`;
           }
@@ -5379,7 +5379,7 @@
       if (countBadge) countBadge.innerText = backlogCount;
       if (tabCountBadge) tabCountBadge.innerText = backlogCount;
       if (fileLabel && backlogFilePath) {
-        const base = backlogFilePath.split('/').pop() || 'product.json';
+        const base = backlogFilePath.split('/').pop() || 'product.yaml';
         fileLabel.innerText = '📄 ' + base;
         fileLabel.title = `Living product specification stored in ${backlogFilePath} (checked into git)`;
       }
@@ -5416,7 +5416,7 @@
         emptyBox.innerHTML = `
           <div style="font-size: 22px; margin-bottom: 6px;">📖</div>
           <div style="font-weight: 600; color: #1E293B; font-size: 13px;">Product Doc is empty</div>
-          <div style="font-size: 11px; color: #64748B; margin: 4px 0 10px 0;">Document features, modules, user journeys, diagrams, and specs in <code>product.json</code>.</div>
+          <div style="font-size: 11px; color: #64748B; margin: 4px 0 10px 0;">Document features, modules, user journeys, diagrams, and specs in <code>product.yaml</code>.</div>
           <button class="btn btn-secondary btn-sm" onclick="openInlineDraft('root', event)">+ Add First Feature</button>
         `;
         container.appendChild(emptyBox);
@@ -5922,7 +5922,7 @@
       if (e) e.stopPropagation();
       const node = findBacklogNode(backlogTree, nodeId);
       if (!node || nodeId === 'root') return;
-      if (!confirm(`Delete "${node.title}" and any sub-features from product.json?`)) return;
+      if (!confirm(`Delete "${node.title}" and any sub-features from product.yaml?`)) return;
 
       try {
         const res = await fetch(`/api/product/nodes/${nodeId}`, { method: 'DELETE' });
@@ -6832,7 +6832,7 @@
       if (!draggedTaskId) return;
 
       if (targetStatus === 'backlog') {
-        showToast('💡 Product Doc is a living specification tree in product.json.');
+        showToast('💡 Product Doc is a living specification tree in product.yaml.');
         draggedTaskId = null;
         return;
       }
@@ -6976,7 +6976,7 @@
                 <div class="form-group" style="margin-bottom: 14px;">
                   <label class="form-label" style="color: #047857; display: flex; align-items: center; gap: 5px; margin-bottom: 6px;">
                     <span>📐</span>
-                    <span>Product Architecture Context (from product.json)</span>
+                    <span>Product Architecture Context (from product.yaml)</span>
                   </label>
                   <div class="product-context-display" style="background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 3px solid #10B981; border-radius: 8px; padding: 10px 14px; font-size: 12.5px; line-height: 1.5; color: #1E293B;">
                     ${renderMarkdown(task.product_context.replace(/<!--\s*PRODUCT_CONTEXT_JSON[\s\S]*?-->/gi, '').trim())}
@@ -8579,7 +8579,7 @@
       if (isCurrent) return;
 
       if (hasUnsavedProductChanges) {
-        const proceed = confirm('You have unsaved changes to product.json.\n\nClick OK to Save before switching projects, or Cancel to stay on this page.');
+        const proceed = confirm('You have unsaved changes to product.yaml.\n\nClick OK to Save before switching projects, or Cancel to stay on this page.');
         if (proceed) {
           await saveProductCommit();
         } else {

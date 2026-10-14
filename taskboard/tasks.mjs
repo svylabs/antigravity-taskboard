@@ -1257,7 +1257,7 @@ if (isCliEntry && command) {
       console.log(`\n================== 📋 KANBAN: [${projectName}] ==================`);
       console.log(`📂 DB: ${dbPath}\n`);
 
-      // Display Product Tree from product.json
+      // Display Product Tree from product.yaml
       try {
         const tree = readProductTree(projectDir, projectName, db);
         syncTaskStatusesWithTree(tree, getTaskById);

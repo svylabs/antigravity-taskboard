@@ -1,40 +1,40 @@
 import fs from 'fs';
 import path from 'path';
 import { spawnSync } from 'child_process';
+import YAML from 'yaml';
 
 /**
- * Resolves the primary product requirements file path: <projectDir>/product.json
- * Automatically migrates existing backlog.json to product.json if found.
+ * Resolves the primary product requirements file path: <projectDir>/product.yaml
+ * Automatically supports product.yaml, product.yml, and migrates legacy product.json / backlog.json.
  */
 export function getProductFilePath(projectDir) {
   const pDir = projectDir || process.cwd();
-  const primary = path.join(pDir, 'product.json');
+  const primary = path.join(pDir, 'product.yaml');
   if (fs.existsSync(primary)) return primary;
 
-  // Auto-migrate legacy backlog.json if it exists
-  const legacy = path.join(pDir, 'backlog.json');
-  if (fs.existsSync(legacy)) {
-    try {
-      fs.renameSync(legacy, primary);
-      console.log(`📦 Renamed ${legacy} -> ${primary}`);
-      return primary;
-    } catch {
-      return legacy;
-    }
-  }
+  const primaryYml = path.join(pDir, 'product.yml');
+  if (fs.existsSync(primaryYml)) return primaryYml;
 
-  const fallback = path.join(pDir, '.agents', 'taskboard', 'product.json');
-  if (fs.existsSync(fallback)) return fallback;
+  // Check legacy product.json
+  const legacyJson = path.join(pDir, 'product.json');
+  if (fs.existsSync(legacyJson)) return legacyJson;
 
-  const legacyFallback = path.join(pDir, '.agents', 'taskboard', 'backlog.json');
-  if (fs.existsSync(legacyFallback)) {
-    try {
-      fs.renameSync(legacyFallback, fallback);
-      return fallback;
-    } catch {
-      return legacyFallback;
-    }
-  }
+  // Check legacy backlog.json
+  const legacyBacklog = path.join(pDir, 'backlog.json');
+  if (fs.existsSync(legacyBacklog)) return legacyBacklog;
+
+  // Fallbacks under .agents/taskboard/
+  const fallbackYaml = path.join(pDir, '.agents', 'taskboard', 'product.yaml');
+  if (fs.existsSync(fallbackYaml)) return fallbackYaml;
+
+  const fallbackYml = path.join(pDir, '.agents', 'taskboard', 'product.yml');
+  if (fs.existsSync(fallbackYml)) return fallbackYml;
+
+  const fallbackJson = path.join(pDir, '.agents', 'taskboard', 'product.json');
+  if (fs.existsSync(fallbackJson)) return fallbackJson;
+
+  const fallbackBacklog = path.join(pDir, '.agents', 'taskboard', 'backlog.json');
+  if (fs.existsSync(fallbackBacklog)) return fallbackBacklog;
 
   return primary;
 }
@@ -102,7 +102,7 @@ export function findNodeByTitle(node, title) {
 }
 
 /**
- * Build rich product architecture context for a node from product.json.
+ * Build rich product architecture context for a node from product.yaml.
  * Extracts the hierarchical breadcrumbs, nearest component ancestor,
  * sibling features, improvements, and child components.
  */
@@ -232,7 +232,7 @@ export function buildProductContextForNode(tree, id) {
 }
 
 /**
- * Backfill product_context on existing SQLite tasks if their corresponding product.json node has taskId.
+ * Backfill product_context on existing SQLite tasks if their corresponding product.yaml node has taskId.
  */
 export function backfillProductContextForTasks(tree, db) {
   if (!tree || !db) return;
@@ -382,13 +382,28 @@ export function readProductTree(projectDir, projectName, db = null) {
   if (fs.existsSync(filePath)) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(raw);
+      let parsed = null;
+      try {
+        parsed = YAML.parse(raw);
+      } catch (yamlErr) {
+        try {
+          parsed = JSON.parse(raw);
+        } catch {
+          throw yamlErr;
+        }
+      }
       if (parsed && typeof parsed === 'object') {
         if (parsed.root && typeof parsed.root === 'object') {
           tree = parsed.root;
         } else if (parsed.id && parsed.title) {
           tree = parsed;
         }
+      }
+
+      // Auto-migrate legacy .json file to product.yaml
+      if (filePath.endsWith('.json') && tree) {
+        console.log(`📦 Auto-migrating ${filePath} -> product.yaml...`);
+        writeProductTree(pDir, tree);
       }
     } catch (err) {
       console.error(`⚠️ Failed to parse ${filePath}:`, err.message);
@@ -446,8 +461,8 @@ export function readProductTree(projectDir, projectName, db = null) {
 export const readBacklogTree = readProductTree;
 
 /**
- * Commit product.json to git with an appropriate message.
- * Strictly scopes git operations to 'product.json' ONLY so that no other files
+ * Commit product.yaml (and any legacy product.json / backlog.json removals) to git.
+ * Strictly scopes git operations to product specification files ONLY so that no other files
  * (work-in-progress code from running agents, SQLite databases, logs, assets, etc.)
  * are ever staged or committed.
  */
@@ -459,20 +474,20 @@ export function commitProductChanges(projectDir, message = null) {
       return null;
     }
 
-    const targetFile = 'product.json';
+    const trackedFiles = ['product.yaml', 'product.yml', 'product.json', 'backlog.json'];
 
-    // Check if git status has any changes strictly for product.json
-    const statusRes = spawnSync('git', ['status', '--porcelain', '--', targetFile], { cwd: pDir, stdio: 'pipe' });
+    // Check if git status has any changes strictly for product spec files
+    const statusRes = spawnSync('git', ['status', '--porcelain', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
     const statusOut = statusRes.stdout ? statusRes.stdout.toString().trim() : '';
     if (!statusOut) {
       return null;
     }
 
-    // Stage ONLY product.json
-    spawnSync('git', ['add', '--', targetFile], { cwd: pDir, stdio: 'pipe' });
+    // Stage product spec files
+    spawnSync('git', ['add', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
 
     // Determine commit message
-    const commitMsg = message || 'chore(product): update product specification in product.json';
+    const commitMsg = message || 'chore(product): update product specification in product.yaml';
 
     // Check if user.name is configured
     const userCheck = spawnSync('git', ['config', 'user.name'], { cwd: pDir, stdio: 'pipe' });
@@ -482,8 +497,8 @@ export function commitProductChanges(projectDir, message = null) {
     if (!hasUser) {
       commitArgs.push('-c', 'user.name=Antigravity Taskboard', '-c', 'user.email=taskboard@local');
     }
-    // Commit strictly product.json
-    commitArgs.push('commit', '-m', commitMsg, '--', targetFile);
+    // Commit strictly product spec files
+    commitArgs.push('commit', '-m', commitMsg, '--', ...trackedFiles);
 
     const commitRes = spawnSync('git', commitArgs, { cwd: pDir, stdio: 'pipe' });
     if (commitRes.status === 0) {
@@ -491,32 +506,43 @@ export function commitProductChanges(projectDir, message = null) {
       return commitMsg;
     } else {
       const errStr = (commitRes.stderr?.toString() || commitRes.stdout?.toString() || '').trim();
-      console.warn(`[git commit product.json] Failed to commit: ${errStr}`);
+      console.warn(`[git commit product.yaml] Failed to commit: ${errStr}`);
     }
   } catch (err) {
-    console.warn(`[git commit product.json] ${err.message}`);
+    console.warn(`[git commit product.yaml] ${err.message}`);
   }
   return null;
 }
 
 /**
- * Write product description tree to disk formatted with 2-space indentation for clean git diffs.
- * Automatically stages and commits product.json strictly to git with an appropriate descriptive commit message.
+ * Write product description tree to disk as product.yaml formatted cleanly for git diffs.
  */
 export function writeProductTree(projectDir, tree, commitMessage = null) {
   const pDir = projectDir || process.cwd();
-  const filePath = path.join(pDir, 'product.json');
+  const filePath = path.join(pDir, 'product.yaml');
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  const content = JSON.stringify(tree, null, 2) + '\n';
+
+  // Format as clean YAML (indent: 2, lineWidth: 0 preserves multiline strings without artificial wrapping)
+  const content = YAML.stringify(tree, {
+    indent: 2,
+    lineWidth: 0
+  });
   fs.writeFileSync(filePath, content, 'utf-8');
 
-  // Clean up any remaining legacy backlog.json if it exists
-  const legacy = path.join(pDir, 'backlog.json');
-  if (fs.existsSync(legacy) && legacy !== filePath) {
-    try { fs.unlinkSync(legacy); } catch {}
+  // Clean up any remaining legacy product.json or backlog.json
+  const legacyFiles = [
+    path.join(pDir, 'product.json'),
+    path.join(pDir, 'backlog.json'),
+    path.join(pDir, '.agents', 'taskboard', 'product.json'),
+    path.join(pDir, '.agents', 'taskboard', 'backlog.json')
+  ];
+  for (const legacy of legacyFiles) {
+    if (fs.existsSync(legacy)) {
+      try { fs.unlinkSync(legacy); } catch {}
+    }
   }
 
   return filePath;
@@ -524,25 +550,26 @@ export function writeProductTree(projectDir, tree, commitMessage = null) {
 export const writeBacklogTree = writeProductTree;
 
 /**
- * Check if product.json has uncommitted changes in git.
+ * Check if product.yaml (or legacy product.json) has uncommitted changes in git.
  */
 export function getProductGitStatus(projectDir) {
   const pDir = projectDir || process.cwd();
   try {
     const isGit = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], { cwd: pDir, stdio: 'pipe' });
     if (isGit.status !== 0) {
-      return { isGit: false, dirty: false };
+      return { isGit: false, dirty: false, file: 'product.yaml' };
     }
-    const targetFile = 'product.json';
-    const statusRes = spawnSync('git', ['status', '--porcelain', '--', targetFile], { cwd: pDir, stdio: 'pipe' });
+    const trackedFiles = ['product.yaml', 'product.yml', 'product.json', 'backlog.json'];
+    const statusRes = spawnSync('git', ['status', '--porcelain', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
     const statusOut = statusRes.stdout ? statusRes.stdout.toString().trim() : '';
     return {
       isGit: true,
       dirty: Boolean(statusOut),
-      status: statusOut
+      status: statusOut,
+      file: 'product.yaml'
     };
   } catch (err) {
-    return { isGit: false, dirty: false, error: err.message };
+    return { isGit: false, dirty: false, error: err.message, file: 'product.yaml' };
   }
 }
 export const getBacklogGitStatus = getProductGitStatus;
@@ -864,7 +891,7 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
     throw new Error(`Cannot convert category container "${node.title}" to a task. Please select an item inside it.`);
   }
 
-  // Build product context from product.json hierarchy
+  // Build product context from product.yaml hierarchy
   const product_context = buildProductContextForNode(tree, id);
 
   const isBug = (node.type === 'bug') || (taskData.type === 'bug') || (taskData.title && (taskData.title.toLowerCase().startsWith('[bug') || taskData.title.toLowerCase().startsWith('[improvement'))) || (node.title && (node.title.toLowerCase().startsWith('[bug') || node.title.toLowerCase().startsWith('[improvement')));
@@ -903,10 +930,10 @@ export function convertBacklogNodeToTask(projectDir, id, taskData = {}, addTaskF
   const typeWord = isBug ? 'bug / improvement' : (node.type === 'component' ? 'component' : 'feature');
   const convertCommitMsg = `${actionPrefix}: assign Task #${task.id.split('-').pop()} to ${typeWord} "${node.title}"`;
   
-  // Save product.json to disk
+  // Save product.yaml to disk
   writeBacklogTree(projectDir, tree, convertCommitMsg);
 
-  // Commit product.json after assigning task an id
+  // Commit product.yaml after assigning task an id
   commitProductChanges(projectDir, convertCommitMsg);
 
   return { success: true, task, node, tree };
@@ -991,7 +1018,7 @@ export const convertProductNodeToTask = convertBacklogNodeToTask;
 
 /**
  * Returns the product assets directory: <projectDir>/product_assets
- * Files stored here are checked into git alongside product.json (no SQLite).
+ * Files stored here are checked into git alongside product.yaml (no SQLite).
  */
 export function getProductAssetsDir(projectDir) {
   const pDir = projectDir || process.cwd();
@@ -1004,7 +1031,7 @@ export function getProductAssetsDir(projectDir) {
 
 /**
  * Save an uploaded file or image directly to <projectDir>/product_assets/
- * and record its metadata in product.json under the given node.
+ * and record its metadata in product.yaml under the given node.
  */
 export function addProductAttachment(projectDir, nodeId, { fileName, buffer, mimeType, projectName, db = null }) {
   const assetsDir = getProductAssetsDir(projectDir);
@@ -1044,7 +1071,7 @@ export function addProductAttachment(projectDir, nodeId, { fileName, buffer, mim
 }
 
 /**
- * Delete an attachment file from product_assets and remove it from product.json.
+ * Delete an attachment file from product_assets and remove it from product.yaml.
  */
 export function deleteProductAttachment(projectDir, nodeId, attId, projectName, db = null) {
   const tree = readProductTree(projectDir, projectName, db);

@@ -748,23 +748,24 @@ const server = http.createServer(async (req, res) => {
     });
   }
 
-  // REST API: GET /api/product/status or GET /api/backlog/status - Check if product.json has uncommitted changes
+  // REST API: GET /api/product/status or GET /api/backlog/status - Check if product.yaml has uncommitted changes
   if ((pathname === '/api/product/status' || pathname === '/api/backlog/status') && req.method === 'GET') {
     const info = getProjectInfo();
     const gitStatus = getProductGitStatus(info.projectDir);
     return sendJson(res, 200, {
       success: true,
       dirty: gitStatus.dirty,
-      status: gitStatus.status
+      status: gitStatus.status,
+      file: gitStatus.file || 'product.yaml'
     });
   }
 
-  // REST API: POST /api/product/commit or POST /api/backlog/commit - Explicitly commit product.json to git
+  // REST API: POST /api/product/commit or POST /api/backlog/commit - Explicitly commit product.yaml to git
   if ((pathname === '/api/product/commit' || pathname === '/api/backlog/commit') && req.method === 'POST') {
     try {
       const body = await parseBody(req);
       const info = getProjectInfo();
-      const commitMsg = body?.message || 'chore(product): update product specification in product.json';
+      const commitMsg = body?.message || 'chore(product): update product specification in product.yaml';
       const committed = commitProductChanges(info.projectDir, commitMsg);
       const gitStatus = getProductGitStatus(info.projectDir);
       return sendJson(res, 200, {
@@ -1170,7 +1171,7 @@ const server = http.createServer(async (req, res) => {
         task.session_id = targetSessionId;
       }
 
-      // If a product node was linked, update node with taskId and save & commit product.json
+      // If a product node was linked, update node with taskId and save & commit product.yaml
       if (linkedNode && tree) {
         try {
           linkedNode.taskId = task.id;
@@ -1183,7 +1184,7 @@ const server = http.createServer(async (req, res) => {
           writeProductTree(info.projectDir, tree, commitMsg);
           commitProductChanges(info.projectDir, commitMsg);
         } catch (err) {
-          console.warn('Failed to commit product.json for linked task:', err.message);
+          console.warn('Failed to commit product.yaml for linked task:', err.message);
         }
       }
 
