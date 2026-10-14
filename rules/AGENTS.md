@@ -64,6 +64,9 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
      - If a candidate task touches files locked by an active task or a task in `👀 Pending Review`, planning and execution are deferred.
      - Only disjoint small/medium tasks may run in parallel up to the concurrency cap of 2.
    * **Revision Feedback**: When a completed or reviewed task receives user change requests or feedback, it returns to the `planned` column with comments flagged for the agent. The agent acknowledges comments (`ack-comment`), updates the implementation plan, and executes the revisions.
+   * **Immediate Execution after Planning in Autonomous Mode**:
+     - When Autonomous Mode is enabled (`autonomous_mode == true`), a task **MUST NOT WAIT** after moving to `planned`. The supervisor immediately advances the task to `in_progress` (`node taskboard/tasks.mjs update <TASK_ID> in_progress`) and launches the subagent in `Workspace: "branch"` in the very same turn.
+     - When Autonomous Mode is disabled (`autonomous_mode == false`), the task pauses in `planned` awaiting user review and click on `▶️ Proceed` (or reply comments).
 
 9. **Idle Loop Auto-Termination (8-Hour Inactivity Timeout)**:
    When the taskboard has had no active tasks, no pending todo/revision tasks, and no unread user comments for a continuous 8 hours (28,800 seconds):
@@ -104,10 +107,12 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
 
 13. **Autonomous Mode (`autonomous_mode`)**:
     * When Autonomous Mode is enabled (`autonomous_mode == true` or `node taskboard/tasks.mjs autonomous status` returns true, or toggled on in the taskboard UI):
+      - **Tasks do NOT wait after planned**: Once the implementation plan is formulated and posted, the task enters `planned` and must not wait for user approval or clicking `▶️ Proceed`. The supervisor immediately advances the task to `in_progress` and dispatches the subagent to execute without pausing.
       - **Tasks do NOT wait until manually reviewed**: Once verification passes (automated command exits 0 or criteria evaluated) and the walkthrough with 3 follow-up suggestions is posted, the supervisor marks the card directly as `done`:
         `node taskboard/tasks.mjs update <TASK_ID> done "Verified and auto-approved in Autonomous Mode."`
       - Any tasks sitting in `verification` (`👀 Pending Review`) are auto-approved to `done` and will not block candidate tasks from running.
       - The autonomous loop supervisor immediately proceeds to the next candidate task in `planned` / `todo` without halting for human sign-off.
     * When Autonomous Mode is disabled (default):
+      - Planned tasks hold in `planned` awaiting user plan review and approval ("Proceed").
       - Completed tasks hold in `verification` (`👀 Pending Review`) for manual user testing, feedback, and approval.
 

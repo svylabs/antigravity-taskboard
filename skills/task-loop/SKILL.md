@@ -97,12 +97,14 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs poll
 
 * **If `action == "planned_task_available"`**:
   A task is in **`📋 Planned`** with its technical approach and verification criteria established!
-  1. Check for any unread user comments on the card (`ack-comment <COMMENT_ID>`).
-  2. Transition task status to `in_progress`:
-     ```bash
-     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> in_progress
-     ```
-  3. Dispatch subagent in an isolated workspace branch (`Workspace: "branch"`) to implement the plan.
+  - **If Autonomous Mode is ON**:
+    **Do NOT wait!** Immediately transition task status to `in_progress`:
+    ```bash
+    node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> in_progress
+    ```
+    And dispatch subagent in an isolated workspace branch (`Workspace: "branch"`) to implement the plan right away.
+  - **If Autonomous Mode is OFF**:
+    Check if the user posted an approval comment (e.g. clicking "Proceed"). If approved, transition to `in_progress` and dispatch subagent. Otherwise, the task waits in `Planned` for user sign-off.
 
 * **If `action == "todo_task_available"`**:
   A new task is in **`📋 To Do`**. Proceed to **Step 2 (Verification Gate & Plan Creation)** to formulate the technical plan. Posting the plan comment automatically moves the task to **`Planned`**.
@@ -149,6 +151,20 @@ node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs comment <ID> "###
 
 **Verification**: [Automated: npm test | Acceptance checklist | Manual user verification | Explicit exemption: N/A]" "Supervisor" "plan"
 ```
+
+#### ⚡ Immediate Execution after Planning (Autonomous Mode)
+Posting the plan comment advances the task to **`Planned`**.
+- **If Autonomous Mode is ON (`autonomous_mode == true`)**:
+  **A task MUST NOT WAIT after planned!**
+  Do NOT end your turn or pause execution:
+  1. Immediately transition the task status to `in_progress`:
+     ```bash
+     node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs update <ID> in_progress
+     ```
+  2. In the very same turn, dispatch the subagent in an isolated workspace branch (`Workspace: "branch"`) to begin implementation:
+     `invoke_subagent(Subagents=[{TypeName: "self", Role: task.subagent_role, Workspace: "branch", Prompt: ...}])`
+- **If Autonomous Mode is OFF (`autonomous_mode == false`)**:
+  The task pauses in **`📋 Planned`** for user plan review. The user will review the plan in the web taskboard and click `▶️ Proceed` (or reply with modifications). Stop calling tools and wait for user approval.
 
 ---
 

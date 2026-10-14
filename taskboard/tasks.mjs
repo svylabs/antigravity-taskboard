@@ -492,7 +492,9 @@ export function updateTask(id, fields) {
   `).run(...params);
 
   if (fields.status === 'verification' || fields.status === 'planned') {
-    playSystemNotificationSound();
+    if (!isAutonomousMode()) {
+      playSystemNotificationSound();
+    }
   }
 
   setMetadata('idle_since', null);
@@ -1038,6 +1040,16 @@ export function checkPoll(maxConcurrency = 2) {
       const attachments = getAttachments(chosenCandidate.id);
       
       if (activeTasks.length > 0) {
+        if (!autoMode && chosenCandidate.status === 'planned') {
+          return {
+            has_work: true,
+            autonomous_mode: autoMode,
+            action: 'monitor_active',
+            active_tasks: activeTasks.map(t => ({ id: t.id, title: t.title, status: t.status, session_id: t.session_id })),
+            deferred_candidate: chosenCandidate.id,
+            deferral_reason: 'Awaiting user plan approval in Planned'
+          };
+        }
         return {
           has_work: true,
           autonomous_mode: autoMode,
@@ -1052,6 +1064,32 @@ export function checkPoll(maxConcurrency = 2) {
           analysis: chosenAnalysis
         };
       } else {
+        if (!autoMode && chosenCandidate.status === 'planned') {
+          const now = Date.now();
+          let idleSinceVal = getMetadata('idle_since');
+          let idleSince = idleSinceVal ? parseInt(idleSinceVal, 10) : null;
+          if (!idleSince) {
+            idleSince = now;
+            setMetadata('idle_since', String(now));
+          }
+          const idleSeconds = Math.max(0, Math.floor((now - idleSince) / 1000));
+          const idleTimeout = parseInt(process.env.TASKBOARD_IDLE_TIMEOUT || '28800', 10);
+          const stopLoop = idleSeconds >= idleTimeout;
+          return {
+            has_work: false,
+            autonomous_mode: false,
+            waiting_for_input: true,
+            action: 'waiting_for_user_input',
+            task_id: chosenCandidate.id,
+            title: chosenCandidate.title,
+            idle_seconds: idleSeconds,
+            idle_timeout_seconds: idleTimeout,
+            stop_loop: stopLoop,
+            message: stopLoop
+              ? `Waiting for plan approval on "${chosenCandidate.title}" for 8 hours (${idleSeconds}s). Autonomous loop stopping.`
+              : `Task "${chosenCandidate.title}" (${chosenCandidate.id}) is Planned. Awaiting user approval to proceed. Idle for ${idleSeconds}s.`
+          };
+        }
         return {
           has_work: true,
           autonomous_mode: autoMode,
@@ -1204,10 +1242,10 @@ if (isCliEntry && command) {
       const [sub] = args;
       if (sub === 'on' || sub === '1' || sub === 'enable' || sub === 'true') {
         const state = setAutonomousMode(true);
-        console.log(JSON.stringify({ success: true, autonomous_mode: state, message: 'Autonomous Mode ENABLED. Tasks will not wait in Pending Review.' }));
+        console.log(JSON.stringify({ success: true, autonomous_mode: state, message: 'Autonomous Mode ENABLED. Tasks will not wait after Planned or in Pending Review.' }));
       } else if (sub === 'off' || sub === '0' || sub === 'disable' || sub === 'false') {
         const state = setAutonomousMode(false);
-        console.log(JSON.stringify({ success: true, autonomous_mode: state, message: 'Autonomous Mode DISABLED. Tasks will wait in Pending Review for manual approval.' }));
+        console.log(JSON.stringify({ success: true, autonomous_mode: state, message: 'Autonomous Mode DISABLED. Tasks will wait in Planned and Pending Review for manual approval.' }));
       } else {
         const state = isAutonomousMode();
         console.log(JSON.stringify({ autonomous_mode: state }));

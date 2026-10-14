@@ -3249,7 +3249,7 @@
         <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository code, markdown documents, and assets" style="text-decoration: none;">
           <span>📁</span><span>Repo Files</span>
         </a>
-        <button class="btn btn-autonomous-toggle" id="btnAutonomousToggle" onclick="toggleAutonomousMode()" title="Autonomous Mode: When ON, tasks bypass Pending Review and advance directly to Done once verified.">
+        <button class="btn btn-autonomous-toggle" id="btnAutonomousToggle" onclick="toggleAutonomousMode()" title="Autonomous Mode: When ON, tasks do not wait after planned and bypass Pending Review once verified.">
           <span class="autonomous-pulse-dot"></span>
           <span id="autonomousIcon">🤖</span>
           <span id="autonomousLabel">Autonomous: OFF</span>
@@ -4029,10 +4029,12 @@
 
       isAttentionTask(task) {
         if (!task || task.status === 'done' || task.status === 'failed') return false;
-        if (this.triggerVerification && task.status === 'verification') return true;
-        if (this.triggerPlanned && task.status === 'planned') return true;
         if (this.triggerQuestion && (task.question_count || 0) > 0) return true;
         if (this.triggerPermission && (task.permission_count || 0) > 0) return true;
+        // In Autonomous Mode, tasks do not wait after planned or in pending review
+        if (isAutonomousModeActive) return false;
+        if (this.triggerVerification && task.status === 'verification') return true;
+        if (this.triggerPlanned && task.status === 'planned') return true;
         return false;
       }
 
@@ -4489,12 +4491,12 @@
       if (!btn) return;
       if (isAutonomousModeActive) {
         btn.classList.add('is-active');
-        btn.title = "Autonomous Mode is ON: Tasks bypass Pending Review and advance directly to Done once verified.";
+        btn.title = "Autonomous Mode is ON: Tasks do not wait after planned and advance directly to Done once verified.";
         if (label) label.innerText = "Autonomous: ON";
         if (icon) icon.innerText = "⚡";
       } else {
         btn.classList.remove('is-active');
-        btn.title = "Autonomous Mode is OFF: Tasks wait in Pending Review for user manual verification.";
+        btn.title = "Autonomous Mode is OFF: Tasks wait in Planned for proceed and in Pending Review for verification.";
         if (label) label.innerText = "Autonomous: OFF";
         if (icon) icon.innerText = "🤖";
       }
@@ -4512,9 +4514,9 @@
         if (data.success) {
           updateAutonomousUI(data.autonomous_mode);
           if (data.autonomous_mode) {
-            showToast('⚡ Autonomous Mode ENABLED: Tasks proceed to Done without manual review wait.', 'success');
+            showToast('⚡ Autonomous Mode ENABLED: Tasks do not wait after planned and proceed directly to Done once verified.', 'success');
           } else {
-            showToast('👤 Autonomous Mode DISABLED: Tasks will wait in Pending Review for manual review.', 'info');
+            showToast('👤 Autonomous Mode DISABLED: Tasks will wait in Planned and Pending Review for manual approval.', 'info');
           }
           await fetchTasks();
         } else {
@@ -6914,7 +6916,7 @@
           </button>
         </div>
 
-        ${(attentionManager.state[task.id] && task.status !== 'done' && task.status !== 'failed') ? `
+        ${(attentionManager.state[task.id] && task.status !== 'done' && task.status !== 'failed' && (!isAutonomousModeActive || (task.question_count > 0 || task.permission_count > 0))) ? `
           <div style="background: #FEF3C7; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
             <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #92400E; font-weight: 600;">
               <span>🔔 Attention Active:</span>
@@ -7342,9 +7344,15 @@
                 <div style="font-size: 12px; color: #166534; font-weight: 600; display: flex; align-items: center; gap: 6px;">
                   <span>📋 Implementation Plan</span>
                 </div>
-                <button type="button" class="btn btn-sm btn-primary" onclick="handleProceedPlan('${taskId}')" style="background: #16A34A; border-color: #15803D; font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" title="Approve plan and post 'Proceed' comment">
-                  <span>▶️ Proceed</span>
-                </button>
+                ${!isAutonomousModeActive && task.status === 'planned' ? `
+                  <button type="button" class="btn btn-sm btn-primary" onclick="handleProceedPlan('${taskId}')" style="background: #16A34A; border-color: #15803D; font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" title="Approve plan and post 'Proceed' comment">
+                    <span>▶️ Proceed</span>
+                  </button>
+                ` : (isAutonomousModeActive ? `
+                  <span style="font-size: 11px; color: #047857; background: #DCFCE7; padding: 2px 8px; border-radius: 4px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">
+                    <span>⚡ Auto-executing</span>
+                  </span>
+                ` : '')}
               </div>
             ` : ''}
             ${hasFollowups ? renderFollowupTasksHtml(followups, taskId, c.id) : ''}
