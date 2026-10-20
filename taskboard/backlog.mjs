@@ -474,7 +474,19 @@ export function commitProductChanges(projectDir, message = null) {
       return null;
     }
 
-    const trackedFiles = ['product.yaml', 'product.yml', 'product.json', 'backlog.json'];
+    const candidateFiles = ['product.yaml', 'product.yml', 'product.json', 'backlog.json'];
+    if (fs.existsSync(path.join(pDir, 'product_assets'))) {
+      candidateFiles.push('product_assets');
+    }
+
+    // Identify which candidate files/directories actually exist on disk or are tracked in git
+    const lsRes = spawnSync('git', ['ls-files', '--', ...candidateFiles], { cwd: pDir, stdio: 'pipe' });
+    const trackedInGit = new Set(lsRes.status === 0 && lsRes.stdout ? lsRes.stdout.toString().split('\n').map(s => s.trim()).filter(Boolean) : []);
+    const trackedFiles = candidateFiles.filter(f => fs.existsSync(path.join(pDir, f)) || trackedInGit.has(f));
+
+    if (trackedFiles.length === 0) {
+      return null;
+    }
 
     // Check if git status has any changes strictly for product spec files
     const statusRes = spawnSync('git', ['status', '--porcelain', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
@@ -484,7 +496,12 @@ export function commitProductChanges(projectDir, message = null) {
     }
 
     // Stage product spec files
-    spawnSync('git', ['add', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
+    const addRes = spawnSync('git', ['add', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
+    if (addRes.status !== 0) {
+      const addErr = (addRes.stderr?.toString() || addRes.stdout?.toString() || '').trim();
+      console.warn(`[git add product] Failed: ${addErr}`);
+      return null;
+    }
 
     // Determine commit message
     const commitMsg = message || 'chore(product): update product specification in product.yaml';
@@ -559,14 +576,25 @@ export function getProductGitStatus(projectDir) {
     if (isGit.status !== 0) {
       return { isGit: false, dirty: false, file: 'product.yaml' };
     }
-    const trackedFiles = ['product.yaml', 'product.yml', 'product.json', 'backlog.json'];
+    const candidateFiles = ['product.yaml', 'product.yml', 'product.json', 'backlog.json'];
+    if (fs.existsSync(path.join(pDir, 'product_assets'))) {
+      candidateFiles.push('product_assets');
+    }
+    const lsRes = spawnSync('git', ['ls-files', '--', ...candidateFiles], { cwd: pDir, stdio: 'pipe' });
+    const trackedInGit = new Set(lsRes.status === 0 && lsRes.stdout ? lsRes.stdout.toString().split('\n').map(s => s.trim()).filter(Boolean) : []);
+    const trackedFiles = candidateFiles.filter(f => fs.existsSync(path.join(pDir, f)) || trackedInGit.has(f));
+
+    if (trackedFiles.length === 0) {
+      return { isGit: true, dirty: false, file: 'product.yaml' };
+    }
+
     const statusRes = spawnSync('git', ['status', '--porcelain', '--', ...trackedFiles], { cwd: pDir, stdio: 'pipe' });
     const statusOut = statusRes.stdout ? statusRes.stdout.toString().trim() : '';
     return {
       isGit: true,
       dirty: Boolean(statusOut),
       status: statusOut,
-      file: 'product.yaml'
+      file: trackedFiles[0] || 'product.yaml'
     };
   } catch (err) {
     return { isGit: false, dirty: false, error: err.message, file: 'product.yaml' };

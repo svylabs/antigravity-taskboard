@@ -347,12 +347,25 @@ async function getActiveProjects(currentProjectName, currentPort) {
       continue;
     }
 
-    const isCurrent = (p.projectName || name) === currentProjectName || p.port === currentPort;
+    const isCurrent = (p.projectName || name) === currentProjectName;
     let isAlive = false;
 
     if (isCurrent) {
       isAlive = true;
     } else {
+      if (p.port === currentPort) {
+        // Conflicting port with running server: reassign to an unused candidate port
+        const usedPorts = new Set(Object.values(registry).map(proj => proj.port));
+        usedPorts.add(currentPort);
+        let candidate = 4040;
+        while (usedPorts.has(candidate)) {
+          candidate += 2;
+        }
+        p.port = candidate;
+        p.url = `http://localhost:${candidate}`;
+        p.pid = null;
+        changed = true;
+      }
       isAlive = await pingProjectPort(p.port, p.projectName || name);
       if (!isAlive && p.pid) {
         try {
@@ -740,6 +753,7 @@ const server = http.createServer(async (req, res) => {
     const changed = syncTaskStatusesWithTree(tree, getTaskById);
     if (changed) {
       writeProductTree(info.projectDir, tree);
+      commitProductChanges(info.projectDir, 'chore(product): sync task statuses with product.yaml');
     }
     const count = countNodes(tree);
     const gitStatus = getProductGitStatus(info.projectDir);
@@ -772,6 +786,15 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const info = getProjectInfo();
       const commitMsg = body?.message || 'chore(product): update product specification in product.yaml';
+      const gitStatusBefore = getProductGitStatus(info.projectDir);
+      if (!gitStatusBefore.dirty) {
+        return sendJson(res, 200, {
+          success: true,
+          committed: false,
+          message: 'Already up to date (no changes to commit)',
+          dirty: false
+        });
+      }
       const committed = commitProductChanges(info.projectDir, commitMsg);
       const gitStatus = getProductGitStatus(info.projectDir);
       return sendJson(res, 200, {

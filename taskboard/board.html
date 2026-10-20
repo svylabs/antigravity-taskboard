@@ -8676,14 +8676,24 @@
         const select = document.getElementById('projectSelect');
         if (!select) return;
 
+        // Skip re-rendering if user currently has the dropdown open/focused
+        if (document.activeElement === select) return;
+
         const projects = data.projects || [];
         if (projects.length === 0) {
           const currentUrl = resolveProjectUrl('{{PROJECT_PORT}}', 'http://localhost:{{PROJECT_PORT}}');
-          select.innerHTML = `<option value="{{PROJECT_NAME}}" data-url="${currentUrl}" data-alive="1" data-current="1" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}}) [Current]</option>`;
+          const fallbackHtml = `<option value="{{PROJECT_NAME}}" data-url="${currentUrl}" data-alive="1" data-current="1" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}}) [Current]</option>`;
+          if (select.dataset.lastHtml !== fallbackHtml) {
+            select.dataset.lastHtml = fallbackHtml;
+            const prevOnChange = select.onchange;
+            select.onchange = null;
+            select.innerHTML = fallbackHtml;
+            select.onchange = prevOnChange;
+          }
           return;
         }
 
-        select.innerHTML = projects.map(p => {
+        const newHtml = projects.map(p => {
           const indicator = p.isAlive ? '●' : '○';
           let tag = '';
           if (p.isCurrent) {
@@ -8696,6 +8706,15 @@
           const pUrl = resolveProjectUrl(p.port, p.url);
           return `<option value="${p.projectName}" data-url="${pUrl}" data-alive="${p.isAlive ? '1' : '0'}" data-current="${p.isCurrent ? '1' : '0'}" data-port="${p.port}" ${p.isCurrent ? 'selected' : ''}>${indicator} ${p.projectName} (:${p.port})${tag}</option>`;
         }).join('');
+
+        // Diff to prevent blowing away select DOM every 10 seconds
+        if (select.dataset.lastHtml !== newHtml) {
+          select.dataset.lastHtml = newHtml;
+          const prevOnChange = select.onchange;
+          select.onchange = null;
+          select.innerHTML = newHtml;
+          select.onchange = prevOnChange;
+        }
       } catch (e) {
         // silent fail
       }
@@ -8715,7 +8734,14 @@
         if (proceed) {
           await saveProductCommit();
         } else {
-          await loadProjects();
+          // Revert select dropdown to current project without triggering onchange
+          const currentOpt = Array.from(select.options).find(o => o.getAttribute('data-current') === '1');
+          if (currentOpt) {
+            const prevOnChange = select.onchange;
+            select.onchange = null;
+            select.value = currentOpt.value;
+            select.onchange = prevOnChange;
+          }
           return;
         }
       }
