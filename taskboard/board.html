@@ -2641,6 +2641,123 @@
       word-break: break-word;
     }
 
+    /* Blockquotes & Callouts in Task Details and Comments */
+    .comment-content blockquote,
+    .form-formatted-text blockquote {
+      border-left: 4px solid var(--primary);
+      background: #FAF5FF;
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      color: #334155;
+      margin: 10px 0;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .comment-content blockquote > :last-child,
+    .form-formatted-text blockquote > :last-child {
+      margin-bottom: 0;
+    }
+    .comment-content blockquote blockquote,
+    .form-formatted-text blockquote blockquote {
+      border-left-color: #94A3B8;
+      background: #F1F5F9;
+      color: #475569;
+      margin: 6px 0;
+    }
+
+    .comment-content .callout,
+    .form-formatted-text .callout {
+      margin: 12px 0;
+      border-radius: 6px;
+      border: 1px solid;
+      border-left-width: 4px;
+      overflow: hidden;
+      background: #FFFFFF;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+    }
+    .comment-content .callout-header,
+    .form-formatted-text .callout-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .comment-content .callout-icon,
+    .form-formatted-text .callout-icon {
+      font-size: 14px;
+      line-height: 1;
+    }
+    .comment-content .callout-content,
+    .form-formatted-text .callout-content {
+      padding: 6px 12px 10px 12px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: #1E293B;
+    }
+    .comment-content .callout-content > :last-child,
+    .form-formatted-text .callout-content > :last-child {
+      margin-bottom: 0;
+    }
+
+    /* Callout Theme Variants in board.html */
+    .callout-note, .callout-info { border-color: #BFDBFE; border-left-color: #2563EB; background: #EFF6FF; }
+    .callout-note .callout-header, .callout-info .callout-header { color: #1D4ED8; }
+    .callout-note .callout-content, .callout-info .callout-content { color: #1E3A8A; }
+
+    .callout-tip { border-color: #BBF7D0; border-left-color: #10B981; background: #F0FDF4; }
+    .callout-tip .callout-header { color: #15803D; }
+    .callout-tip .callout-content { color: #14532D; }
+
+    .callout-important, .callout-purple { border-color: #DDD6FE; border-left-color: #7C3AED; background: #FAF5FF; }
+    .callout-important .callout-header, .callout-purple .callout-header { color: #6D28D9; }
+    .callout-important .callout-content, .callout-purple .callout-content { color: #4C1D95; }
+
+    .callout-warning { border-color: #FDE68A; border-left-color: #F59E0B; background: #FFFBEB; }
+    .callout-warning .callout-header { color: #B45309; }
+    .callout-warning .callout-content { color: #78350F; }
+
+    .callout-caution, .callout-danger { border-color: #FECACA; border-left-color: #EF4444; background: #FEF2F2; }
+    .callout-caution .callout-header, .callout-danger .callout-header { color: #B91C1C; }
+    .callout-caution .callout-content, .callout-danger .callout-content { color: #7F1D1D; }
+
+    /* Mermaid diagrams in comments & task description */
+    .comment-content .mermaid-diagram-card,
+    .form-formatted-text .mermaid-diagram-card {
+      margin: 14px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #FFFFFF;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+    .comment-content .mermaid-toolbar,
+    .form-formatted-text .mermaid-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: #F8FAFC;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+    }
+    .comment-content .mermaid-canvas-wrap,
+    .form-formatted-text .mermaid-canvas-wrap {
+      padding: 14px;
+      overflow-x: auto;
+      display: flex;
+      justify-content: center;
+      background: #FCFCFD;
+    }
+    .comment-content .mermaid-canvas-wrap svg,
+    .form-formatted-text .mermaid-canvas-wrap svg {
+      max-width: 100%;
+      height: auto;
+    }
+
     .comment-box {
       display: flex;
       flex-direction: column;
@@ -3245,6 +3362,9 @@
         </button>
         <a href="/done" class="btn btn-secondary" title="View all completed tasks categorized by label, scope, and role" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
           <span>🏆</span><span>Done Archive</span>
+        </a>
+        <a href="/docs" target="_blank" class="btn btn-secondary" title="View specifications and project documentation" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
+          <span>📚</span><span>Docs</span>
         </a>
         <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository code, markdown documents, and assets" style="text-decoration: none;">
           <span>📁</span><span>Repo Files</span>
@@ -7207,6 +7327,8 @@
         </div>
       `;
 
+      postProcessMarkdownInContainer(content);
+
       document.getElementById('detailModal').classList.add('active');
       loadAttachments(id);
       loadSubtasks(id);
@@ -7358,6 +7480,8 @@
             ${hasFollowups ? renderFollowupTasksHtml(followups, taskId, c.id) : ''}
           </div>
         `;}).join('');
+
+        postProcessMarkdownInContainer(list);
 
         if (autoScroll) {
           const modalBox = document.querySelector('#detailModal .modal');
@@ -8771,6 +8895,143 @@
       let result = processed.join('');
       result = result.replace(/@@CODE_BLOCK_(\d+)@@/g, (_, idx) => codeBlocks[idx] || '');
       return result;
+    }
+
+    function enhanceBlockquotesInContainer(container) {
+      if (!container) return;
+      const bqs = container.querySelectorAll('blockquote');
+      bqs.forEach(bq => {
+        const fullText = bq.innerText.trim();
+
+        // 1. GitHub Alert Syntax: [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]
+        const alertMatch = fullText.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i);
+        if (alertMatch) {
+          const type = alertMatch[1].toUpperCase();
+          const typeKey = type.toLowerCase();
+          let icon = 'ℹ️';
+          let title = 'Note';
+          if (type === 'TIP') { icon = '💡'; title = 'Tip'; }
+          else if (type === 'IMPORTANT') { icon = '🟣'; title = 'Important'; }
+          else if (type === 'WARNING') { icon = '⚠️'; title = 'Warning'; }
+          else if (type === 'CAUTION') { icon = '🛑'; title = 'Caution'; }
+
+          let innerHtml = bq.innerHTML;
+          innerHtml = innerHtml.replace(/\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]<br\s*\/?>?/i, '');
+          innerHtml = innerHtml.replace(/\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i, '');
+
+          const card = document.createElement('div');
+          card.className = 'callout callout-' + typeKey;
+          card.innerHTML = '<div class="callout-header"><span class="callout-icon">' + icon + '</span><span class="callout-title">' + title + '</span></div><div class="callout-content">' + innerHtml + '</div>';
+          bq.parentNode.replaceChild(card, bq);
+          return;
+        }
+
+        // 2. Emoji Callouts (e.g. "> 📘 **Title**:", "> 💡 ...", "> ⚠️ ...")
+        const emojiMatch = fullText.match(/^(📘|💡|⚠️|🚨|🛑|📌|ℹ️|🟣|⚡|🛠️|🔍|🎯)\s*/);
+        if (emojiMatch) {
+          const emoji = emojiMatch[1];
+          let calloutClass = 'callout-info';
+          let defaultTitle = 'Notice';
+          if (emoji === '💡' || emoji === '⚡' || emoji === '🎯') { calloutClass = 'callout-tip'; defaultTitle = 'Tip'; }
+          else if (emoji === '⚠️' || emoji === '📌') { calloutClass = 'callout-warning'; defaultTitle = 'Warning'; }
+          else if (emoji === '🚨' || emoji === '🛑') { calloutClass = 'callout-caution'; defaultTitle = 'Important Warning'; }
+          else if (emoji === '🟣' || emoji === '🛠️') { calloutClass = 'callout-purple'; defaultTitle = 'Architecture Note'; }
+          else if (emoji === '📘' || emoji === 'ℹ️' || emoji === '🔍') { calloutClass = 'callout-info'; defaultTitle = 'Specification Note'; }
+
+          const card = document.createElement('div');
+          card.className = 'callout ' + calloutClass;
+          card.innerHTML = '<div class="callout-header"><span class="callout-icon">' + emoji + '</span><span class="callout-title">' + defaultTitle + '</span></div><div class="callout-content">' + bq.innerHTML + '</div>';
+          bq.parentNode.replaceChild(card, bq);
+          return;
+        }
+      });
+    }
+
+    async function renderMermaidInContainer(container) {
+      if (!container || typeof mermaid === 'undefined') return;
+      const codeBlocks = container.querySelectorAll('pre code.language-mermaid, pre code.lang-mermaid, pre.comment-code-block code');
+      if (!codeBlocks.length) return;
+
+      try {
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose',
+          flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
+          sequence: { useMaxWidth: true, showSequenceNumbers: true },
+          themeVariables: {
+            primaryColor: '#EDE9FE',
+            primaryBorderColor: '#7C3AED',
+            primaryTextColor: '#1E1B4B',
+            lineColor: '#64748B',
+            secondaryColor: '#F1F5F9',
+            tertiaryColor: '#FFFFFF',
+            actorBkg: '#EDE9FE',
+            actorBorder: '#7C3AED',
+            actorTextColor: '#4C1D95',
+            signalColor: '#64748B',
+            signalTextColor: '#0F172A',
+            noteBkgColor: '#FEF3C7',
+            noteBorderColor: '#F59E0B',
+            noteTextColor: '#92400E'
+          }
+        });
+      } catch (e) {}
+
+      let idx = 0;
+      for (const block of Array.from(codeBlocks)) {
+        const pre = block.closest('pre');
+        if (!pre) continue;
+        const code = block.textContent.trim();
+        const isMermaid = block.classList.contains('language-mermaid') ||
+                          block.classList.contains('lang-mermaid') ||
+                          /^(sequenceDiagram|flowchart|graph|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph)/m.test(code);
+        if (!isMermaid) continue;
+
+        const diagramId = 'm_b_' + Math.random().toString(36).slice(2, 9) + '_' + (idx++);
+        const firstLine = code.split('\\n')[0].trim();
+        const diagramType = firstLine.split(/\\s+/)[0] || 'diagram';
+
+        const card = document.createElement('div');
+        card.className = 'mermaid-diagram-card';
+        card.id = 'card_' + diagramId;
+        card.innerHTML = [
+          '<div class="mermaid-toolbar">',
+          '  <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #475569;">',
+          '    <span style="background: #EDE9FE; color: #7C3AED; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">📊 DIAGRAM</span>',
+          '    <span style="font-family: monospace; font-size: 11px; color: #64748B;">' + diagramType + '</span>',
+          '  </div>',
+          '  <button type="button" class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(this.dataset.code); this.innerText=\\'✅ Copied\\'; setTimeout(() => this.innerText=\\'📋 Copy\\', 2000);" data-code="' + code.replace(/"/g, '&quot;') + '" style="font-size: 11px; padding: 2px 7px;">📋 Copy</button>',
+          '</div>',
+          '<div class="mermaid-canvas-wrap" id="canvas_' + diagramId + '">',
+          '  <div id="target_' + diagramId + '" style="width: 100%; display: flex; justify-content: center;">',
+          '    <div style="font-size: 11px; color: #94A3B8;">Rendering diagram...</div>',
+          '  </div>',
+          '</div>'
+        ].join('');
+
+        pre.parentNode.replaceChild(card, pre);
+
+        try {
+          const { svg } = await mermaid.render('svg_' + diagramId, code);
+          const target = document.getElementById('target_' + diagramId);
+          if (target) target.innerHTML = svg;
+        } catch (err) {
+          document.querySelectorAll('[id*="' + diagramId + '"]').forEach(el => {
+            if (el !== card && !card.contains(el)) el.remove();
+          });
+          const target = document.getElementById('target_' + diagramId);
+          if (target) {
+            target.innerHTML = '<div style="font-size: 11px; color: #EF4444; padding: 8px;">Diagram error: ' + (err.message || 'Syntax error') + '</div>';
+          }
+        }
+      }
+    }
+
+    function postProcessMarkdownInContainer(container) {
+      if (!container) return;
+      enhanceBlockquotesInContainer(container);
+      renderMermaidInContainer(container);
     }
 
     function escapeHtml(str) {

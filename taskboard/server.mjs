@@ -76,7 +76,7 @@ import {
   getTodaySessionName
 } from './sessions.mjs';
 
-import { handleRepoRequest } from './repo_viewer.mjs';
+import { handleRepoRequest, getRepoRoot } from './repo_viewer.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -530,8 +530,9 @@ const server = http.createServer(async (req, res) => {
     return res.end(html);
   }
 
-  // Serve repository files, docs, and code viewer: /repo/*, /files/*, /view/*
-  if (pathname === '/repo' || pathname.startsWith('/repo/') || 
+  // Serve repository files, docs, and code viewer: /docs/*, /repo/*, /files/*, /view/*
+  if (pathname === '/docs' || pathname.startsWith('/docs/') ||
+      pathname === '/repo' || pathname.startsWith('/repo/') || 
       pathname === '/files' || pathname.startsWith('/files/') || 
       pathname === '/view' || pathname.startsWith('/view/')) {
     return handleRepoRequest(req, res, pathname, urlObj);
@@ -540,9 +541,14 @@ const server = http.createServer(async (req, res) => {
   // REST API: GET /api/info
   if (pathname === '/api/info' && req.method === 'GET') {
     const reqHost = req.headers.host ? req.headers.host.split(':')[0] : 'localhost';
+    const info = getProjectInfo();
+    const repoRoot = getRepoRoot();
+    const hasDocs = fs.existsSync(path.join(repoRoot, 'docs'));
     return sendJson(res, 200, { 
       success: true, 
-      ...getProjectInfo(),
+      ...info,
+      repoRoot,
+      hasDocs,
       port: ACTIVE_PORT,
       url: `http://${reqHost}:${ACTIVE_PORT}`
     });
