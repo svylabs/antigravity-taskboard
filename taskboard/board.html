@@ -8995,8 +8995,8 @@
         if (!isMermaid) continue;
 
         const diagramId = 'm_b_' + Math.random().toString(36).slice(2, 9) + '_' + (idx++);
-        const firstLine = code.split('\\n')[0].trim();
-        const diagramType = firstLine.split(/\\s+/)[0] || 'diagram';
+        const firstLine = code.split('\n')[0].trim();
+        const diagramType = firstLine.split(/\s+/)[0] || 'diagram';
 
         const card = document.createElement('div');
         card.className = 'mermaid-diagram-card';
@@ -9005,9 +9005,9 @@
           '<div class="mermaid-toolbar">',
           '  <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; color: #475569;">',
           '    <span style="background: #EDE9FE; color: #7C3AED; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">📊 DIAGRAM</span>',
-          '    <span style="font-family: monospace; font-size: 11px; color: #64748B;">' + diagramType + '</span>',
+          '    <span style="font-family: monospace; font-size: 11px; color: #64748B;">' + escapeHtml(diagramType) + '</span>',
           '  </div>',
-          '  <button type="button" class="btn btn-sm btn-secondary" onclick="navigator.clipboard.writeText(this.dataset.code); this.innerText=\\'✅ Copied\\'; setTimeout(() => this.innerText=\\'📋 Copy\\', 2000);" data-code="' + code.replace(/"/g, '&quot;') + '" style="font-size: 11px; padding: 2px 7px;">📋 Copy</button>',
+          '  <button type="button" class="btn btn-sm btn-secondary" onclick="copyMermaidDiagram(this)" data-code="' + escapeHtml(code) + '" style="font-size: 11px; padding: 2px 7px;">📋 Copy</button>',
           '</div>',
           '<div class="mermaid-canvas-wrap" id="canvas_' + diagramId + '">',
           '  <div id="target_' + diagramId + '" style="width: 100%; display: flex; justify-content: center;">',
@@ -9028,10 +9028,18 @@
           });
           const target = document.getElementById('target_' + diagramId);
           if (target) {
-            target.innerHTML = '<div style="font-size: 11px; color: #EF4444; padding: 8px;">Diagram error: ' + (err.message || 'Syntax error') + '</div>';
+            target.innerHTML = '<div style="font-size: 11px; color: #EF4444; padding: 8px;">Diagram error: ' + escapeHtml(err.message || 'Syntax error') + '</div>';
           }
         }
       }
+    }
+
+    function copyMermaidDiagram(btn) {
+      if (!btn || !btn.dataset.code) return;
+      navigator.clipboard.writeText(btn.dataset.code);
+      const orig = btn.innerText;
+      btn.innerText = '✅ Copied';
+      setTimeout(() => { btn.innerText = orig; }, 2000);
     }
 
     function postProcessMarkdownInContainer(container) {
