@@ -5092,6 +5092,19 @@
       }
     }
 
+    async function checkProductGitStatus() {
+      try {
+        const res = await fetch('/api/product/status');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.success && typeof data.dirty === 'boolean') {
+          setUnsavedProductChanges(data.dirty);
+        }
+      } catch (err) {
+        // silent fail
+      }
+    }
+
     async function saveProductCommit(e) {
       if (e) {
         if (typeof e.stopPropagation === 'function') e.stopPropagation();
