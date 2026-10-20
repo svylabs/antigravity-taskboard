@@ -37,7 +37,10 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
-    body {
+    html, body {
+      width: 100%;
+      max-width: 100vw;
+      overflow-x: hidden;
       background-color: var(--bg);
       color: var(--text-main);
       min-height: 100vh;
@@ -55,59 +58,69 @@
     }
 
     .header-main {
-      padding: 14px 28px;
+      padding: 8px 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px 14px;
+      flex-wrap: wrap;
+      min-height: 48px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 8px;
+      flex-shrink: 0;
     }
 
     .brand-logo {
-      width: 38px;
-      height: 38px;
-      border-radius: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
       background: linear-gradient(135deg, #7C3AED, #A855F7);
       color: #FFFFFF;
       display: flex;
       align-items: center;
       justify-content: center;
       font-weight: 800;
-      font-size: 18px;
-      box-shadow: 0 4px 10px rgba(124, 58, 237, 0.25);
+      font-size: 14px;
+      box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+      flex-shrink: 0;
     }
 
     .brand-title {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 700;
       color: var(--text-main);
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      line-height: 1.2;
+    }
+
+    .brand-title-text {
+      white-space: nowrap;
     }
 
     .project-pill {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 600;
       background: var(--primary-light);
       color: var(--primary);
-      padding: 2px 8px;
-      border-radius: 12px;
+      padding: 1.5px 6px;
+      border-radius: 10px;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.4px;
     }
 
     .port-pill {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       background: #EEF2FF;
       color: #4F46E5;
-      padding: 2px 7px;
-      border-radius: 10px;
+      padding: 1.5px 5px;
+      border-radius: 8px;
       font-family: monospace;
       border: 1px solid #E0E7FF;
     }
@@ -115,52 +128,231 @@
     .project-switcher {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       background: #F8FAFC;
       border: 1px solid var(--border);
-      padding: 4px 8px;
-      border-radius: 10px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .switcher-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+      white-space: nowrap;
     }
 
     .project-select {
-      font-size: 12px;
+      font-size: 11.5px;
       font-weight: 600;
       color: var(--text-main);
       background: #FFFFFF;
       border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 8px;
+      border-radius: 5px;
+      padding: 3px 6px;
       cursor: pointer;
       outline: none;
+      max-width: 140px;
+    }
+
+    /* Session / Sprint Switcher (Matches .project-switcher in header-actions) */
+    .session-switcher {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      padding: 2px 6px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .session-switcher-label {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      letter-spacing: 0.3px;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .session-select {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text-main);
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 3px 6px;
+      cursor: pointer;
+      outline: none;
+      max-width: 140px;
+      transition: border-color 0.15s ease;
+    }
+
+    .session-select:focus {
+      border-color: var(--primary);
+    }
+
+    .session-stats-tag {
+      font-size: 10.5px;
+      font-weight: 700;
+      font-family: monospace;
+      padding: 1.5px 6px;
+      border-radius: 8px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      white-space: nowrap;
+      cursor: default;
+      transition: all 0.15s ease;
+    }
+
+    .session-stats-tag.is-complete {
+      background: #ECFDF5;
+      color: #059669;
+      border-color: #A7F3D0;
+    }
+
+    .session-action-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+      cursor: pointer;
+      font-size: 11px;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+      padding: 0;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .session-action-btn:hover {
+      background: #F1F5F9;
+      border-color: #94A3B8;
+      color: var(--text-main);
+      transform: translateY(-0.5px);
+    }
+
+    .btn-session-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      padding: 2.5px 7px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+
+    .btn-session-toggle.is-running {
+      background: #ECFDF5;
+      color: #065F46;
+      border-color: #10B981;
+    }
+
+    .btn-session-toggle.is-running:hover {
+      background: #FEF2F2;
+      color: #DC2626;
+      border-color: #F87171;
+    }
+
+    .btn-session-toggle.is-stopped {
+      background: #F8FAFC;
+      color: #475569;
+      border-color: #CBD5E1;
+    }
+
+    .btn-session-toggle.is-stopped:hover {
+      background: #ECFDF5;
+      color: #059669;
+      border-color: #34D399;
+    }
+
+    .session-toggle-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #94A3B8;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .btn-session-toggle.is-running .session-toggle-dot {
+      background: #10B981;
+      box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+      animation: sessionPulse 1.8s infinite;
+    }
+
+    @keyframes sessionPulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.25); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    .session-card-badge {
+      font-size: 10px;
+      font-weight: 600;
+      background: #F1F5F9;
+      color: #64748B;
+      padding: 1px 6px;
+      border-radius: 4px;
+      border: 1px solid #E2E8F0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      max-width: 120px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .btn-agent-start {
       background: linear-gradient(135deg, #10B981, #059669) !important;
       color: #FFFFFF !important;
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
+      box-shadow: 0 1px 6px rgba(16, 185, 129, 0.25) !important;
       border: none !important;
       font-weight: 700 !important;
+      padding: 5px 10px !important;
+      font-size: 11.5px !important;
     }
 
     .btn-agent-start:hover {
       background: linear-gradient(135deg, #059669, #047857) !important;
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4) !important;
+      box-shadow: 0 3px 10px rgba(16, 185, 129, 0.35) !important;
     }
 
     .btn-autonomous-toggle {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 11px;
-      font-size: 12px;
-      font-weight: 700;
-      border-radius: 8px;
+      gap: 5px;
+      padding: 5px 9px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: 7px;
       cursor: pointer;
-      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.15s ease;
       border: 1px solid var(--border);
       background: #FFFFFF;
       color: var(--text-muted);
+      line-height: 1.2;
     }
 
     .btn-autonomous-toggle:hover {
@@ -236,31 +428,37 @@
     }
 
     .brand-subtitle {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
+      line-height: 1.2;
     }
 
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 14px;
+      gap: 6px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      flex: 1;
+      min-width: 0;
     }
 
     .sync-badge {
-      display: flex;
+      display: inline-flex;
       align-items: center;
-      gap: 6px;
-      font-size: 12px;
+      gap: 4px;
+      font-size: 11px;
       font-weight: 500;
       color: var(--text-muted);
       background: #F1F5F9;
-      padding: 6px 12px;
-      border-radius: 20px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      white-space: nowrap;
     }
 
     .pulse-dot {
-      width: 8px;
-      height: 8px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: var(--success);
       box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
@@ -273,27 +471,36 @@
       100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     }
 
-    button.btn {
+    button.btn, a.btn {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 8px 16px;
-      font-size: 13px;
+      gap: 5px;
+      padding: 5px 10px;
+      font-size: 11.5px;
       font-weight: 600;
-      border-radius: 10px;
+      border-radius: 7px;
       cursor: pointer;
       transition: all 0.15s ease;
-      border: none;
+      border: 1px solid var(--border);
+      background: #FFFFFF;
+      color: var(--text-main);
+      text-decoration: none;
+      white-space: nowrap;
+      line-height: 1.2;
+      box-sizing: border-box;
     }
 
     .btn-primary {
-      background: var(--primary);
-      color: #FFFFFF;
-      box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+      background: var(--primary) !important;
+      color: #FFFFFF !important;
+      border-color: var(--primary) !important;
+      font-weight: 700 !important;
+      box-shadow: 0 1px 4px rgba(124, 58, 237, 0.25);
     }
 
     .btn-primary:hover {
-      background: var(--primary-hover);
+      background: var(--primary-hover) !important;
+      box-shadow: 0 2px 8px rgba(124, 58, 237, 0.35);
     }
 
     .btn-secondary {
@@ -304,6 +511,7 @@
 
     .btn-secondary:hover {
       background: #F8FAFC;
+      border-color: #CBD5E1;
     }
 
     /* Audio Alert Controls & Notifications */
@@ -312,9 +520,9 @@
       background: #FFFFFF;
       border: 1px solid var(--border);
       color: var(--text-main);
-      padding: 7px 12px;
-      font-size: 12.5px;
-      gap: 6px;
+      padding: 5px 9px;
+      font-size: 11.5px;
+      gap: 5px;
     }
 
     .btn-audio-toggle.is-playing {
@@ -353,7 +561,7 @@
       display: none;
       align-items: flex-start;
       justify-content: flex-end;
-      padding: 70px 28px 0 0;
+      padding: 52px 16px 0 0;
     }
 
     .audio-popover-overlay.active {
@@ -2959,36 +3167,42 @@
        Responsive Media Queries
        ============================================================ */
 
-    /* Small Desktops & Tablets (<= 1024px) */
-    @media (max-width: 1024px) {
-      .board-container {
-        padding: 18px 20px;
-        gap: 16px;
+    /* Small Desktops & Laptops (<= 1280px) */
+    @media (max-width: 1280px) {
+      .brand-subtitle {
+        display: none;
       }
-      .column {
-        width: 300px;
-        min-width: 300px;
+      .header-actions {
+        gap: 5px;
+      }
+      .project-select,
+      .session-select {
+        max-width: 120px;
       }
     }
 
-    /* Tablets & Narrow Screens (<= 860px) */
-    @media (max-width: 860px) {
+    /* Tablets & Narrow Screens (<= 1100px) */
+    @media (max-width: 1100px) {
       .column-tabs-bar {
         display: flex;
       }
       .board-container {
-        padding: 16px;
+        padding: 14px 16px;
         gap: 14px;
       }
       .column {
-        width: 285px;
-        min-width: 285px;
+        width: 290px;
+        min-width: 290px;
       }
-      .session-switcher {
-        padding: 3px 6px;
+    }
+
+    /* Tablets & Mobile Landscape (<= 860px) */
+    @media (max-width: 860px) {
+      .header-main {
+        padding: 8px 12px;
       }
-      .session-select {
-        max-width: 130px;
+      .header-actions {
+        justify-content: flex-start;
       }
       .form-row-2col,
       .form-row-3col {
@@ -3000,22 +3214,51 @@
     /* Phablets & Large Mobiles (<= 768px) */
     @media (max-width: 768px) {
       .header-main {
-        padding: 12px 16px;
+        padding: 8px 12px;
+      }
+      .board-container {
+        padding: 12px 10px;
+        gap: 12px;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+      }
+      .column {
+        width: calc(100vw - 24px);
+        min-width: calc(100vw - 24px);
+        max-width: calc(100vw - 24px);
+        scroll-snap-align: center;
+        max-height: calc(100vh - 140px);
+        border-radius: 14px;
+      }
+      .column-backlog-tree {
+        width: calc(100vw - 24px) !important;
+        min-width: calc(100vw - 24px) !important;
+        max-width: calc(100vw - 24px) !important;
+      }
+      .column-resizer, #btnResizeProductDoc {
+        display: none !important;
+      }
+      .attention-banner-bar {
+        bottom: 12px;
+        left: 10px;
+        right: 10px;
+        max-width: calc(100vw - 20px);
+        padding: 10px 14px;
       }
       .modal {
-        padding: 22px 18px;
-        border-radius: 16px;
+        padding: 20px 16px;
+        border-radius: 14px;
         max-height: 94vh;
       }
       .modal-create {
         width: 95%;
       }
       .modal-header {
-        margin-bottom: 16px;
+        margin-bottom: 14px;
       }
       .comments-section {
-        margin-top: 18px;
-        padding-top: 14px;
+        margin-top: 16px;
+        padding-top: 12px;
       }
     }
 
@@ -3024,36 +3267,20 @@
       .header-main {
         flex-direction: column;
         align-items: stretch;
-        gap: 10px;
-        padding: 12px 14px;
+        gap: 8px;
+        padding: 8px 10px;
       }
       .brand {
         justify-content: space-between;
+        width: 100%;
       }
       .brand-title {
-        font-size: 16px;
-      }
-      .brand-subtitle {
-        display: none;
+        font-size: 14px;
       }
       .header-actions {
         width: 100%;
-        justify-content: space-between;
-        gap: 8px;
-      }
-      .header-actions .btn {
-        flex: 1;
-        justify-content: center;
-        padding: 8px 8px;
-        font-size: 12px;
-        white-space: nowrap;
-      }
-      .sync-badge {
-        font-size: 11px;
-        padding: 4px 8px;
-      }
-      .column-tabs-bar {
-        padding: 6px 10px;
+        justify-content: flex-start;
+        gap: 5px;
       }
       .session-switcher {
         order: 2;
@@ -3064,34 +3291,20 @@
         flex: 1;
         max-width: none;
       }
-      .board-container {
-        padding: 12px 10px;
-        gap: 12px;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
+      .column-tabs-bar {
+        padding: 6px 8px;
+        gap: 6px;
       }
-      .column {
-        width: calc(100vw - 28px);
-        min-width: calc(100vw - 28px);
-        max-width: calc(100vw - 28px);
-        scroll-snap-align: center;
-        max-height: calc(100vh - 170px);
-        border-radius: 14px;
-      }
-      .column-backlog-tree {
-        width: calc(100vw - 28px) !important;
-        min-width: calc(100vw - 28px) !important;
-        max-width: calc(100vw - 28px) !important;
-      }
-      .column-resizer, #btnResizeProductDoc {
-        display: none !important;
+      .col-tab {
+        padding: 4px 10px;
+        font-size: 11px;
       }
       .modal-overlay {
-        padding: 8px;
+        padding: 6px;
       }
       .modal {
-        padding: 18px 14px;
-        border-radius: 14px;
+        padding: 16px 12px;
+        border-radius: 12px;
         width: 100%;
         max-height: 96vh;
       }
@@ -3124,8 +3337,8 @@
         justify-content: center;
       }
       .close-btn {
-        padding: 6px;
-        font-size: 24px;
+        padding: 4px;
+        font-size: 20px;
       }
     }
 
@@ -3135,177 +3348,14 @@
         display: none;
       }
       .header-actions .sync-badge {
-        padding: 6px 8px;
+        padding: 3px 6px;
       }
       .col-title {
-        font-size: 12px;
+        font-size: 11.5px;
       }
       .task-card {
-        padding: 12px;
+        padding: 10px;
       }
-    /* Session / Sprint Switcher (Matches .project-switcher in header-actions) */
-    .session-switcher {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      padding: 4px 8px;
-      border-radius: 10px;
-    }
-
-    .session-switcher-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-muted);
-      letter-spacing: 0.3px;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      user-select: none;
-      white-space: nowrap;
-    }
-
-    .session-select {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-main);
-      background: #FFFFFF;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 4px 8px;
-      cursor: pointer;
-      outline: none;
-      max-width: 175px;
-      transition: border-color 0.15s ease;
-    }
-
-    .session-select:focus {
-      border-color: var(--primary);
-    }
-
-    .session-stats-tag {
-      font-size: 11px;
-      font-weight: 700;
-      font-family: monospace;
-      padding: 2px 7px;
-      border-radius: 10px;
-      background: #FFFFFF;
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      white-space: nowrap;
-      cursor: default;
-      transition: all 0.15s ease;
-    }
-
-    .session-stats-tag.is-complete {
-      background: #ECFDF5;
-      color: #059669;
-      border-color: #A7F3D0;
-    }
-
-    .session-action-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 25px;
-      height: 25px;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: #FFFFFF;
-      cursor: pointer;
-      font-size: 12px;
-      color: var(--text-muted);
-      transition: all 0.15s ease;
-      padding: 0;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-
-    .session-action-btn:hover {
-      background: #F1F5F9;
-      border-color: #94A3B8;
-      color: var(--text-main);
-      transform: translateY(-0.5px);
-    }
-
-    .btn-session-toggle {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-      border: 1px solid var(--border);
-      background: #FFFFFF;
-      color: var(--text-main);
-      line-height: 1.2;
-    }
-
-    .btn-session-toggle.is-running {
-      background: #ECFDF5;
-      color: #065F46;
-      border-color: #10B981;
-    }
-
-    .btn-session-toggle.is-running:hover {
-      background: #FEF2F2;
-      color: #DC2626;
-      border-color: #F87171;
-    }
-
-    .btn-session-toggle.is-stopped {
-      background: #F8FAFC;
-      color: #475569;
-      border-color: #CBD5E1;
-    }
-
-    .btn-session-toggle.is-stopped:hover {
-      background: #ECFDF5;
-      color: #059669;
-      border-color: #34D399;
-    }
-
-    .session-toggle-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #94A3B8;
-      display: inline-block;
-      flex-shrink: 0;
-    }
-
-    .btn-session-toggle.is-running .session-toggle-dot {
-      background: #10B981;
-      box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
-      animation: sessionPulse 1.8s infinite;
-    }
-
-    @keyframes sessionPulse {
-      0% { transform: scale(0.95); opacity: 0.8; }
-      50% { transform: scale(1.25); opacity: 1; }
-      100% { transform: scale(0.95); opacity: 0.8; }
-    }
-
-    .session-card-badge {
-      font-size: 10px;
-      font-weight: 600;
-      background: #F1F5F9;
-      color: #64748B;
-      padding: 1px 6px;
-      border-radius: 4px;
-      border: 1px solid #E2E8F0;
-      display: inline-flex;
-      align-items: center;
-      gap: 3px;
-      max-width: 120px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
     }
   </style>
 </head>
@@ -3329,7 +3379,7 @@
       <div class="header-actions">
         <!-- Multi-Project Switcher -->
         <div class="project-switcher" id="projectSwitcherContainer">
-          <span style="font-size: 11px; font-weight: 700; color: var(--text-muted);">PROJECT:</span>
+          <span class="switcher-label">PROJECT:</span>
           <select id="projectSelect" class="project-select" onchange="switchProject(this.value)" title="Switch active project workspace">
             <option value="http://localhost:{{PROJECT_PORT}}" selected>● {{PROJECT_NAME}} (:{{PROJECT_PORT}})</option>
           </select>
@@ -3357,35 +3407,35 @@
         </div>
         <button class="btn btn-audio-toggle" id="btnAudioToggle" onclick="toggleAudioPopover(event)" title="Sound alert settings (5s initial beep, 5m reminders)">
           <span id="audioIcon">🔊</span>
-          <span id="audioLabel">Sound Alerts</span>
+          <span id="audioLabel">Sound</span>
           <span id="audioPulseRing" class="audio-pulse-ring" style="display: none;"></span>
         </button>
         <a href="/done" class="btn btn-secondary" title="View all completed tasks categorized by label, scope, and role" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
-          <span>🏆</span><span>Done Archive</span>
+          <span>🏆</span><span>Done</span>
         </a>
         <a href="/docs" target="_blank" class="btn btn-secondary" title="View specifications and project documentation" style="text-decoration: none; display: inline-flex; align-items: center; gap: 5px;">
           <span>📚</span><span>Docs</span>
         </a>
         <a href="/repo" target="_blank" class="btn btn-secondary" title="Browse repository code, markdown documents, and assets" style="text-decoration: none;">
-          <span>📁</span><span>Repo Files</span>
+          <span>📁</span><span>Repo</span>
         </a>
         <button class="btn btn-autonomous-toggle" id="btnAutonomousToggle" onclick="toggleAutonomousMode()" title="Autonomous Mode: When ON, tasks do not wait after planned and bypass Pending Review once verified.">
           <span class="autonomous-pulse-dot"></span>
           <span id="autonomousIcon">🤖</span>
-          <span id="autonomousLabel">Autonomous: OFF</span>
+          <span id="autonomousLabel">Auto: OFF</span>
         </button>
         <button class="btn btn-agent-start" id="btnStartAgent" onclick="copyLoopPrompt()" title="Start or resume the autonomous agent loop in Antigravity">
-          <span>▶</span><span>Start Agent</span>
+          <span>▶</span><span>Agent</span>
         </button>
         <button class="btn btn-save-product-top" id="btnSaveProductTop" onclick="saveProductCommit(event)" style="display: none;" title="Unsaved changes in product.yaml - click to commit to git">
           <span>💾</span>
-          <span id="saveProductTopLabel">Save product.yaml</span>
+          <span id="saveProductTopLabel">Save</span>
           <span class="save-product-badge"></span>
         </button>
         <button class="btn btn-secondary btn-feat-action" onclick="openInlineDraft('root', event)" title="Add feature to product doc">
-          <span>🔷</span><span>Add Feature</span>
+          <span>🔷</span><span>Feature</span>
         </button>
-        <button class="btn btn-primary" onclick="openCreateModal()">+ New Task</button>
+        <button class="btn btn-primary" onclick="openCreateModal()">+ Task</button>
       </div>
     </div>
 
@@ -4372,7 +4422,7 @@
             btn.title = 'Sound alert is playing! Click to stop.';
           }
           if (ring) ring.style.display = 'inline-block';
-          if (label) label.innerText = `Beeping (${duration}s)`;
+          if (label) label.innerText = `Beep (${duration}s)`;
           if (icon) icon.innerText = '🔔';
           if (stopTestBtn) stopTestBtn.style.display = 'inline-flex';
           if (bannerStopBtn) bannerStopBtn.style.display = 'inline-flex';
@@ -4383,7 +4433,7 @@
             btn.title = 'Sound alert settings (5s initial beep, 5m reminders)';
           }
           if (ring) ring.style.display = 'none';
-          if (label) label.innerText = this.audio.enabled ? 'Sound Alerts' : 'Muted';
+          if (label) label.innerText = this.audio.enabled ? 'Sound' : 'Muted';
           if (icon) icon.innerText = this.audio.enabled ? '🔊' : '🔇';
           if (stopTestBtn) stopTestBtn.style.display = 'none';
         }
@@ -4612,12 +4662,12 @@
       if (isAutonomousModeActive) {
         btn.classList.add('is-active');
         btn.title = "Autonomous Mode is ON: Tasks do not wait after planned and advance directly to Done once verified.";
-        if (label) label.innerText = "Autonomous: ON";
+        if (label) label.innerText = "Auto: ON";
         if (icon) icon.innerText = "⚡";
       } else {
         btn.classList.remove('is-active');
         btn.title = "Autonomous Mode is OFF: Tasks wait in Planned for proceed and in Pending Review for verification.";
-        if (label) label.innerText = "Autonomous: OFF";
+        if (label) label.innerText = "Auto: OFF";
         if (icon) icon.innerText = "🤖";
       }
     }
@@ -5137,18 +5187,18 @@
           }
           if (topBtn) {
             topBtn.style.display = 'none';
-            topBtn.innerHTML = '<span>💾</span><span>Save product.yaml</span><span class="save-product-badge"></span>';
+            topBtn.innerHTML = '<span>💾</span><span id="saveProductTopLabel">Save</span><span class="save-product-badge"></span>';
           }
           showToast('💾 Committed product.yaml to git!', 'success');
         } else {
           alert('Failed to commit product.yaml: ' + (data.error || 'Unknown error'));
           if (label) label.innerText = 'Save';
-          if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.yaml</span><span class="save-product-badge"></span>';
+          if (topBtn) topBtn.innerHTML = '<span>💾</span><span id="saveProductTopLabel">Save</span><span class="save-product-badge"></span>';
         }
       } catch (err) {
         alert('Error committing product.yaml: ' + err.message);
         if (label) label.innerText = 'Save';
-        if (topBtn) topBtn.innerHTML = '<span>💾</span><span>Save product.yaml</span><span class="save-product-badge"></span>';
+        if (topBtn) topBtn.innerHTML = '<span>💾</span><span id="saveProductTopLabel">Save</span><span class="save-product-badge"></span>';
       }
     }
 
