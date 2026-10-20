@@ -8978,11 +8978,17 @@
         });
       } catch (e) {}
 
+      function decodeHtmlEntities(str) {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = str;
+        return txt.value;
+      }
+
       let idx = 0;
       for (const block of Array.from(codeBlocks)) {
         const pre = block.closest('pre');
         if (!pre) continue;
-        const code = block.textContent.trim();
+        const code = decodeHtmlEntities(block.textContent.trim());
         const isMermaid = block.classList.contains('language-mermaid') ||
                           block.classList.contains('lang-mermaid') ||
                           /^(sequenceDiagram|flowchart|graph|classDiagram|stateDiagram|erDiagram|gantt|pie|gitGraph)/m.test(code);

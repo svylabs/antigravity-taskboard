@@ -1002,7 +1002,7 @@ export function renderMarkdownViewer({ relPath, fileName, content, repoName, sta
   </div>
   `}
 
-  <script id="rawSource" type="text/markdown">${escapeHtml(content)}</script>
+  <script id="rawSource" type="application/json">${JSON.stringify(content).replace(/<\/script/gi, '<\\/script')}</script>
   <script>
     function copyPath(text) {
       navigator.clipboard.writeText(text);
@@ -1164,11 +1164,17 @@ export function renderMarkdownViewer({ relPath, fileName, content, repoName, sta
         console.error('Failed to initialize mermaid:', e);
       }
 
+      function decodeHtmlEntities(str) {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = str;
+        return txt.value;
+      }
+
       let idx = 0;
       for (const codeEl of Array.from(codeNodes)) {
         const pre = codeEl.closest('pre');
         if (!pre) continue;
-        const code = codeEl.textContent.trim();
+        let code = decodeHtmlEntities(codeEl.textContent.trim());
         if (!code) continue;
 
         const diagramId = 'm_' + Math.random().toString(36).slice(2, 9) + '_' + (idx++);
@@ -1314,7 +1320,12 @@ export function renderMarkdownViewer({ relPath, fileName, content, repoName, sta
     }
 
     (async function() {
-      const raw = document.getElementById('rawSource').textContent;
+      let raw = '';
+      try {
+        raw = JSON.parse(document.getElementById('rawSource').textContent);
+      } catch (e) {
+        raw = document.getElementById('rawSource').textContent;
+      }
       const target = document.getElementById('markdownContent');
 
       // Estimate reading time & word count
