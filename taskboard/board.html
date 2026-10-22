@@ -8152,6 +8152,16 @@
 
     function getFormattedNodeLabel(nodeId) {
       if (!nodeId || !backlogTree) return '';
+      if (nodeId.startsWith('new_under:')) {
+        const parts = nodeId.split(':');
+        const parentId = parts[1];
+        const targetType = parts[2] || 'feature';
+        const parentNode = findBacklogNode(backlogTree, parentId);
+        const parentTitle = parentNode ? parentNode.title : 'Backlog';
+        const icon = targetType === 'component' ? '🧩' : (targetType === 'bug' ? '💡' : '✨');
+        const typeLabel = targetType === 'component' ? 'components' : (targetType === 'bug' ? 'improvements' : 'features');
+        return `${icon} ${parentTitle} › ${typeLabel}`;
+      }
       const node = findBacklogNode(backlogTree, nodeId);
       if (!node) return '';
       const catNode = findCategoryForNode(backlogTree, nodeId);
@@ -8277,7 +8287,13 @@
         const components = catMatches ? cat.items.components : cat.items.components.filter(c => c.title.toLowerCase().includes(q) || c.subPath.toLowerCase().includes(q));
         const improvements = catMatches ? cat.items.improvements : cat.items.improvements.filter(i => i.title.toLowerCase().includes(q) || i.subPath.toLowerCase().includes(q));
 
-        if (catMatches || features.length > 0 || components.length > 0 || improvements.length > 0) {
+        const hasNoChildren = (cat.stats.total === 0);
+        const matchesCategoryPlaceholders = hasNoChildren && (
+          catMatches ||
+          q.includes('feat') || q.includes('comp') || q.includes('imp') || q.includes('bug')
+        );
+
+        if (catMatches || features.length > 0 || components.length > 0 || improvements.length > 0 || matchesCategoryPlaceholders) {
           totalMatches++;
           const isCatSelected = currentSelectedProductNodeId === cat.id;
 
@@ -8296,84 +8312,154 @@
             </div>
           `;
 
-          if (features.length > 0) {
-            html += `<div class="combobox-group-label" style="color: #2563EB;"><span>✨ Features (${features.length})</span></div>`;
-            for (const f of features) {
-              const isSel = currentSelectedProductNodeId === f.id;
-              const label = `✨ ${cat.title} › ${f.subPath ? f.subPath + ' › ' : ''}${f.title}`;
-              html += `
-                <div 
-                  class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
-                  onclick="selectProductNodeInCombobox('${f.id}', '${escapeHtml(label)}')"
-                  title="${escapeHtml(f.description || f.title)}"
-                >
-                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                    <span>✨</span>
-                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      ${f.subPath ? `<span class="item-subpath">${escapeHtml(f.subPath)} ›</span>` : ''}
-                      <span>${escapeHtml(f.title)}</span>
-                    </div>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                    ${f.taskId ? `<span class="item-task-badge">#${escapeHtml(f.taskId.slice(-5))}</span>` : ''}
-                    ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
-                  </div>
-                </div>
-              `;
-            }
-          }
+          if (hasNoChildren) {
+            // High-level component without children: show component > features, > components, > improvements
+            const selFeat = currentSelectedProductNodeId === `new_under:${cat.id}:feature`;
+            const selComp = currentSelectedProductNodeId === `new_under:${cat.id}:component`;
+            const selImp = currentSelectedProductNodeId === `new_under:${cat.id}:bug`;
 
-          if (components.length > 0) {
-            html += `<div class="combobox-group-label" style="color: #7C3AED;"><span>🧩 Components (${components.length})</span></div>`;
-            for (const c of components) {
-              const isSel = currentSelectedProductNodeId === c.id;
-              const label = `🧩 ${cat.title} › ${c.subPath ? c.subPath + ' › ' : ''}${c.title}`;
-              html += `
-                <div 
-                  class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
-                  onclick="selectProductNodeInCombobox('${c.id}', '${escapeHtml(label)}')"
-                  title="${escapeHtml(c.description || c.title)}"
-                >
-                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                    <span>🧩</span>
-                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      ${c.subPath ? `<span class="item-subpath">${escapeHtml(c.subPath)} ›</span>` : ''}
-                      <span>${escapeHtml(c.title)}</span>
-                    </div>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                    ${c.taskId ? `<span class="item-task-badge">#${escapeHtml(c.taskId.slice(-5))}</span>` : ''}
-                    ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
-                  </div>
-                </div>
-              `;
-            }
-          }
+            const labelFeat = `✨ ${cat.title} › features`;
+            const labelComp = `🧩 ${cat.title} › components`;
+            const labelImp = `💡 ${cat.title} › improvements`;
 
-          if (improvements.length > 0) {
-            html += `<div class="combobox-group-label" style="color: #D97706;"><span>💡 Improvements & Fixes (${improvements.length})</span></div>`;
-            for (const imp of improvements) {
-              const isSel = currentSelectedProductNodeId === imp.id;
-              const label = `💡 ${cat.title} › ${imp.subPath ? imp.subPath + ' › ' : ''}${imp.title}`;
-              html += `
-                <div 
-                  class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
-                  onclick="selectProductNodeInCombobox('${imp.id}', '${escapeHtml(label)}')"
-                  title="${escapeHtml(imp.description || imp.title)}"
-                >
-                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                    <span>💡</span>
-                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                      ${imp.subPath ? `<span class="item-subpath">${escapeHtml(imp.subPath)} ›</span>` : ''}
-                      <span>${escapeHtml(imp.title)}</span>
-                    </div>
-                  </div>
-                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                    ${imp.taskId ? `<span class="item-task-badge">#${escapeHtml(imp.taskId.slice(-5))}</span>` : ''}
-                    ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+            html += `
+              <div class="combobox-group-label" style="color: #2563EB;"><span>✨ Features</span></div>
+              <div 
+                class="combobox-option-item ${selFeat ? 'is-selected' : ''}" 
+                onclick="selectProductNodeInCombobox('new_under:${cat.id}:feature', '${escapeHtml(labelFeat)}')"
+                title="Add task as a feature under ${escapeHtml(cat.title)}"
+              >
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span>✨</span>
+                  <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                    <span style="font-weight: 500;">features</span>
                   </div>
                 </div>
-              `;
+                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                  <span style="font-size: 10px; color: #2563EB; background: #EFF6FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Feature</span>
+                  ${selFeat ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                </div>
+              </div>
+
+              <div class="combobox-group-label" style="color: #7C3AED;"><span>🧩 Components</span></div>
+              <div 
+                class="combobox-option-item ${selComp ? 'is-selected' : ''}" 
+                onclick="selectProductNodeInCombobox('new_under:${cat.id}:component', '${escapeHtml(labelComp)}')"
+                title="Add task as a component under ${escapeHtml(cat.title)}"
+              >
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span>🧩</span>
+                  <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                    <span style="font-weight: 500;">components</span>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                  <span style="font-size: 10px; color: #7C3AED; background: #F5F3FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Component</span>
+                  ${selComp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                </div>
+              </div>
+
+              <div class="combobox-group-label" style="color: #D97706;"><span>💡 Improvements & Fixes</span></div>
+              <div 
+                class="combobox-option-item ${selImp ? 'is-selected' : ''}" 
+                onclick="selectProductNodeInCombobox('new_under:${cat.id}:bug', '${escapeHtml(labelImp)}')"
+                title="Add task as an improvement under ${escapeHtml(cat.title)}"
+              >
+                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                  <span>💡</span>
+                  <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                    <span style="font-weight: 500;">improvements</span>
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                  <span style="font-size: 10px; color: #D97706; background: #FEF3C7; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Improvement</span>
+                  ${selImp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                </div>
+              </div>
+            `;
+          } else {
+            if (features.length > 0) {
+              html += `<div class="combobox-group-label" style="color: #2563EB;"><span>✨ Features (${features.length})</span></div>`;
+              for (const f of features) {
+                const isSel = currentSelectedProductNodeId === f.id;
+                const label = `✨ ${cat.title} › ${f.subPath ? f.subPath + ' › ' : ''}${f.title}`;
+                html += `
+                  <div 
+                    class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
+                    onclick="selectProductNodeInCombobox('${f.id}', '${escapeHtml(label)}')"
+                    title="${escapeHtml(f.description || f.title)}"
+                  >
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                      <span>✨</span>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${f.subPath ? `<span class="item-subpath">${escapeHtml(f.subPath)} ›</span>` : ''}
+                        <span>${escapeHtml(f.title)}</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                      ${f.taskId ? `<span class="item-task-badge">#${escapeHtml(f.taskId.slice(-5))}</span>` : ''}
+                      ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                    </div>
+                  </div>
+                `;
+              }
+            }
+
+            if (components.length > 0) {
+              html += `<div class="combobox-group-label" style="color: #7C3AED;"><span>🧩 Components (${components.length})</span></div>`;
+              for (const c of components) {
+                const isSel = currentSelectedProductNodeId === c.id;
+                const label = `🧩 ${cat.title} › ${c.subPath ? c.subPath + ' › ' : ''}${c.title}`;
+                html += `
+                  <div 
+                    class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
+                    onclick="selectProductNodeInCombobox('${c.id}', '${escapeHtml(label)}')"
+                    title="${escapeHtml(c.description || c.title)}"
+                  >
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                      <span>🧩</span>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${c.subPath ? `<span class="item-subpath">${escapeHtml(c.subPath)} ›</span>` : ''}
+                        <span>${escapeHtml(c.title)}</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                      ${c.taskId ? `<span class="item-task-badge">#${escapeHtml(c.taskId.slice(-5))}</span>` : ''}
+                      ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                    </div>
+                  </div>
+                `;
+              }
+            }
+
+            if (improvements.length > 0) {
+              html += `<div class="combobox-group-label" style="color: #D97706;"><span>💡 Improvements & Fixes (${improvements.length})</span></div>`;
+              for (const imp of improvements) {
+                const isSel = currentSelectedProductNodeId === imp.id;
+                const label = `💡 ${cat.title} › ${imp.subPath ? imp.subPath + ' › ' : ''}${imp.title}`;
+                html += `
+                  <div 
+                    class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
+                    onclick="selectProductNodeInCombobox('${imp.id}', '${escapeHtml(label)}')"
+                    title="${escapeHtml(imp.description || imp.title)}"
+                  >
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                      <span>💡</span>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${imp.subPath ? `<span class="item-subpath">${escapeHtml(imp.subPath)} ›</span>` : ''}
+                        <span>${escapeHtml(imp.title)}</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                      ${imp.taskId ? `<span class="item-task-badge">#${escapeHtml(imp.taskId.slice(-5))}</span>` : ''}
+                      ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                    </div>
+                  </div>
+                `;
+              }
             }
           }
         }
@@ -8414,12 +8500,22 @@
         if (clearBtn) clearBtn.style.display = 'block';
 
         if (badge && backlogTree) {
-          const node = findBacklogNode(backlogTree, nodeId);
-          if (node) {
-            if (node.taskId) {
-              badge.innerHTML = `<span style="color: #D97706; font-weight: 600;">⚠️ Linked to #${escapeHtml(node.taskId.slice(-5))}</span>`;
-            } else {
-              badge.innerHTML = `<span style="color: #059669; font-weight: 600;">✓ Linked: ${escapeHtml(node.title)}</span>`;
+          if (nodeId.startsWith('new_under:')) {
+            const parts = nodeId.split(':');
+            const parentId = parts[1];
+            const targetType = parts[2] || 'feature';
+            const parentNode = findBacklogNode(backlogTree, parentId);
+            const parentTitle = parentNode ? parentNode.title : 'Backlog';
+            const typeLabel = targetType === 'component' ? 'components' : (targetType === 'bug' ? 'improvements' : 'features');
+            badge.innerHTML = `<span style="color: #059669; font-weight: 600;">✓ ${escapeHtml(parentTitle)} › ${typeLabel}</span>`;
+          } else {
+            const node = findBacklogNode(backlogTree, nodeId);
+            if (node) {
+              if (node.taskId) {
+                badge.innerHTML = `<span style="color: #D97706; font-weight: 600;">⚠️ Linked to #${escapeHtml(node.taskId.slice(-5))}</span>`;
+              } else {
+                badge.innerHTML = `<span style="color: #059669; font-weight: 600;">✓ Linked: ${escapeHtml(node.title)}</span>`;
+              }
             }
           }
         }
@@ -8437,7 +8533,7 @@
     }
 
     function handleProductNodeSelectInCreate(nodeId) {
-      if (!nodeId || !backlogTree) return;
+      if (!nodeId || !backlogTree || nodeId.startsWith('new_under:')) return;
       const node = findBacklogNode(backlogTree, nodeId);
       if (!node) return;
       const titleInput = document.getElementById('newTitle');

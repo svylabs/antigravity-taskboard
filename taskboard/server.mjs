@@ -1173,11 +1173,36 @@ const server = http.createServer(async (req, res) => {
       try {
         tree = readProductTree(info.projectDir, info.projectName, db);
         if (body.product_node_id) {
-          const found = findNodeAndParent(tree, body.product_node_id);
-          if (found && found.node) {
-            linkedNode = found.node;
-            if (!body.product_context) {
-              body.product_context = buildProductContextForNode(tree, linkedNode.id);
+          if (body.product_node_id.startsWith('new_under:')) {
+            const parts = body.product_node_id.split(':');
+            const parentId = parts[1];
+            const targetType = parts[2] || 'feature';
+            try {
+              const addRes = addProductNode(info.projectDir, {
+                parentId,
+                title: body.title,
+                description: body.description || '',
+                type: targetType,
+                projectName: info.projectName,
+                db
+              });
+              if (addRes && addRes.node) {
+                linkedNode = addRes.node;
+                tree = addRes.tree || readProductTree(info.projectDir, info.projectName, db);
+                if (!body.product_context) {
+                  body.product_context = buildProductContextForNode(tree, linkedNode.id);
+                }
+              }
+            } catch (addErr) {
+              console.warn('Failed to auto-create product node under component:', addErr.message);
+            }
+          } else {
+            const found = findNodeAndParent(tree, body.product_node_id);
+            if (found && found.node) {
+              linkedNode = found.node;
+              if (!body.product_context) {
+                body.product_context = buildProductContextForNode(tree, linkedNode.id);
+              }
             }
           }
         } else if (!body.product_context) {
