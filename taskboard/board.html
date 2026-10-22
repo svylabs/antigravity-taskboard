@@ -8028,124 +8028,165 @@
 
     let currentSelectedProductNodeId = null;
 
-    function getTopLevelCategories(tree) {
-      if (!tree || !Array.isArray(tree.children)) return [];
-      const categories = [];
-      for (const child of tree.children) {
-        if (!child || isCategoryFolder(child)) continue;
-        const items = getCategoryItems(child);
-        categories.push({
-          id: child.id,
-          title: child.title || 'Untitled Category',
-          description: child.description || '',
-          node: child,
-          items: items,
-          stats: {
-            features: items.features.length,
-            components: items.components.length,
-            improvements: items.improvements.length,
-            total: items.features.length + items.components.length + items.improvements.length
-          }
-        });
-      }
-      if (categories.length === 0 && tree.children && tree.children.some(c => isCategoryFolder(c))) {
-        const items = getCategoryItems(tree);
-        categories.push({
-          id: tree.id,
-          title: tree.title || 'Product Backlog',
-          description: tree.description || '',
-          node: tree,
-          items: items,
-          stats: {
-            features: items.features.length,
-            components: items.components.length,
-            improvements: items.improvements.length,
-            total: items.features.length + items.components.length + items.improvements.length
-          }
-        });
-      }
-      return categories;
+    function isCategoryFolderNode(n) {
+      if (!n) return false;
+      if (n.type === 'category' || n.type === 'folder') return true;
+      const lower = (n.title || '').toLowerCase().trim();
+      return lower === 'features' || lower === 'features/' ||
+             lower === 'components' || lower === 'components/' ||
+             lower === 'improvements' || lower === 'improvements/' ||
+             lower === 'bugs' || lower === 'bugs/';
     }
 
-    function getCategoryItems(categoryNode) {
-      const result = {
-        features: [],
-        components: [],
-        improvements: []
-      };
-      if (!categoryNode || !Array.isArray(categoryNode.children)) return result;
+    function isComponentNode(n, depth, parentNode, containerParentIsDirectChildOfRoot) {
+      if (!n || n.id === 'root' || isCategoryFolderNode(n)) return false;
+      if (n.type === 'component') return true;
+      if (Array.isArray(n.children) && n.children.some(c => isCategoryFolderNode(c))) return true;
+      if (depth === 1) return true;
+      if (parentNode && isCategoryFolderNode(parentNode) && containerParentIsDirectChildOfRoot) {
+        return true;
+      }
+      return false;
+    }
 
-      function traverse(node, currentTypeHint = null, subPath = '') {
-        if (!node || node.id === 'root') return;
+    function getAllBacklogComponents(root) {
+      if (!root) return [];
+      const components = [];
+      const componentNodeIds = new Set();
 
-        const isContainer = isCategoryFolder(node);
-        let typeHint = currentTypeHint;
-        if (isContainer) {
-          const lower = (node.title || '').toLowerCase().trim();
-          if (lower.startsWith('feature')) typeHint = 'feature';
-          else if (lower.startsWith('component')) typeHint = 'component';
-          else if (lower.startsWith('improvement') || lower.startsWith('bug')) typeHint = 'bug';
+      function findComponents(node, depth = 0, parentNode = null, containerParentIsDirectChildOfRoot = false, path = []) {
+        if (!node) return;
+        if (node.id === 'root') {
+          if (Array.isArray(node.children)) {
+            node.children.forEach(c => findComponents(c, 1, node, false, []));
+          }
+          return;
         }
 
-        if (!isContainer && node !== categoryNode) {
-          let type = typeHint || node.type;
-          if (!type) {
-            const lower = (node.title || '').toLowerCase().trim();
-            if (lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) {
-              type = 'bug';
-            } else if (Array.isArray(node.children) && node.children.length > 0 && !node.children.every(c => isCategoryFolder(c))) {
-              type = 'component';
-            } else {
-              type = 'feature';
-            }
-          }
+        const isFolder = isCategoryFolderNode(node);
+        const isComp = isComponentNode(node, depth, parentNode, containerParentIsDirectChildOfRoot);
+        const nextPath = isFolder ? path : [...path, node.title || 'Untitled'];
 
-          const itemRecord = {
+        if (isComp) {
+          componentNodeIds.add(node.id);
+          components.push({
             id: node.id,
             title: node.title || 'Untitled',
+            fullTitle: nextPath.join(' › '),
             description: node.description || '',
-            type: type === 'bug' ? 'bug' : (type === 'component' ? 'component' : 'feature'),
-            taskId: node.taskId || null,
-            subPath: subPath
-          };
-
-          if (itemRecord.type === 'component') {
-            result.components.push(itemRecord);
-          } else if (itemRecord.type === 'bug') {
-            result.improvements.push(itemRecord);
-          } else {
-            result.features.push(itemRecord);
-          }
-
-          if (Array.isArray(node.children) && node.children.length > 0) {
-            const nextSubPath = subPath ? `${subPath} › ${node.title}` : node.title;
-            node.children.forEach(child => traverse(child, typeHint, nextSubPath));
-            return;
-          }
+            node: node,
+            hasSubComponents: false
+          });
         }
 
         if (Array.isArray(node.children)) {
-          node.children.forEach(child => traverse(child, typeHint, subPath));
+          const nextContainerParentIsDirect = (depth === 1 && !isFolder);
+          node.children.forEach(c => findComponents(c, depth + 1, node, isFolder ? containerParentIsDirectChildOfRoot : nextContainerParentIsDirect, nextPath));
         }
       }
 
-      categoryNode.children.forEach(child => traverse(child, null, ''));
-      return result;
+      findComponents(root);
+
+      if (components.length === 0 && root) {
+        components.push({
+          id: root.id || 'root',
+          title: root.title || 'Product Backlog',
+          fullTitle: root.title || 'Product Backlog',
+          description: root.description || '',
+          node: root,
+          hasSubComponents: false
+        });
+      }
+
+      for (const comp of components) {
+        let hasSub = false;
+        function checkSub(n) {
+          if (!n || hasSub) return;
+          if (n.id !== comp.id && componentNodeIds.has(n.id)) {
+            hasSub = true;
+            return;
+          }
+          if (Array.isArray(n.children)) n.children.forEach(checkSub);
+        }
+        if (Array.isArray(comp.node.children)) comp.node.children.forEach(checkSub);
+        comp.hasSubComponents = hasSub;
+
+        const items = { features: [], components: [], improvements: [] };
+
+        function scanItems(curr, typeHint = null, subPath = '') {
+          if (!curr) return;
+          if (curr.id === comp.id) {
+            if (Array.isArray(curr.children)) {
+              curr.children.forEach(c => scanItems(c, typeHint, subPath));
+            }
+            return;
+          }
+
+          if (componentNodeIds.has(curr.id)) return;
+
+          const isFolder = isCategoryFolderNode(curr);
+          let hint = typeHint;
+          if (isFolder) {
+            const lower = (curr.title || '').toLowerCase().trim();
+            if (lower.startsWith('feat')) hint = 'feature';
+            else if (lower.startsWith('comp')) hint = 'component';
+            else if (lower.startsWith('imp') || lower.startsWith('bug')) hint = 'bug';
+            if (Array.isArray(curr.children)) {
+              curr.children.forEach(c => scanItems(c, hint, subPath));
+            }
+            return;
+          }
+
+          let type = hint || curr.type;
+          if (!type) {
+            const lower = (curr.title || '').toLowerCase().trim();
+            if (lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) type = 'bug';
+            else if (Array.isArray(curr.children) && curr.children.length > 0 && !curr.children.every(c => isCategoryFolderNode(c))) type = 'component';
+            else type = 'feature';
+          }
+
+          const item = {
+            id: curr.id,
+            title: curr.title || 'Untitled',
+            description: curr.description || '',
+            type: type === 'bug' ? 'bug' : (type === 'component' ? 'component' : 'feature'),
+            taskId: curr.taskId || null,
+            subPath: subPath
+          };
+
+          if (item.type === 'component') items.components.push(item);
+          else if (item.type === 'bug') items.improvements.push(item);
+          else items.features.push(item);
+
+          if (Array.isArray(curr.children) && curr.children.length > 0) {
+            const nextSub = subPath ? subPath + ' › ' + (curr.title || 'Untitled') : (curr.title || 'Untitled');
+            curr.children.forEach(c => scanItems(c, hint, nextSub));
+          }
+        }
+
+        scanItems(comp.node);
+        comp.items = items;
+        comp.stats = {
+          features: items.features.length,
+          components: items.components.length,
+          improvements: items.improvements.length,
+          total: items.features.length + items.components.length + items.improvements.length
+        };
+      }
+
+      return components;
     }
 
     function findCategoryForNode(tree, targetId) {
       if (!tree || !targetId) return null;
-      const categories = getTopLevelCategories(tree);
+      const categories = getAllBacklogComponents(tree);
       for (const cat of categories) {
         if (cat.id === targetId) return cat.node;
-        let found = false;
-        function search(n) {
-          if (!n || found) return;
-          if (n.id === targetId) { found = true; return; }
-          if (Array.isArray(n.children)) n.children.forEach(search);
+        if (cat.items) {
+          if (cat.items.features.some(f => f.id === targetId)) return cat.node;
+          if (cat.items.components.some(c => c.id === targetId)) return cat.node;
+          if (cat.items.improvements.some(i => i.id === targetId)) return cat.node;
         }
-        search(cat.node);
-        if (found) return cat.node;
       }
       return null;
     }
@@ -8170,7 +8211,7 @@
         return `📁 ${node.title}`;
       }
       const icon = node.type === 'component' ? '🧩' : (node.type === 'bug' ? '💡' : '✨');
-      const catPrefix = catNode ? `${catNode.title} › ` : '';
+      const catPrefix = (catNode && catNode.title !== node.title) ? `${catNode.title} › ` : '';
       return `${icon} ${catPrefix}${node.title}`;
     }
 
@@ -8265,7 +8306,7 @@
       if (!menu || !backlogTree) return;
 
       const q = (query || '').trim().toLowerCase();
-      const categories = getTopLevelCategories(backlogTree);
+      const categories = getAllBacklogComponents(backlogTree);
       let html = '';
 
       const isNoneSelected = !currentSelectedProductNodeId;
@@ -8282,12 +8323,12 @@
       let totalMatches = 0;
 
       for (const cat of categories) {
-        const catMatches = !q || cat.title.toLowerCase().includes(q) || (cat.description && cat.description.toLowerCase().includes(q));
+        const catMatches = !q || cat.title.toLowerCase().includes(q) || cat.fullTitle.toLowerCase().includes(q) || (cat.description && cat.description.toLowerCase().includes(q));
         const features = catMatches ? cat.items.features : cat.items.features.filter(f => f.title.toLowerCase().includes(q) || f.subPath.toLowerCase().includes(q));
         const components = catMatches ? cat.items.components : cat.items.components.filter(c => c.title.toLowerCase().includes(q) || c.subPath.toLowerCase().includes(q));
         const improvements = catMatches ? cat.items.improvements : cat.items.improvements.filter(i => i.title.toLowerCase().includes(q) || i.subPath.toLowerCase().includes(q));
 
-        const hasNoChildren = (cat.stats.total === 0);
+        const hasNoChildren = (cat.stats.total === 0 && !cat.hasSubComponents);
         const matchesCategoryPlaceholders = hasNoChildren && (
           catMatches ||
           q.includes('feat') || q.includes('comp') || q.includes('imp') || q.includes('bug')
@@ -8301,12 +8342,12 @@
             <div 
               class="combobox-category-header ${isCatSelected ? 'is-selected' : ''}" 
               data-selectable="true" 
-              onclick="selectProductNodeInCombobox('${cat.id}', '📁 ${escapeHtml(cat.title)}')"
+              onclick="selectProductNodeInCombobox('${cat.id}', '📁 ${escapeHtml(cat.fullTitle)}')"
               title="Click to link to this entire category"
             >
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span>📁</span>
-                <span>${escapeHtml(cat.title)}</span>
+                <span>${escapeHtml(cat.fullTitle)}</span>
               </div>
               <span style="font-size: 10px; font-weight: normal; color: var(--text-muted);">${cat.stats.total} items</span>
             </div>
@@ -8381,7 +8422,9 @@
               </div>
             `;
           } else {
-            if (features.length > 0) {
+            const showAddActions = catMatches && (q.length > 0 || cat.stats.total === 0);
+
+            if (features.length > 0 || (showAddActions && (q.includes('feat') || q.includes('add') || q.includes('new')))) {
               html += `<div class="combobox-group-label" style="color: #2563EB;"><span>✨ Features (${features.length})</span></div>`;
               for (const f of features) {
                 const isSel = currentSelectedProductNodeId === f.id;
@@ -8406,9 +8449,33 @@
                   </div>
                 `;
               }
+              if (showAddActions) {
+                const selFeat = currentSelectedProductNodeId === `new_under:${cat.id}:feature`;
+                const labelFeat = `✨ ${cat.title} › features`;
+                html += `
+                  <div 
+                    class="combobox-option-item ${selFeat ? 'is-selected' : ''}" 
+                    onclick="selectProductNodeInCombobox('new_under:${cat.id}:feature', '${escapeHtml(labelFeat)}')"
+                    title="Add new feature under ${escapeHtml(cat.title)}"
+                    style="border-top: 1px dashed var(--border-color, #E2E8F0); opacity: 0.85;"
+                  >
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                      <span>✨</span>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                        <span style="font-weight: 500;">new feature...</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                      <span style="font-size: 10px; color: #2563EB; background: #EFF6FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Feature</span>
+                      ${selFeat ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                    </div>
+                  </div>
+                `;
+              }
             }
 
-            if (components.length > 0) {
+            if (components.length > 0 || (showAddActions && (q.includes('comp') || q.includes('add') || q.includes('new')))) {
               html += `<div class="combobox-group-label" style="color: #7C3AED;"><span>🧩 Components (${components.length})</span></div>`;
               for (const c of components) {
                 const isSel = currentSelectedProductNodeId === c.id;
@@ -8433,9 +8500,33 @@
                   </div>
                 `;
               }
+              if (showAddActions) {
+                const selComp = currentSelectedProductNodeId === `new_under:${cat.id}:component`;
+                const labelComp = `🧩 ${cat.title} › components`;
+                html += `
+                  <div 
+                    class="combobox-option-item ${selComp ? 'is-selected' : ''}" 
+                    onclick="selectProductNodeInCombobox('new_under:${cat.id}:component', '${escapeHtml(labelComp)}')"
+                    title="Add new component under ${escapeHtml(cat.title)}"
+                    style="border-top: 1px dashed var(--border-color, #E2E8F0); opacity: 0.85;"
+                  >
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                      <span>🧩</span>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                        <span style="font-weight: 500;">new component...</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                      <span style="font-size: 10px; color: #7C3AED; background: #F5F3FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Component</span>
+                      ${selComp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                    </div>
+                  </div>
+                `;
+              }
             }
 
-            if (improvements.length > 0) {
+            if (improvements.length > 0 || (showAddActions && (q.includes('imp') || q.includes('bug') || q.includes('add') || q.includes('new')))) {
               html += `<div class="combobox-group-label" style="color: #D97706;"><span>💡 Improvements & Fixes (${improvements.length})</span></div>`;
               for (const imp of improvements) {
                 const isSel = currentSelectedProductNodeId === imp.id;
@@ -8456,6 +8547,30 @@
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
                       ${imp.taskId ? `<span class="item-task-badge">#${escapeHtml(imp.taskId.slice(-5))}</span>` : ''}
                       ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                    </div>
+                  </div>
+                `;
+              }
+              if (showAddActions) {
+                const selImp = currentSelectedProductNodeId === `new_under:${cat.id}:bug`;
+                const labelImp = `💡 ${cat.title} › improvements`;
+                html += `
+                  <div 
+                    class="combobox-option-item ${selImp ? 'is-selected' : ''}" 
+                    onclick="selectProductNodeInCombobox('new_under:${cat.id}:bug', '${escapeHtml(labelImp)}')"
+                    title="Add new improvement under ${escapeHtml(cat.title)}"
+                    style="border-top: 1px dashed var(--border-color, #E2E8F0); opacity: 0.85;"
+                  >
+                    <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                      <span>💡</span>
+                      <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                        <span style="font-weight: 500;">new improvement...</span>
+                      </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                      <span style="font-size: 10px; color: #D97706; background: #FEF3C7; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Improvement</span>
+                      ${selImp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
                     </div>
                   </div>
                 `;
