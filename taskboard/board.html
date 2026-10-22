@@ -2178,36 +2178,64 @@
       width: 92%;
     }
 
-    /* Link Product Category Search & Item Picker in Create Task Modal */
-    .link-product-section {
-      background: #F8FAFC;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
-      transition: all 0.2s ease;
+    /* Unified Product Combobox in Create Task Modal */
+    .product-combobox-wrapper {
+      position: relative;
+      width: 100%;
     }
 
-    .category-dropdown-popover {
+    .product-combobox-menu {
       position: absolute;
       top: calc(100% + 4px);
       left: 0;
       right: 0;
       background: #FFFFFF;
       border: 1px solid var(--border);
-      border-radius: 10px;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
-      max-height: 250px;
+      border-radius: 8px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+      max-height: 280px;
       overflow-y: auto;
       z-index: 10050;
       padding: 4px;
     }
 
-    .category-dropdown-item {
+    .combobox-category-header {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: #334155;
+      background: #F1F5F9;
+      padding: 6px 10px;
+      margin: 4px 0 2px 0;
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+    }
+
+    .combobox-category-header:hover {
+      background: #E2E8F0;
+      color: var(--primary);
+    }
+
+    .combobox-group-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--text-muted);
+      padding: 5px 10px 2px 14px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .combobox-option-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      padding: 7px 10px;
+      padding: 6px 10px 6px 18px;
       border-radius: 6px;
       cursor: pointer;
       font-size: 12.5px;
@@ -2215,81 +2243,32 @@
       transition: background 0.12s ease;
     }
 
-    .category-dropdown-item:hover,
-    .category-dropdown-item.is-highlighted {
+    .combobox-option-item:hover,
+    .combobox-option-item.is-highlighted {
       background: #F1F5F9;
       color: var(--primary);
     }
 
-    .category-dropdown-item.is-selected {
+    .combobox-option-item.is-selected {
       background: #EEF2FF;
       color: var(--primary);
       font-weight: 600;
     }
 
-    .category-dropdown-item .cat-counts {
-      font-size: 10.5px;
+    .combobox-option-item .item-subpath {
       color: var(--text-muted);
-      background: rgba(0, 0, 0, 0.04);
-      padding: 1px 6px;
-      border-radius: 8px;
-      white-space: nowrap;
-    }
-
-    .category-group-header {
       font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.4px;
-      text-transform: uppercase;
-      padding: 6px 4px 4px 4px;
-      margin-top: 6px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      border-bottom: 1px solid #E2E8F0;
+      margin-right: 4px;
     }
 
-    .category-item-card {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 5px 10px;
-      background: #FFFFFF;
-      border: 1px solid var(--border);
-      border-radius: 7px;
-      font-size: 12px;
-      color: var(--text-main);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      user-select: none;
-      text-align: left;
-    }
-
-    .category-item-card:hover {
-      border-color: #94A3B8;
-      background: #F8FAFC;
-      transform: translateY(-0.5px);
-    }
-
-    .category-item-card.is-active {
-      background: #EFF6FF;
-      border-color: #3B82F6;
-      color: #1D4ED8;
-      font-weight: 600;
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-    }
-
-    .category-item-card.is-linked {
-      opacity: 0.75;
-      background: #F8FAFC;
-    }
-
-    .category-item-card .item-tag {
+    .combobox-option-item .item-task-badge {
       font-size: 10px;
       padding: 1px 5px;
       border-radius: 4px;
-      background: #E2E8F0;
-      color: #475569;
+      background: #FEF3C7;
+      color: #92400E;
+      font-weight: 600;
+      white-space: nowrap;
     }
 
     .modal-header {
@@ -3833,89 +3812,49 @@
         <button class="close-btn" onclick="closeCreateModal()">&times;</button>
       </div>
       <form id="createForm" onsubmit="handleCreateTask(event)">
-        <div class="form-group link-product-section" id="linkProductSection" style="margin-bottom: 14px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <label class="form-label" style="margin-bottom: 0; color: #047857; display: flex; align-items: center; gap: 6px;">
-              <span>📐</span>
-              <span>Link to Product Component / Feature (from product.yaml)</span>
-            </label>
-            <span style="font-size: 11px; color: var(--text-muted);">Optional</span>
+        <div class="form-group" style="position: relative; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+            <label class="form-label" style="margin-bottom: 0;">Link to Product Backlog (Optional)</label>
+            <span id="productComboboxBadge" style="font-size: 11px; color: var(--text-muted);">None linked</span>
           </div>
 
           <!-- Hidden storage for final linked product_node_id -->
           <input type="hidden" id="newProductNodeId" value="">
 
-          <!-- Category Selector with Free-Text Search -->
-          <div class="category-search-container" id="categorySearchContainer" style="position: relative;">
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <div style="position: relative; flex: 1;">
-                <input 
-                  type="text" 
-                  id="categorySearchInput" 
-                  class="form-input" 
-                  placeholder="🔍 Search categories... (type to filter or click to browse)" 
-                  autocomplete="off"
-                  style="padding-left: 32px; font-size: 12.5px; font-weight: 500;"
-                  oninput="handleCategorySearchInput(this.value)"
-                  onfocus="openCategoryDropdown()"
-                  onclick="openCategoryDropdown()"
-                  onkeydown="handleCategorySearchKeydown(event)"
-                >
-                <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; pointer-events: none;">📁</span>
-                <button 
-                  type="button" 
-                  id="btnClearCategorySearch" 
-                  onclick="clearCategorySelection()" 
-                  title="Clear category / Standalone task"
-                  style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 14px; color: #94A3B8; cursor: pointer; display: none; line-height: 1; padding: 2px 4px;"
-                >✕</button>
-              </div>
+          <div class="product-combobox-wrapper" id="productComboboxWrapper" style="position: relative;">
+            <div style="position: relative; display: flex; align-items: center;">
+              <input 
+                type="text" 
+                id="productComboboxInput" 
+                class="form-input" 
+                placeholder="🔍 Search category, feature, or component to link..." 
+                autocomplete="off"
+                style="padding-left: 32px; padding-right: 56px; font-size: 13px; font-weight: 500;"
+                onfocus="openProductCombobox()"
+                onclick="openProductCombobox()"
+                oninput="handleProductComboboxInput(this.value)"
+                onkeydown="handleProductComboboxKeydown(event)"
+              >
+              <span style="position: absolute; left: 10px; font-size: 14px; pointer-events: none; opacity: 0.7;">📐</span>
               <button 
                 type="button" 
-                id="btnToggleCategoryList" 
-                class="btn btn-secondary btn-sm" 
-                onclick="toggleCategoryDropdown(event)" 
-                style="padding: 7px 11px; font-size: 11.5px; white-space: nowrap;"
-                title="Browse categories list"
-              >
-                <span>Categories ▾</span>
-              </button>
+                id="btnClearProductCombobox" 
+                onclick="clearProductCombobox(event)" 
+                title="Clear selection / Unlink"
+                style="display: none; position: absolute; right: 28px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 13px; color: #94A3B8; cursor: pointer; padding: 2px 4px; line-height: 1;"
+              >✕</button>
+              <button 
+                type="button" 
+                id="btnToggleProductCombobox" 
+                onclick="toggleProductCombobox(event)" 
+                tabindex="-1"
+                style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 11px; color: #64748B; cursor: pointer; padding: 4px;"
+                title="Browse backlog items"
+              >▾</button>
             </div>
 
-            <!-- Category Popover Dropdown -->
-            <div id="categoryDropdownList" class="category-dropdown-popover" style="display: none;"></div>
-          </div>
-
-          <!-- Selected Category Items Section (Features, Components, Improvements) -->
-          <div id="categoryItemsSection" style="display: none; margin-top: 10px;">
-            <div id="selectedCategoryHeader" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; margin-bottom: 8px;">
-              <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #065F46; font-weight: 600;">
-                <span>📁 Category:</span>
-                <span id="selectedCategoryTitle" style="color: #047857; font-weight: 700;"></span>
-                <span id="selectedCategoryStats" style="font-size: 11px; color: #059669; font-weight: normal; background: #D1FAE5; padding: 1px 6px; border-radius: 8px;"></span>
-              </div>
-              <button type="button" onclick="promptChangeCategory()" style="background: none; border: none; font-size: 11px; color: #059669; cursor: pointer; text-decoration: underline; padding: 0;">Change</button>
-            </div>
-
-            <div class="category-items-picker">
-              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; margin: 0;">
-                  Select item in this category to link:
-                </label>
-                <span id="linkedItemStatusNotice" style="font-size: 11px; color: #059669; font-weight: 600;"></span>
-              </div>
-              <select 
-                id="categoryItemSelect" 
-                class="form-select" 
-                onchange="handleCategoryItemSelect(this.value)"
-                style="font-size: 12px; font-weight: 600; background: #FFFFFF;"
-              >
-              </select>
-            </div>
-
-            <!-- Visual clickable items list grouped into Features, Components, Improvements -->
-            <div id="categoryItemsVisualList" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; padding-right: 2px;">
-            </div>
+            <!-- Floating Combobox Menu -->
+            <div id="productComboboxMenu" class="product-combobox-menu" style="display: none;"></div>
           </div>
         </div>
 
@@ -8074,7 +8013,7 @@
         }
       }
 
-      initCreateModalProductPicker(prefill ? prefill.product_node_id : null);
+      initCreateModalProductCombobox(prefill ? prefill.product_node_id : null);
 
       if (prefill) {
         if (prefill.title) document.getElementById('newTitle').value = prefill.title;
@@ -8087,7 +8026,7 @@
       }
     }
 
-    let currentSelectedCategoryId = null;
+    let currentSelectedProductNodeId = null;
 
     function getTopLevelCategories(tree) {
       if (!tree || !Array.isArray(tree.children)) return [];
@@ -8100,6 +8039,7 @@
           title: child.title || 'Untitled Category',
           description: child.description || '',
           node: child,
+          items: items,
           stats: {
             features: items.features.length,
             components: items.components.length,
@@ -8115,6 +8055,7 @@
           title: tree.title || 'Product Backlog',
           description: tree.description || '',
           node: tree,
+          items: items,
           stats: {
             features: items.features.length,
             components: items.components.length,
@@ -8209,309 +8150,290 @@
       return null;
     }
 
-    function renderCategoryDropdown(query) {
-      const popover = document.getElementById('categoryDropdownList');
-      if (!popover || !backlogTree) return;
+    function getFormattedNodeLabel(nodeId) {
+      if (!nodeId || !backlogTree) return '';
+      const node = findBacklogNode(backlogTree, nodeId);
+      if (!node) return '';
+      const catNode = findCategoryForNode(backlogTree, nodeId);
+      const isCat = catNode && catNode.id === node.id;
+      if (isCat) {
+        return `📁 ${node.title}`;
+      }
+      const icon = node.type === 'component' ? '🧩' : (node.type === 'bug' ? '💡' : '✨');
+      const catPrefix = catNode ? `${catNode.title} › ` : '';
+      return `${icon} ${catPrefix}${node.title}`;
+    }
 
-      const categories = getTopLevelCategories(backlogTree);
-      const q = (query || '').trim().toLowerCase();
-      const filtered = q
-        ? categories.filter(c =>
-            c.title.toLowerCase().includes(q) ||
-            (c.description && c.description.toLowerCase().includes(q))
-          )
-        : categories;
+    function openProductCombobox() {
+      const menu = document.getElementById('productComboboxMenu');
+      if (!menu) return;
+      const input = document.getElementById('productComboboxInput');
+      const query = (input && input.dataset.selectedNodeId) ? '' : (input ? input.value : '');
+      renderProductComboboxMenu(query);
+      menu.style.display = 'block';
+    }
 
-      let html = '';
-      html += `
-        <div class="category-dropdown-item" onclick="selectCategoryInCreate('')">
-          <div style="display: flex; align-items: center; gap: 6px;">
-            <span>🚫</span>
-            <span style="color: var(--text-muted); font-style: italic;">-- Not linked / Standalone task --</span>
-          </div>
-        </div>
-      `;
-
-      if (filtered.length === 0) {
-        html += `<div style="padding: 10px; text-align: center; color: var(--text-muted); font-size: 12px;">No matching categories found for "${escapeHtml(q)}".</div>`;
-      } else {
-        for (const cat of filtered) {
-          const isSelected = currentSelectedCategoryId === cat.id;
-          html += `
-            <div class="category-dropdown-item ${isSelected ? 'is-selected' : ''}" onclick="selectCategoryInCreate('${cat.id}')">
-              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
-                <span style="font-size: 14px;">📁</span>
-                <div style="display: flex; flex-direction: column; overflow: hidden;">
-                  <span style="font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cat.title)}</span>
-                  ${cat.description ? `<span style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cat.description)}</span>` : ''}
-                </div>
-              </div>
-              <div class="cat-counts">
-                ${cat.stats.features > 0 ? `✨ ${cat.stats.features} ` : ''}
-                ${cat.stats.components > 0 ? `🧩 ${cat.stats.components} ` : ''}
-                ${cat.stats.improvements > 0 ? `💡 ${cat.stats.improvements}` : ''}
-                ${cat.stats.total === 0 ? 'empty' : ''}
-              </div>
-            </div>
-          `;
+    function closeProductCombobox() {
+      const menu = document.getElementById('productComboboxMenu');
+      if (menu) menu.style.display = 'none';
+      const input = document.getElementById('productComboboxInput');
+      if (input) {
+        if (currentSelectedProductNodeId) {
+          input.value = getFormattedNodeLabel(currentSelectedProductNodeId);
+        } else {
+          input.value = '';
         }
       }
-
-      popover.innerHTML = html;
     }
 
-    function openCategoryDropdown() {
-      const popover = document.getElementById('categoryDropdownList');
-      if (!popover) return;
-      const input = document.getElementById('categorySearchInput');
-      renderCategoryDropdown(input ? input.value : '');
-      popover.style.display = 'block';
-    }
-
-    function closeCategoryDropdown() {
-      const popover = document.getElementById('categoryDropdownList');
-      if (popover) popover.style.display = 'none';
-    }
-
-    function toggleCategoryDropdown(e) {
+    function toggleProductCombobox(e) {
       if (e) { e.preventDefault(); e.stopPropagation(); }
-      const popover = document.getElementById('categoryDropdownList');
-      if (!popover) return;
-      if (popover.style.display === 'block') {
-        closeCategoryDropdown();
+      const menu = document.getElementById('productComboboxMenu');
+      if (!menu) return;
+      if (menu.style.display === 'block') {
+        closeProductCombobox();
       } else {
-        openCategoryDropdown();
-        const input = document.getElementById('categorySearchInput');
+        openProductCombobox();
+        const input = document.getElementById('productComboboxInput');
         if (input) input.focus();
       }
     }
 
-    function handleCategorySearchInput(query) {
-      renderCategoryDropdown(query);
-      openCategoryDropdown();
-      const clearBtn = document.getElementById('btnClearCategorySearch');
+    function handleProductComboboxInput(val) {
+      const input = document.getElementById('productComboboxInput');
+      if (input) delete input.dataset.selectedNodeId;
+      const clearBtn = document.getElementById('btnClearProductCombobox');
       if (clearBtn) {
-        clearBtn.style.display = (query || currentSelectedCategoryId) ? 'block' : 'none';
+        clearBtn.style.display = (val || currentSelectedProductNodeId) ? 'block' : 'none';
       }
+      renderProductComboboxMenu(val);
+      const menu = document.getElementById('productComboboxMenu');
+      if (menu) menu.style.display = 'block';
     }
 
-    function handleCategorySearchKeydown(e) {
-      if (e.key === 'Escape') {
-        closeCategoryDropdown();
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const firstItem = document.querySelector('#categoryDropdownList .category-dropdown-item:not([onclick*="selectCategoryInCreate(\'\')"])');
-        if (firstItem) {
-          firstItem.click();
+    function handleProductComboboxKeydown(e) {
+      const menu = document.getElementById('productComboboxMenu');
+      if (!menu || menu.style.display !== 'block') {
+        if (e.key === 'ArrowDown' || e.key === 'Enter') {
+          openProductCombobox();
+          e.preventDefault();
         }
-      }
-    }
-
-    function selectCategoryInCreate(catId, preselectItemId = null) {
-      currentSelectedCategoryId = catId;
-      if (!catId) {
-        clearCategorySelection();
         return;
       }
 
-      const categoryNode = findBacklogNode(backlogTree, catId);
-      if (!categoryNode) return;
+      const items = Array.from(menu.querySelectorAll('.combobox-option-item, .combobox-category-header[data-selectable="true"]'));
+      if (items.length === 0) return;
 
-      const searchInput = document.getElementById('categorySearchInput');
-      if (searchInput) searchInput.value = categoryNode.title;
+      const activeIdx = items.findIndex(el => el.classList.contains('is-highlighted'));
 
-      const clearBtn = document.getElementById('btnClearCategorySearch');
-      if (clearBtn) clearBtn.style.display = 'block';
-
-      closeCategoryDropdown();
-
-      const itemsSection = document.getElementById('categoryItemsSection');
-      if (itemsSection) itemsSection.style.display = 'block';
-
-      renderCategoryItems(categoryNode, preselectItemId);
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const nextIdx = (activeIdx + 1) < items.length ? activeIdx + 1 : 0;
+        items.forEach(el => el.classList.remove('is-highlighted'));
+        items[nextIdx].classList.add('is-highlighted');
+        items[nextIdx].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prevIdx = (activeIdx - 1) >= 0 ? activeIdx - 1 : items.length - 1;
+        items.forEach(el => el.classList.remove('is-highlighted'));
+        items[prevIdx].classList.add('is-highlighted');
+        items[prevIdx].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeIdx >= 0 && items[activeIdx]) {
+          items[activeIdx].click();
+        } else if (items.length > 0) {
+          items[0].click();
+        }
+      } else if (e.key === 'Escape') {
+        closeProductCombobox();
+      }
     }
 
-    function clearCategorySelection() {
-      currentSelectedCategoryId = null;
-      const hiddenInput = document.getElementById('newProductNodeId');
-      if (hiddenInput) hiddenInput.value = '';
+    function renderProductComboboxMenu(query) {
+      const menu = document.getElementById('productComboboxMenu');
+      if (!menu || !backlogTree) return;
 
-      const searchInput = document.getElementById('categorySearchInput');
-      if (searchInput) searchInput.value = '';
+      const q = (query || '').trim().toLowerCase();
+      const categories = getTopLevelCategories(backlogTree);
+      let html = '';
 
-      const clearBtn = document.getElementById('btnClearCategorySearch');
-      if (clearBtn) clearBtn.style.display = 'none';
+      const isNoneSelected = !currentSelectedProductNodeId;
+      html += `
+        <div class="combobox-option-item ${isNoneSelected ? 'is-selected' : ''}" onclick="selectProductNodeInCombobox('')">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span>🚫</span>
+            <span style="color: var(--text-muted); font-style: italic;">-- Not linked / Standalone task --</span>
+          </div>
+          ${isNoneSelected ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+        </div>
+      `;
 
-      const itemsSection = document.getElementById('categoryItemsSection');
-      if (itemsSection) itemsSection.style.display = 'none';
+      let totalMatches = 0;
 
-      const itemSelect = document.getElementById('categoryItemSelect');
-      if (itemSelect) itemSelect.innerHTML = '';
+      for (const cat of categories) {
+        const catMatches = !q || cat.title.toLowerCase().includes(q) || (cat.description && cat.description.toLowerCase().includes(q));
+        const features = catMatches ? cat.items.features : cat.items.features.filter(f => f.title.toLowerCase().includes(q) || f.subPath.toLowerCase().includes(q));
+        const components = catMatches ? cat.items.components : cat.items.components.filter(c => c.title.toLowerCase().includes(q) || c.subPath.toLowerCase().includes(q));
+        const improvements = catMatches ? cat.items.improvements : cat.items.improvements.filter(i => i.title.toLowerCase().includes(q) || i.subPath.toLowerCase().includes(q));
 
-      const visualList = document.getElementById('categoryItemsVisualList');
-      if (visualList) visualList.innerHTML = '';
+        if (catMatches || features.length > 0 || components.length > 0 || improvements.length > 0) {
+          totalMatches++;
+          const isCatSelected = currentSelectedProductNodeId === cat.id;
 
-      const statusNotice = document.getElementById('linkedItemStatusNotice');
-      if (statusNotice) statusNotice.innerText = '';
-
-      closeCategoryDropdown();
-    }
-
-    function promptChangeCategory() {
-      const input = document.getElementById('categorySearchInput');
-      if (input) {
-        input.focus();
-        input.select();
-      }
-      openCategoryDropdown();
-    }
-
-    function renderCategoryItems(categoryNode, preferredItemId = null) {
-      const items = getCategoryItems(categoryNode);
-      const titleEl = document.getElementById('selectedCategoryTitle');
-      const statsEl = document.getElementById('selectedCategoryStats');
-      if (titleEl) titleEl.innerText = categoryNode.title;
-      if (statsEl) {
-        const statsText = [
-          items.features.length ? `${items.features.length} features` : '',
-          items.components.length ? `${items.components.length} components` : '',
-          items.improvements.length ? `${items.improvements.length} improvements` : ''
-        ].filter(Boolean).join(' · ') || 'No items';
-        statsEl.innerText = `(${statsText})`;
-      }
-
-      // Populate Select Dropdown
-      const selectEl = document.getElementById('categoryItemSelect');
-      if (selectEl) {
-        let opts = `
-          <option value="">-- Standalone / Category only --</option>
-          <option value="${categoryNode.id}">📁 Entire Category: ${escapeHtml(categoryNode.title)}</option>
-        `;
-        if (items.features.length > 0) {
-          opts += `<optgroup label="✨ Features (${items.features.length})">`;
-          for (const f of items.features) {
-            const prefix = f.subPath ? `${escapeHtml(f.subPath)} › ` : '';
-            const tag = f.taskId ? ` [Linked #${f.taskId.slice(-5)}]` : '';
-            opts += `<option value="${f.id}">✨ ${prefix}${escapeHtml(f.title)}${tag}</option>`;
-          }
-          opts += `</optgroup>`;
-        }
-        if (items.components.length > 0) {
-          opts += `<optgroup label="🧩 Components (${items.components.length})">`;
-          for (const c of items.components) {
-            const prefix = c.subPath ? `${escapeHtml(c.subPath)} › ` : '';
-            const tag = c.taskId ? ` [Linked #${c.taskId.slice(-5)}]` : '';
-            opts += `<option value="${c.id}">🧩 ${prefix}${escapeHtml(c.title)}${tag}</option>`;
-          }
-          opts += `</optgroup>`;
-        }
-        if (items.improvements.length > 0) {
-          opts += `<optgroup label="💡 Improvements & Fixes (${items.improvements.length})">`;
-          for (const imp of items.improvements) {
-            const prefix = imp.subPath ? `${escapeHtml(imp.subPath)} › ` : '';
-            const tag = imp.taskId ? ` [Linked #${imp.taskId.slice(-5)}]` : '';
-            opts += `<option value="${imp.id}">💡 ${prefix}${escapeHtml(imp.title)}${tag}</option>`;
-          }
-          opts += `</optgroup>`;
-        }
-        selectEl.innerHTML = opts;
-      }
-
-      // Populate Visual Cards List
-      const visualContainer = document.getElementById('categoryItemsVisualList');
-      if (visualContainer) {
-        let vHtml = '';
-        function renderGroupCards(groupTitle, groupList, icon, color) {
-          if (!groupList || groupList.length === 0) return '';
-          let g = `<div class="category-group-header" style="color: ${color};"><span>${icon} ${groupTitle} (${groupList.length})</span></div>`;
-          g += `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">`;
-          for (const it of groupList) {
-            const isSel = (it.id === preferredItemId);
-            const isLinked = !!it.taskId;
-            g += `
-              <div 
-                class="category-item-card ${isSel ? 'is-active' : ''} ${isLinked ? 'is-linked' : ''}" 
-                id="cat-item-card-${it.id}"
-                onclick="handleCategoryItemSelect('${it.id}')"
-                title="${escapeHtml(it.description || it.title)}${isLinked ? ' (Already linked to task #' + it.taskId.slice(-5) + ')' : ''}"
-              >
-                <span>${icon}</span>
-                <span style="font-weight: 500;">${escapeHtml(it.title)}</span>
-                ${it.subPath ? `<span class="item-tag">${escapeHtml(it.subPath)}</span>` : ''}
-                ${isLinked ? `<span class="item-tag" style="background: #FEF3C7; color: #92400E; font-weight: 600;">#${it.taskId.slice(-5)}</span>` : ''}
-                ${isSel ? `<span style="color: #059669; font-weight: 700; margin-left: 2px;">✓</span>` : ''}
+          html += `
+            <div 
+              class="combobox-category-header ${isCatSelected ? 'is-selected' : ''}" 
+              data-selectable="true" 
+              onclick="selectProductNodeInCombobox('${cat.id}', '📁 ${escapeHtml(cat.title)}')"
+              title="Click to link to this entire category"
+            >
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span>📁</span>
+                <span>${escapeHtml(cat.title)}</span>
               </div>
-            `;
+              <span style="font-size: 10px; font-weight: normal; color: var(--text-muted);">${cat.stats.total} items</span>
+            </div>
+          `;
+
+          if (features.length > 0) {
+            html += `<div class="combobox-group-label" style="color: #2563EB;"><span>✨ Features (${features.length})</span></div>`;
+            for (const f of features) {
+              const isSel = currentSelectedProductNodeId === f.id;
+              const label = `✨ ${cat.title} › ${f.subPath ? f.subPath + ' › ' : ''}${f.title}`;
+              html += `
+                <div 
+                  class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
+                  onclick="selectProductNodeInCombobox('${f.id}', '${escapeHtml(label)}')"
+                  title="${escapeHtml(f.description || f.title)}"
+                >
+                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                    <span>✨</span>
+                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      ${f.subPath ? `<span class="item-subpath">${escapeHtml(f.subPath)} ›</span>` : ''}
+                      <span>${escapeHtml(f.title)}</span>
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    ${f.taskId ? `<span class="item-task-badge">#${escapeHtml(f.taskId.slice(-5))}</span>` : ''}
+                    ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                  </div>
+                </div>
+              `;
+            }
           }
-          g += `</div>`;
-          return g;
-        }
 
-        vHtml += renderGroupCards('Features', items.features, '✨', '#2563EB');
-        vHtml += renderGroupCards('Components', items.components, '🧩', '#7C3AED');
-        vHtml += renderGroupCards('Improvements & Fixes', items.improvements, '💡', '#D97706');
+          if (components.length > 0) {
+            html += `<div class="combobox-group-label" style="color: #7C3AED;"><span>🧩 Components (${components.length})</span></div>`;
+            for (const c of components) {
+              const isSel = currentSelectedProductNodeId === c.id;
+              const label = `🧩 ${cat.title} › ${c.subPath ? c.subPath + ' › ' : ''}${c.title}`;
+              html += `
+                <div 
+                  class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
+                  onclick="selectProductNodeInCombobox('${c.id}', '${escapeHtml(label)}')"
+                  title="${escapeHtml(c.description || c.title)}"
+                >
+                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                    <span>🧩</span>
+                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      ${c.subPath ? `<span class="item-subpath">${escapeHtml(c.subPath)} ›</span>` : ''}
+                      <span>${escapeHtml(c.title)}</span>
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    ${c.taskId ? `<span class="item-task-badge">#${escapeHtml(c.taskId.slice(-5))}</span>` : ''}
+                    ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                  </div>
+                </div>
+              `;
+            }
+          }
 
-        if (!vHtml) {
-          vHtml = `<div style="font-size: 12px; color: var(--text-muted); font-style: italic; padding: 6px 0;">No sub-items in this category yet. Linking will associate with the category itself.</div>`;
+          if (improvements.length > 0) {
+            html += `<div class="combobox-group-label" style="color: #D97706;"><span>💡 Improvements & Fixes (${improvements.length})</span></div>`;
+            for (const imp of improvements) {
+              const isSel = currentSelectedProductNodeId === imp.id;
+              const label = `💡 ${cat.title} › ${imp.subPath ? imp.subPath + ' › ' : ''}${imp.title}`;
+              html += `
+                <div 
+                  class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
+                  onclick="selectProductNodeInCombobox('${imp.id}', '${escapeHtml(label)}')"
+                  title="${escapeHtml(imp.description || imp.title)}"
+                >
+                  <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                    <span>💡</span>
+                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      ${imp.subPath ? `<span class="item-subpath">${escapeHtml(imp.subPath)} ›</span>` : ''}
+                      <span>${escapeHtml(imp.title)}</span>
+                    </div>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                    ${imp.taskId ? `<span class="item-task-badge">#${escapeHtml(imp.taskId.slice(-5))}</span>` : ''}
+                    ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                  </div>
+                </div>
+              `;
+            }
+          }
         }
-        visualContainer.innerHTML = vHtml;
       }
 
-      if (preferredItemId) {
-        handleCategoryItemSelect(preferredItemId);
-      } else {
-        handleCategoryItemSelect('');
+      if (totalMatches === 0 && q) {
+        html += `<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 12px;">No matching categories or items found for "${escapeHtml(q)}".</div>`;
       }
+
+      menu.innerHTML = html;
     }
 
-    function handleCategoryItemSelect(nodeId) {
+    function selectProductNodeInCombobox(nodeId, displayLabel) {
+      currentSelectedProductNodeId = nodeId || '';
       const hiddenInput = document.getElementById('newProductNodeId');
-      if (hiddenInput) hiddenInput.value = nodeId || '';
+      if (hiddenInput) hiddenInput.value = currentSelectedProductNodeId;
 
-      const selectEl = document.getElementById('categoryItemSelect');
-      if (selectEl && selectEl.value !== (nodeId || '')) {
-        selectEl.value = nodeId || '';
-      }
+      const input = document.getElementById('productComboboxInput');
+      const badge = document.getElementById('productComboboxBadge');
+      const clearBtn = document.getElementById('btnClearProductCombobox');
 
-      // Highlight active card
-      document.querySelectorAll('#categoryItemsVisualList .category-item-card').forEach(card => {
-        card.classList.remove('is-active');
-        const check = card.querySelector('span:last-child');
-        if (check && check.innerText === '✓') check.remove();
-      });
-
-      if (nodeId) {
-        const card = document.getElementById(`cat-item-card-${nodeId}`);
-        if (card) {
-          card.classList.add('is-active');
-          if (!card.innerText.includes('✓')) {
-            const check = document.createElement('span');
-            check.style.color = '#059669';
-            check.style.fontWeight = '700';
-            check.style.marginLeft = '2px';
-            check.innerText = '✓';
-            card.appendChild(check);
-          }
+      if (!nodeId) {
+        if (input) {
+          input.value = '';
+          delete input.dataset.selectedNodeId;
         }
-      }
+        if (badge) {
+          badge.innerText = 'None linked';
+          badge.style.color = 'var(--text-muted)';
+        }
+        if (clearBtn) clearBtn.style.display = 'none';
+      } else {
+        const formatted = displayLabel || getFormattedNodeLabel(nodeId);
+        if (input) {
+          input.value = formatted;
+          input.dataset.selectedNodeId = nodeId;
+        }
+        if (clearBtn) clearBtn.style.display = 'block';
 
-      const notice = document.getElementById('linkedItemStatusNotice');
-      if (notice) {
-        if (nodeId && backlogTree) {
+        if (badge && backlogTree) {
           const node = findBacklogNode(backlogTree, nodeId);
           if (node) {
             if (node.taskId) {
-              notice.innerHTML = `<span style="color: #D97706;">⚠️ Already linked to #${escapeHtml(node.taskId.slice(-5))}</span>`;
+              badge.innerHTML = `<span style="color: #D97706; font-weight: 600;">⚠️ Linked to #${escapeHtml(node.taskId.slice(-5))}</span>`;
             } else {
-              notice.innerHTML = `<span style="color: #059669;">✓ Selected</span>`;
+              badge.innerHTML = `<span style="color: #059669; font-weight: 600;">✓ Linked: ${escapeHtml(node.title)}</span>`;
             }
           }
-        } else {
-          notice.innerText = '';
         }
+
+        handleProductNodeSelectInCreate(nodeId);
       }
 
-      handleProductNodeSelectInCreate(nodeId);
+      const menu = document.getElementById('productComboboxMenu');
+      if (menu) menu.style.display = 'none';
+    }
+
+    function clearProductCombobox(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      selectProductNodeInCombobox('');
     }
 
     function handleProductNodeSelectInCreate(nodeId) {
@@ -8530,31 +8452,15 @@
       }
     }
 
-    function initCreateModalProductPicker(initialNodeId) {
-      clearCategorySelection();
-      if (!backlogTree) return;
-
-      const categories = getTopLevelCategories(backlogTree);
-      if (!categories || categories.length === 0) return;
-
-      if (initialNodeId) {
-        const catNode = findCategoryForNode(backlogTree, initialNodeId);
-        if (catNode) {
-          selectCategoryInCreate(catNode.id, initialNodeId);
-          return;
-        }
-      }
-
-      if (categories.length === 1) {
-        selectCategoryInCreate(categories[0].id, null);
-      }
+    function initCreateModalProductCombobox(initialNodeId) {
+      selectProductNodeInCombobox(initialNodeId || '');
     }
 
     function closeCreateModal() {
       document.getElementById('createModal').classList.remove('active');
       stagedCreateImages = [];
       renderStagedCreateImages();
-      clearCategorySelection();
+      clearProductCombobox();
       const form = document.getElementById('createForm');
       if (form) form.reset();
       const titleInput = document.getElementById('newTitle');
@@ -8564,9 +8470,9 @@
     }
 
     document.addEventListener('click', function(e) {
-      const container = document.getElementById('categorySearchContainer');
-      if (container && !container.contains(e.target)) {
-        closeCategoryDropdown();
+      const wrapper = document.getElementById('productComboboxWrapper');
+      if (wrapper && !wrapper.contains(e.target)) {
+        closeProductCombobox();
       }
     });
 
