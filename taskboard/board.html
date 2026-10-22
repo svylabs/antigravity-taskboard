@@ -2178,6 +2178,120 @@
       width: 92%;
     }
 
+    /* Link Product Category Search & Item Picker in Create Task Modal */
+    .link-product-section {
+      background: #F8FAFC;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 14px;
+      transition: all 0.2s ease;
+    }
+
+    .category-dropdown-popover {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+      max-height: 250px;
+      overflow-y: auto;
+      z-index: 10050;
+      padding: 4px;
+    }
+
+    .category-dropdown-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12.5px;
+      color: var(--text-main);
+      transition: background 0.12s ease;
+    }
+
+    .category-dropdown-item:hover,
+    .category-dropdown-item.is-highlighted {
+      background: #F1F5F9;
+      color: var(--primary);
+    }
+
+    .category-dropdown-item.is-selected {
+      background: #EEF2FF;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    .category-dropdown-item .cat-counts {
+      font-size: 10.5px;
+      color: var(--text-muted);
+      background: rgba(0, 0, 0, 0.04);
+      padding: 1px 6px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .category-group-header {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 6px 4px 4px 4px;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      border-bottom: 1px solid #E2E8F0;
+    }
+
+    .category-item-card {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: #FFFFFF;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      font-size: 12px;
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+      text-align: left;
+    }
+
+    .category-item-card:hover {
+      border-color: #94A3B8;
+      background: #F8FAFC;
+      transform: translateY(-0.5px);
+    }
+
+    .category-item-card.is-active {
+      background: #EFF6FF;
+      border-color: #3B82F6;
+      color: #1D4ED8;
+      font-weight: 600;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+    }
+
+    .category-item-card.is-linked {
+      opacity: 0.75;
+      background: #F8FAFC;
+    }
+
+    .category-item-card .item-tag {
+      font-size: 10px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #E2E8F0;
+      color: #475569;
+    }
+
     .modal-header {
       display: flex;
       align-items: center;
@@ -3719,17 +3833,90 @@
         <button class="close-btn" onclick="closeCreateModal()">&times;</button>
       </div>
       <form id="createForm" onsubmit="handleCreateTask(event)">
-        <div class="form-group" style="margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <label class="form-label" style="margin-bottom: 0; color: #047857; display: flex; align-items: center; gap: 5px;">
+        <div class="form-group link-product-section" id="linkProductSection" style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" style="margin-bottom: 0; color: #047857; display: flex; align-items: center; gap: 6px;">
               <span>📐</span>
               <span>Link to Product Component / Feature (from product.yaml)</span>
             </label>
             <span style="font-size: 11px; color: var(--text-muted);">Optional</span>
           </div>
-          <select class="form-select" id="newProductNodeId" onchange="handleProductNodeSelectInCreate(this.value)" style="font-size: 12.5px;">
-            <option value="">-- Not linked / Standalone task --</option>
-          </select>
+
+          <!-- Hidden storage for final linked product_node_id -->
+          <input type="hidden" id="newProductNodeId" value="">
+
+          <!-- Category Selector with Free-Text Search -->
+          <div class="category-search-container" id="categorySearchContainer" style="position: relative;">
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <div style="position: relative; flex: 1;">
+                <input 
+                  type="text" 
+                  id="categorySearchInput" 
+                  class="form-input" 
+                  placeholder="🔍 Search categories... (type to filter or click to browse)" 
+                  autocomplete="off"
+                  style="padding-left: 32px; font-size: 12.5px; font-weight: 500;"
+                  oninput="handleCategorySearchInput(this.value)"
+                  onfocus="openCategoryDropdown()"
+                  onclick="openCategoryDropdown()"
+                  onkeydown="handleCategorySearchKeydown(event)"
+                >
+                <span style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 14px; pointer-events: none;">📁</span>
+                <button 
+                  type="button" 
+                  id="btnClearCategorySearch" 
+                  onclick="clearCategorySelection()" 
+                  title="Clear category / Standalone task"
+                  style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; font-size: 14px; color: #94A3B8; cursor: pointer; display: none; line-height: 1; padding: 2px 4px;"
+                >✕</button>
+              </div>
+              <button 
+                type="button" 
+                id="btnToggleCategoryList" 
+                class="btn btn-secondary btn-sm" 
+                onclick="toggleCategoryDropdown(event)" 
+                style="padding: 7px 11px; font-size: 11.5px; white-space: nowrap;"
+                title="Browse categories list"
+              >
+                <span>Categories ▾</span>
+              </button>
+            </div>
+
+            <!-- Category Popover Dropdown -->
+            <div id="categoryDropdownList" class="category-dropdown-popover" style="display: none;"></div>
+          </div>
+
+          <!-- Selected Category Items Section (Features, Components, Improvements) -->
+          <div id="categoryItemsSection" style="display: none; margin-top: 10px;">
+            <div id="selectedCategoryHeader" style="display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #ECFDF5; border: 1px solid #A7F3D0; border-radius: 8px; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #065F46; font-weight: 600;">
+                <span>📁 Category:</span>
+                <span id="selectedCategoryTitle" style="color: #047857; font-weight: 700;"></span>
+                <span id="selectedCategoryStats" style="font-size: 11px; color: #059669; font-weight: normal; background: #D1FAE5; padding: 1px 6px; border-radius: 8px;"></span>
+              </div>
+              <button type="button" onclick="promptChangeCategory()" style="background: none; border: none; font-size: 11px; color: #059669; cursor: pointer; text-decoration: underline; padding: 0;">Change</button>
+            </div>
+
+            <div class="category-items-picker">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <label style="font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; margin: 0;">
+                  Select item in this category to link:
+                </label>
+                <span id="linkedItemStatusNotice" style="font-size: 11px; color: #059669; font-weight: 600;"></span>
+              </div>
+              <select 
+                id="categoryItemSelect" 
+                class="form-select" 
+                onchange="handleCategoryItemSelect(this.value)"
+                style="font-size: 12px; font-weight: 600; background: #FFFFFF;"
+              >
+              </select>
+            </div>
+
+            <!-- Visual clickable items list grouped into Features, Components, Improvements -->
+            <div id="categoryItemsVisualList" style="margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; padding-right: 2px;">
+            </div>
+          </div>
         </div>
 
         <div class="form-group">
@@ -7887,40 +8074,7 @@
         }
       }
 
-      const productNodeSelect = document.getElementById('newProductNodeId');
-      if (productNodeSelect && backlogTree) {
-        const eligibleNodes = [];
-        function collectNodes(n, breadcrumbs = []) {
-          if (!n) return;
-          const currBreadcrumbs = (n.id === 'root') ? [] : [...breadcrumbs, n.title || 'Untitled'];
-          const isContainer = isCategoryFolder(n) || n.type === 'container';
-          if (!isContainer && n.id !== 'root') {
-            eligibleNodes.push({
-              id: n.id,
-              title: n.title,
-              type: n.type || 'feature',
-              taskId: n.taskId,
-              path: currBreadcrumbs.join(' › ')
-            });
-          }
-          if (Array.isArray(n.children)) {
-            n.children.forEach(c => collectNodes(c, currBreadcrumbs));
-          }
-        }
-        collectNodes(backlogTree);
-        let opts = `<option value="">-- Not linked / Standalone task --</option>`;
-        for (const item of eligibleNodes) {
-          const statusTag = item.taskId ? ` [Linked: #${item.taskId.slice(-5)}]` : '';
-          const icon = item.type === 'component' ? '🧩 ' : (item.type === 'bug' ? '🐛 ' : '✨ ');
-          opts += `<option value="${item.id}" ${item.taskId ? 'disabled' : ''}>${icon}${escapeHtml(item.path)}${statusTag}</option>`;
-        }
-        productNodeSelect.innerHTML = opts;
-        if (prefill && prefill.product_node_id) {
-          productNodeSelect.value = prefill.product_node_id;
-        } else {
-          productNodeSelect.value = '';
-        }
-      }
+      initCreateModalProductPicker(prefill ? prefill.product_node_id : null);
 
       if (prefill) {
         if (prefill.title) document.getElementById('newTitle').value = prefill.title;
@@ -7931,6 +8085,433 @@
         if (prefill.scope) document.getElementById('newScope').value = prefill.scope;
         if (prefill.scopeSize) document.getElementById('newScopeSize').value = prefill.scopeSize;
       }
+    }
+
+    let currentSelectedCategoryId = null;
+
+    function getTopLevelCategories(tree) {
+      if (!tree || !Array.isArray(tree.children)) return [];
+      const categories = [];
+      for (const child of tree.children) {
+        if (!child || isCategoryFolder(child)) continue;
+        const items = getCategoryItems(child);
+        categories.push({
+          id: child.id,
+          title: child.title || 'Untitled Category',
+          description: child.description || '',
+          node: child,
+          stats: {
+            features: items.features.length,
+            components: items.components.length,
+            improvements: items.improvements.length,
+            total: items.features.length + items.components.length + items.improvements.length
+          }
+        });
+      }
+      if (categories.length === 0 && tree.children && tree.children.some(c => isCategoryFolder(c))) {
+        const items = getCategoryItems(tree);
+        categories.push({
+          id: tree.id,
+          title: tree.title || 'Product Backlog',
+          description: tree.description || '',
+          node: tree,
+          stats: {
+            features: items.features.length,
+            components: items.components.length,
+            improvements: items.improvements.length,
+            total: items.features.length + items.components.length + items.improvements.length
+          }
+        });
+      }
+      return categories;
+    }
+
+    function getCategoryItems(categoryNode) {
+      const result = {
+        features: [],
+        components: [],
+        improvements: []
+      };
+      if (!categoryNode || !Array.isArray(categoryNode.children)) return result;
+
+      function traverse(node, currentTypeHint = null, subPath = '') {
+        if (!node || node.id === 'root') return;
+
+        const isContainer = isCategoryFolder(node);
+        let typeHint = currentTypeHint;
+        if (isContainer) {
+          const lower = (node.title || '').toLowerCase().trim();
+          if (lower.startsWith('feature')) typeHint = 'feature';
+          else if (lower.startsWith('component')) typeHint = 'component';
+          else if (lower.startsWith('improvement') || lower.startsWith('bug')) typeHint = 'bug';
+        }
+
+        if (!isContainer && node !== categoryNode) {
+          let type = typeHint || node.type;
+          if (!type) {
+            const lower = (node.title || '').toLowerCase().trim();
+            if (lower.startsWith('[bug]') || lower.includes('bug') || lower.includes('improvement')) {
+              type = 'bug';
+            } else if (Array.isArray(node.children) && node.children.length > 0 && !node.children.every(c => isCategoryFolder(c))) {
+              type = 'component';
+            } else {
+              type = 'feature';
+            }
+          }
+
+          const itemRecord = {
+            id: node.id,
+            title: node.title || 'Untitled',
+            description: node.description || '',
+            type: type === 'bug' ? 'bug' : (type === 'component' ? 'component' : 'feature'),
+            taskId: node.taskId || null,
+            subPath: subPath
+          };
+
+          if (itemRecord.type === 'component') {
+            result.components.push(itemRecord);
+          } else if (itemRecord.type === 'bug') {
+            result.improvements.push(itemRecord);
+          } else {
+            result.features.push(itemRecord);
+          }
+
+          if (Array.isArray(node.children) && node.children.length > 0) {
+            const nextSubPath = subPath ? `${subPath} › ${node.title}` : node.title;
+            node.children.forEach(child => traverse(child, typeHint, nextSubPath));
+            return;
+          }
+        }
+
+        if (Array.isArray(node.children)) {
+          node.children.forEach(child => traverse(child, typeHint, subPath));
+        }
+      }
+
+      categoryNode.children.forEach(child => traverse(child, null, ''));
+      return result;
+    }
+
+    function findCategoryForNode(tree, targetId) {
+      if (!tree || !targetId) return null;
+      const categories = getTopLevelCategories(tree);
+      for (const cat of categories) {
+        if (cat.id === targetId) return cat.node;
+        let found = false;
+        function search(n) {
+          if (!n || found) return;
+          if (n.id === targetId) { found = true; return; }
+          if (Array.isArray(n.children)) n.children.forEach(search);
+        }
+        search(cat.node);
+        if (found) return cat.node;
+      }
+      return null;
+    }
+
+    function renderCategoryDropdown(query) {
+      const popover = document.getElementById('categoryDropdownList');
+      if (!popover || !backlogTree) return;
+
+      const categories = getTopLevelCategories(backlogTree);
+      const q = (query || '').trim().toLowerCase();
+      const filtered = q
+        ? categories.filter(c =>
+            c.title.toLowerCase().includes(q) ||
+            (c.description && c.description.toLowerCase().includes(q))
+          )
+        : categories;
+
+      let html = '';
+      html += `
+        <div class="category-dropdown-item" onclick="selectCategoryInCreate('')">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span>🚫</span>
+            <span style="color: var(--text-muted); font-style: italic;">-- Not linked / Standalone task --</span>
+          </div>
+        </div>
+      `;
+
+      if (filtered.length === 0) {
+        html += `<div style="padding: 10px; text-align: center; color: var(--text-muted); font-size: 12px;">No matching categories found for "${escapeHtml(q)}".</div>`;
+      } else {
+        for (const cat of filtered) {
+          const isSelected = currentSelectedCategoryId === cat.id;
+          html += `
+            <div class="category-dropdown-item ${isSelected ? 'is-selected' : ''}" onclick="selectCategoryInCreate('${cat.id}')">
+              <div style="display: flex; align-items: center; gap: 8px; overflow: hidden;">
+                <span style="font-size: 14px;">📁</span>
+                <div style="display: flex; flex-direction: column; overflow: hidden;">
+                  <span style="font-weight: 600; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cat.title)}</span>
+                  ${cat.description ? `<span style="font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(cat.description)}</span>` : ''}
+                </div>
+              </div>
+              <div class="cat-counts">
+                ${cat.stats.features > 0 ? `✨ ${cat.stats.features} ` : ''}
+                ${cat.stats.components > 0 ? `🧩 ${cat.stats.components} ` : ''}
+                ${cat.stats.improvements > 0 ? `💡 ${cat.stats.improvements}` : ''}
+                ${cat.stats.total === 0 ? 'empty' : ''}
+              </div>
+            </div>
+          `;
+        }
+      }
+
+      popover.innerHTML = html;
+    }
+
+    function openCategoryDropdown() {
+      const popover = document.getElementById('categoryDropdownList');
+      if (!popover) return;
+      const input = document.getElementById('categorySearchInput');
+      renderCategoryDropdown(input ? input.value : '');
+      popover.style.display = 'block';
+    }
+
+    function closeCategoryDropdown() {
+      const popover = document.getElementById('categoryDropdownList');
+      if (popover) popover.style.display = 'none';
+    }
+
+    function toggleCategoryDropdown(e) {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      const popover = document.getElementById('categoryDropdownList');
+      if (!popover) return;
+      if (popover.style.display === 'block') {
+        closeCategoryDropdown();
+      } else {
+        openCategoryDropdown();
+        const input = document.getElementById('categorySearchInput');
+        if (input) input.focus();
+      }
+    }
+
+    function handleCategorySearchInput(query) {
+      renderCategoryDropdown(query);
+      openCategoryDropdown();
+      const clearBtn = document.getElementById('btnClearCategorySearch');
+      if (clearBtn) {
+        clearBtn.style.display = (query || currentSelectedCategoryId) ? 'block' : 'none';
+      }
+    }
+
+    function handleCategorySearchKeydown(e) {
+      if (e.key === 'Escape') {
+        closeCategoryDropdown();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const firstItem = document.querySelector('#categoryDropdownList .category-dropdown-item:not([onclick*="selectCategoryInCreate(\'\')"])');
+        if (firstItem) {
+          firstItem.click();
+        }
+      }
+    }
+
+    function selectCategoryInCreate(catId, preselectItemId = null) {
+      currentSelectedCategoryId = catId;
+      if (!catId) {
+        clearCategorySelection();
+        return;
+      }
+
+      const categoryNode = findBacklogNode(backlogTree, catId);
+      if (!categoryNode) return;
+
+      const searchInput = document.getElementById('categorySearchInput');
+      if (searchInput) searchInput.value = categoryNode.title;
+
+      const clearBtn = document.getElementById('btnClearCategorySearch');
+      if (clearBtn) clearBtn.style.display = 'block';
+
+      closeCategoryDropdown();
+
+      const itemsSection = document.getElementById('categoryItemsSection');
+      if (itemsSection) itemsSection.style.display = 'block';
+
+      renderCategoryItems(categoryNode, preselectItemId);
+    }
+
+    function clearCategorySelection() {
+      currentSelectedCategoryId = null;
+      const hiddenInput = document.getElementById('newProductNodeId');
+      if (hiddenInput) hiddenInput.value = '';
+
+      const searchInput = document.getElementById('categorySearchInput');
+      if (searchInput) searchInput.value = '';
+
+      const clearBtn = document.getElementById('btnClearCategorySearch');
+      if (clearBtn) clearBtn.style.display = 'none';
+
+      const itemsSection = document.getElementById('categoryItemsSection');
+      if (itemsSection) itemsSection.style.display = 'none';
+
+      const itemSelect = document.getElementById('categoryItemSelect');
+      if (itemSelect) itemSelect.innerHTML = '';
+
+      const visualList = document.getElementById('categoryItemsVisualList');
+      if (visualList) visualList.innerHTML = '';
+
+      const statusNotice = document.getElementById('linkedItemStatusNotice');
+      if (statusNotice) statusNotice.innerText = '';
+
+      closeCategoryDropdown();
+    }
+
+    function promptChangeCategory() {
+      const input = document.getElementById('categorySearchInput');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+      openCategoryDropdown();
+    }
+
+    function renderCategoryItems(categoryNode, preferredItemId = null) {
+      const items = getCategoryItems(categoryNode);
+      const titleEl = document.getElementById('selectedCategoryTitle');
+      const statsEl = document.getElementById('selectedCategoryStats');
+      if (titleEl) titleEl.innerText = categoryNode.title;
+      if (statsEl) {
+        const statsText = [
+          items.features.length ? `${items.features.length} features` : '',
+          items.components.length ? `${items.components.length} components` : '',
+          items.improvements.length ? `${items.improvements.length} improvements` : ''
+        ].filter(Boolean).join(' · ') || 'No items';
+        statsEl.innerText = `(${statsText})`;
+      }
+
+      // Populate Select Dropdown
+      const selectEl = document.getElementById('categoryItemSelect');
+      if (selectEl) {
+        let opts = `
+          <option value="">-- Standalone / Category only --</option>
+          <option value="${categoryNode.id}">📁 Entire Category: ${escapeHtml(categoryNode.title)}</option>
+        `;
+        if (items.features.length > 0) {
+          opts += `<optgroup label="✨ Features (${items.features.length})">`;
+          for (const f of items.features) {
+            const prefix = f.subPath ? `${escapeHtml(f.subPath)} › ` : '';
+            const tag = f.taskId ? ` [Linked #${f.taskId.slice(-5)}]` : '';
+            opts += `<option value="${f.id}">✨ ${prefix}${escapeHtml(f.title)}${tag}</option>`;
+          }
+          opts += `</optgroup>`;
+        }
+        if (items.components.length > 0) {
+          opts += `<optgroup label="🧩 Components (${items.components.length})">`;
+          for (const c of items.components) {
+            const prefix = c.subPath ? `${escapeHtml(c.subPath)} › ` : '';
+            const tag = c.taskId ? ` [Linked #${c.taskId.slice(-5)}]` : '';
+            opts += `<option value="${c.id}">🧩 ${prefix}${escapeHtml(c.title)}${tag}</option>`;
+          }
+          opts += `</optgroup>`;
+        }
+        if (items.improvements.length > 0) {
+          opts += `<optgroup label="💡 Improvements & Fixes (${items.improvements.length})">`;
+          for (const imp of items.improvements) {
+            const prefix = imp.subPath ? `${escapeHtml(imp.subPath)} › ` : '';
+            const tag = imp.taskId ? ` [Linked #${imp.taskId.slice(-5)}]` : '';
+            opts += `<option value="${imp.id}">💡 ${prefix}${escapeHtml(imp.title)}${tag}</option>`;
+          }
+          opts += `</optgroup>`;
+        }
+        selectEl.innerHTML = opts;
+      }
+
+      // Populate Visual Cards List
+      const visualContainer = document.getElementById('categoryItemsVisualList');
+      if (visualContainer) {
+        let vHtml = '';
+        function renderGroupCards(groupTitle, groupList, icon, color) {
+          if (!groupList || groupList.length === 0) return '';
+          let g = `<div class="category-group-header" style="color: ${color};"><span>${icon} ${groupTitle} (${groupList.length})</span></div>`;
+          g += `<div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">`;
+          for (const it of groupList) {
+            const isSel = (it.id === preferredItemId);
+            const isLinked = !!it.taskId;
+            g += `
+              <div 
+                class="category-item-card ${isSel ? 'is-active' : ''} ${isLinked ? 'is-linked' : ''}" 
+                id="cat-item-card-${it.id}"
+                onclick="handleCategoryItemSelect('${it.id}')"
+                title="${escapeHtml(it.description || it.title)}${isLinked ? ' (Already linked to task #' + it.taskId.slice(-5) + ')' : ''}"
+              >
+                <span>${icon}</span>
+                <span style="font-weight: 500;">${escapeHtml(it.title)}</span>
+                ${it.subPath ? `<span class="item-tag">${escapeHtml(it.subPath)}</span>` : ''}
+                ${isLinked ? `<span class="item-tag" style="background: #FEF3C7; color: #92400E; font-weight: 600;">#${it.taskId.slice(-5)}</span>` : ''}
+                ${isSel ? `<span style="color: #059669; font-weight: 700; margin-left: 2px;">✓</span>` : ''}
+              </div>
+            `;
+          }
+          g += `</div>`;
+          return g;
+        }
+
+        vHtml += renderGroupCards('Features', items.features, '✨', '#2563EB');
+        vHtml += renderGroupCards('Components', items.components, '🧩', '#7C3AED');
+        vHtml += renderGroupCards('Improvements & Fixes', items.improvements, '💡', '#D97706');
+
+        if (!vHtml) {
+          vHtml = `<div style="font-size: 12px; color: var(--text-muted); font-style: italic; padding: 6px 0;">No sub-items in this category yet. Linking will associate with the category itself.</div>`;
+        }
+        visualContainer.innerHTML = vHtml;
+      }
+
+      if (preferredItemId) {
+        handleCategoryItemSelect(preferredItemId);
+      } else {
+        handleCategoryItemSelect('');
+      }
+    }
+
+    function handleCategoryItemSelect(nodeId) {
+      const hiddenInput = document.getElementById('newProductNodeId');
+      if (hiddenInput) hiddenInput.value = nodeId || '';
+
+      const selectEl = document.getElementById('categoryItemSelect');
+      if (selectEl && selectEl.value !== (nodeId || '')) {
+        selectEl.value = nodeId || '';
+      }
+
+      // Highlight active card
+      document.querySelectorAll('#categoryItemsVisualList .category-item-card').forEach(card => {
+        card.classList.remove('is-active');
+        const check = card.querySelector('span:last-child');
+        if (check && check.innerText === '✓') check.remove();
+      });
+
+      if (nodeId) {
+        const card = document.getElementById(`cat-item-card-${nodeId}`);
+        if (card) {
+          card.classList.add('is-active');
+          if (!card.innerText.includes('✓')) {
+            const check = document.createElement('span');
+            check.style.color = '#059669';
+            check.style.fontWeight = '700';
+            check.style.marginLeft = '2px';
+            check.innerText = '✓';
+            card.appendChild(check);
+          }
+        }
+      }
+
+      const notice = document.getElementById('linkedItemStatusNotice');
+      if (notice) {
+        if (nodeId && backlogTree) {
+          const node = findBacklogNode(backlogTree, nodeId);
+          if (node) {
+            if (node.taskId) {
+              notice.innerHTML = `<span style="color: #D97706;">⚠️ Already linked to #${escapeHtml(node.taskId.slice(-5))}</span>`;
+            } else {
+              notice.innerHTML = `<span style="color: #059669;">✓ Selected</span>`;
+            }
+          }
+        } else {
+          notice.innerText = '';
+        }
+      }
+
+      handleProductNodeSelectInCreate(nodeId);
     }
 
     function handleProductNodeSelectInCreate(nodeId) {
@@ -7949,13 +8530,45 @@
       }
     }
 
+    function initCreateModalProductPicker(initialNodeId) {
+      clearCategorySelection();
+      if (!backlogTree) return;
+
+      const categories = getTopLevelCategories(backlogTree);
+      if (!categories || categories.length === 0) return;
+
+      if (initialNodeId) {
+        const catNode = findCategoryForNode(backlogTree, initialNodeId);
+        if (catNode) {
+          selectCategoryInCreate(catNode.id, initialNodeId);
+          return;
+        }
+      }
+
+      if (categories.length === 1) {
+        selectCategoryInCreate(categories[0].id, null);
+      }
+    }
+
     function closeCreateModal() {
       document.getElementById('createModal').classList.remove('active');
       stagedCreateImages = [];
       renderStagedCreateImages();
+      clearCategorySelection();
       const form = document.getElementById('createForm');
       if (form) form.reset();
+      const titleInput = document.getElementById('newTitle');
+      if (titleInput) delete titleInput.dataset.autofilled;
+      const descInput = document.getElementById('newDescription');
+      if (descInput) delete descInput.dataset.autofilled;
     }
+
+    document.addEventListener('click', function(e) {
+      const container = document.getElementById('categorySearchContainer');
+      if (container && !container.contains(e.target)) {
+        closeCategoryDropdown();
+      }
+    });
 
     // ==========================================
     // Follow-up Task Suggestions & Flow
