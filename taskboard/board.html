@@ -8328,13 +8328,11 @@
         }
 
         const catMatches = !q || cat.title.toLowerCase().includes(q) || cat.fullTitle.toLowerCase().includes(q);
-        const features = catMatches ? cat.items.features : cat.items.features.filter(f => f.title.toLowerCase().includes(q) || f.subPath.toLowerCase().includes(q));
-        const components = catMatches ? cat.items.components : cat.items.components.filter(c => c.title.toLowerCase().includes(q) || c.subPath.toLowerCase().includes(q));
-        const improvements = catMatches ? cat.items.improvements : cat.items.improvements.filter(i => i.title.toLowerCase().includes(q) || i.subPath.toLowerCase().includes(q));
+        const matchesFeat = !q || catMatches || q.includes('feat');
+        const matchesComp = !q || catMatches || q.includes('comp');
+        const matchesImp = !q || catMatches || q.includes('imp') || q.includes('bug');
 
-        const matchesTypeFilter = q.includes('feat') || q.includes('comp') || q.includes('imp') || q.includes('bug') || q.includes('add');
-
-        if (catMatches || features.length > 0 || components.length > 0 || improvements.length > 0 || matchesTypeFilter) {
+        if (catMatches || matchesFeat || matchesComp || matchesImp) {
           totalMatches++;
           const isCatSelected = currentSelectedProductNodeId === cat.id;
 
@@ -8343,13 +8341,12 @@
               class="combobox-category-header ${isCatSelected ? 'is-selected' : ''}" 
               data-selectable="true" 
               onclick="selectProductNodeInCombobox('${cat.id}', '📁 ${escapeHtml(cat.fullTitle)}')"
-              title="Click to link to this entire category"
+              title="Link task to this directory"
             >
               <div style="display: flex; align-items: center; gap: 6px;">
                 <span>📁</span>
                 <span>${escapeHtml(cat.fullTitle)}</span>
               </div>
-              <span style="font-size: 10px; font-weight: normal; color: var(--text-muted);">${cat.stats.total} items</span>
             </div>
           `;
 
@@ -8361,140 +8358,74 @@
           const labelComp = `🧩 ${cat.title} › components`;
           const labelImp = `💡 ${cat.title} › improvements`;
 
-          // 1. Features: existing items + Add Feature
-          html += `<div class="combobox-group-label" style="color: #2563EB;"><span>✨ Features${features.length > 0 ? ` (${features.length})` : ''}</span></div>`;
-          for (const f of features) {
-            const isSel = currentSelectedProductNodeId === f.id;
-            const label = `✨ ${cat.title} › ${f.subPath ? f.subPath + ' › ' : ''}${f.title}`;
+          // 1. Features subdirectory
+          if (matchesFeat) {
             html += `
               <div 
-                class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
-                onclick="selectProductNodeInCombobox('${f.id}', '${escapeHtml(label)}')"
-                title="${escapeHtml(f.description || f.title)}"
+                class="combobox-option-item ${selFeat ? 'is-selected' : ''}" 
+                onclick="selectProductNodeInCombobox('new_under:${cat.id}:feature', '${escapeHtml(labelFeat)}')"
+                title="Add task under ${escapeHtml(cat.title)} › features/"
               >
-                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; padding-left: 12px;">
                   <span>✨</span>
                   <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    ${f.subPath ? `<span class="item-subpath">${escapeHtml(f.subPath)} ›</span>` : ''}
-                    <span>${escapeHtml(f.title)}</span>
+                    <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                    <span style="font-weight: 500;">features/</span>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                  ${f.taskId ? `<span class="item-task-badge">#${escapeHtml(f.taskId.slice(-5))}</span>` : ''}
-                  ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                  <span style="font-size: 10px; color: #2563EB; background: #EFF6FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">features</span>
+                  ${selFeat ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
                 </div>
               </div>
             `;
           }
-          html += `
-            <div 
-              class="combobox-option-item ${selFeat ? 'is-selected' : ''}" 
-              onclick="selectProductNodeInCombobox('new_under:${cat.id}:feature', '${escapeHtml(labelFeat)}')"
-              title="Add task as a feature under ${escapeHtml(cat.title)}"
-            >
-              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                <span>✨</span>
-                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
-                  <span style="font-weight: 500;">features</span>
-                </div>
-              </div>
-              <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                <span style="font-size: 10px; color: #2563EB; background: #EFF6FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Feature</span>
-                ${selFeat ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
-              </div>
-            </div>
-          `;
 
-          // 2. Components: existing items + Add Component
-          html += `<div class="combobox-group-label" style="color: #7C3AED;"><span>🧩 Components${components.length > 0 ? ` (${components.length})` : ''}</span></div>`;
-          for (const c of components) {
-            const isSel = currentSelectedProductNodeId === c.id;
-            const label = `🧩 ${cat.title} › ${c.subPath ? c.subPath + ' › ' : ''}${c.title}`;
+          // 2. Components subdirectory
+          if (matchesComp) {
             html += `
               <div 
-                class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
-                onclick="selectProductNodeInCombobox('${c.id}', '${escapeHtml(label)}')"
-                title="${escapeHtml(c.description || c.title)}"
+                class="combobox-option-item ${selComp ? 'is-selected' : ''}" 
+                onclick="selectProductNodeInCombobox('new_under:${cat.id}:component', '${escapeHtml(labelComp)}')"
+                title="Add task under ${escapeHtml(cat.title)} › components/"
               >
-                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; padding-left: 12px;">
                   <span>🧩</span>
                   <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    ${c.subPath ? `<span class="item-subpath">${escapeHtml(c.subPath)} ›</span>` : ''}
-                    <span>${escapeHtml(c.title)}</span>
+                    <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                    <span style="font-weight: 500;">components/</span>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                  ${c.taskId ? `<span class="item-task-badge">#${escapeHtml(c.taskId.slice(-5))}</span>` : ''}
-                  ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                  <span style="font-size: 10px; color: #7C3AED; background: #F5F3FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">components</span>
+                  ${selComp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
                 </div>
               </div>
             `;
           }
-          html += `
-            <div 
-              class="combobox-option-item ${selComp ? 'is-selected' : ''}" 
-              onclick="selectProductNodeInCombobox('new_under:${cat.id}:component', '${escapeHtml(labelComp)}')"
-              title="Add task as a component under ${escapeHtml(cat.title)}"
-            >
-              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                <span>🧩</span>
-                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
-                  <span style="font-weight: 500;">components</span>
-                </div>
-              </div>
-              <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                <span style="font-size: 10px; color: #7C3AED; background: #F5F3FF; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Component</span>
-                ${selComp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
-              </div>
-            </div>
-          `;
 
-          // 3. Improvements: existing items + Add Improvement
-          html += `<div class="combobox-group-label" style="color: #D97706;"><span>💡 Improvements & Fixes${improvements.length > 0 ? ` (${improvements.length})` : ''}</span></div>`;
-          for (const imp of improvements) {
-            const isSel = currentSelectedProductNodeId === imp.id;
-            const label = `💡 ${cat.title} › ${imp.subPath ? imp.subPath + ' › ' : ''}${imp.title}`;
+          // 3. Improvements subdirectory
+          if (matchesImp) {
             html += `
               <div 
-                class="combobox-option-item ${isSel ? 'is-selected' : ''}" 
-                onclick="selectProductNodeInCombobox('${imp.id}', '${escapeHtml(label)}')"
-                title="${escapeHtml(imp.description || imp.title)}"
+                class="combobox-option-item ${selImp ? 'is-selected' : ''}" 
+                onclick="selectProductNodeInCombobox('new_under:${cat.id}:bug', '${escapeHtml(labelImp)}')"
+                title="Add task under ${escapeHtml(cat.title)} › improvements/"
               >
-                <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
+                <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; padding-left: 12px;">
                   <span>💡</span>
                   <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                    ${imp.subPath ? `<span class="item-subpath">${escapeHtml(imp.subPath)} ›</span>` : ''}
-                    <span>${escapeHtml(imp.title)}</span>
+                    <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
+                    <span style="font-weight: 500;">improvements/</span>
                   </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                  ${imp.taskId ? `<span class="item-task-badge">#${escapeHtml(imp.taskId.slice(-5))}</span>` : ''}
-                  ${isSel ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
+                  <span style="font-size: 10px; color: #D97706; background: #FEF3C7; padding: 1px 6px; border-radius: 4px; font-weight: 600;">improvements</span>
+                  ${selImp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
                 </div>
               </div>
             `;
           }
-          html += `
-            <div 
-              class="combobox-option-item ${selImp ? 'is-selected' : ''}" 
-              onclick="selectProductNodeInCombobox('new_under:${cat.id}:bug', '${escapeHtml(labelImp)}')"
-              title="Add task as an improvement under ${escapeHtml(cat.title)}"
-            >
-              <div style="display: flex; align-items: center; gap: 6px; overflow: hidden;">
-                <span>💡</span>
-                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-                  <span class="item-subpath">${escapeHtml(cat.title)} ›</span>
-                  <span style="font-weight: 500;">improvements</span>
-                </div>
-              </div>
-              <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                <span style="font-size: 10px; color: #D97706; background: #FEF3C7; padding: 1px 6px; border-radius: 4px; font-weight: 600;">+ Add Improvement</span>
-                ${selImp ? '<span style="color: #059669; font-weight: 700;">✓</span>' : ''}
-              </div>
-            </div>
-          `;
         }
       }
 
