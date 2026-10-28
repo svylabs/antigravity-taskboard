@@ -4995,11 +4995,36 @@
       if (document.getElementById('newSessionStartRunning')) {
         document.getElementById('newSessionStartRunning').checked = true;
       }
-      document.getElementById('newSessionModal').classList.add('active');
+      const modalOverlay = document.getElementById('newSessionModal');
+      if (modalOverlay) {
+        modalOverlay.classList.add('active');
+        modalOverlay.scrollTop = 0;
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
     }
 
     function closeNewSessionModal() {
-      document.getElementById('newSessionModal').classList.remove('active');
+      const modalOverlay = document.getElementById('newSessionModal');
+      if (modalOverlay) {
+        if (document.activeElement && modalOverlay.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        modalOverlay.classList.remove('active');
+        modalOverlay.scrollTop = 0;
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
     }
 
     async function handleCreateSession(e) {
@@ -5092,7 +5117,18 @@
         }
       }
 
-      document.getElementById('editSessionModal').classList.add('active');
+      const modalOverlay = document.getElementById('editSessionModal');
+      if (modalOverlay) {
+        modalOverlay.classList.add('active');
+        modalOverlay.scrollTop = 0;
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
     }
 
     async function handleEditModalToggleRunning() {
@@ -5121,7 +5157,21 @@
     }
 
     function closeEditSessionModal() {
-      document.getElementById('editSessionModal').classList.remove('active');
+      const modalOverlay = document.getElementById('editSessionModal');
+      if (modalOverlay) {
+        if (document.activeElement && modalOverlay.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        modalOverlay.classList.remove('active');
+        modalOverlay.scrollTop = 0;
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
     }
 
     async function handleUpdateSession(e) {
@@ -7518,7 +7568,14 @@
 
       postProcessMarkdownInContainer(content);
 
-      document.getElementById('detailModal').classList.add('active');
+      const modalOverlay = document.getElementById('detailModal');
+      if (modalOverlay) {
+        modalOverlay.classList.add('active');
+        modalOverlay.scrollTop = 0;
+        if (typeof modalOverlay.scrollTo === 'function') {
+          modalOverlay.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }
+      }
       loadAttachments(id);
       loadSubtasks(id);
       loadComments(id, !isBacklog);
@@ -7526,6 +7583,10 @@
       // Auto-hide details when user scrolls down (only if not editing)
       const modalBox = document.querySelector('#detailModal .modal');
       if (modalBox) {
+        modalBox.scrollTop = 0;
+        if (typeof modalBox.scrollTo === 'function') {
+          modalBox.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }
         modalBox.onscroll = () => {
           const editMode = document.getElementById('detailsEditMode');
           if (editMode && editMode.style.display === 'block') return;
@@ -7534,6 +7595,14 @@
           }
         };
       }
+      requestAnimationFrame(() => {
+        if (modalBox) {
+          modalBox.scrollTop = 0;
+          if (typeof modalBox.scrollTo === 'function') {
+            modalBox.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      });
     }
 
     async function loadSubtasks(taskId) {
@@ -7996,7 +8065,21 @@
     }
 
     function openCreateModal(prefill) {
-      document.getElementById('createModal').classList.add('active');
+      const modalOverlay = document.getElementById('createModal');
+      if (!modalOverlay) return;
+      modalOverlay.classList.add('active');
+
+      const modalContainer = modalOverlay.querySelector('.modal');
+      if (modalContainer) {
+        modalContainer.scrollTop = 0;
+        if (typeof modalContainer.scrollTo === 'function') {
+          modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }
+      }
+      modalOverlay.scrollTop = 0;
+      if (typeof modalOverlay.scrollTo === 'function') {
+        modalOverlay.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }
 
       const sessionSelect = document.getElementById('newSessionId');
       if (sessionSelect) {
@@ -8024,6 +8107,20 @@
         if (prefill.scope) document.getElementById('newScope').value = prefill.scope;
         if (prefill.scopeSize) document.getElementById('newScopeSize').value = prefill.scopeSize;
       }
+
+      requestAnimationFrame(() => {
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+        modalOverlay.scrollTop = 0;
+        const titleInput = document.getElementById('newTitle');
+        if (titleInput) {
+          titleInput.focus({ preventScroll: true });
+        }
+      });
     }
 
     let currentSelectedProductNodeId = null;
@@ -8517,7 +8614,24 @@
     }
 
     function closeCreateModal() {
-      document.getElementById('createModal').classList.remove('active');
+      const modalOverlay = document.getElementById('createModal');
+      if (modalOverlay) {
+        if (document.activeElement && modalOverlay.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        modalOverlay.classList.remove('active');
+        modalOverlay.scrollTop = 0;
+        if (typeof modalOverlay.scrollTo === 'function') {
+          modalOverlay.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
       stagedCreateImages = [];
       renderStagedCreateImages();
       clearProductCombobox();
@@ -8845,7 +8959,21 @@
     }
 
     function closeFollowupModal() {
-      document.getElementById('followupModal').classList.remove('active');
+      const modalOverlay = document.getElementById('followupModal');
+      if (modalOverlay) {
+        if (document.activeElement && modalOverlay.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        modalOverlay.classList.remove('active');
+        modalOverlay.scrollTop = 0;
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
     }
 
     function openCreateModalFromFollowup() {
@@ -9001,7 +9129,24 @@
     }
 
     function closeDetailModal() {
-      document.getElementById('detailModal').classList.remove('active');
+      const modalOverlay = document.getElementById('detailModal');
+      if (modalOverlay) {
+        if (document.activeElement && modalOverlay.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+        modalOverlay.classList.remove('active');
+        modalOverlay.scrollTop = 0;
+        if (typeof modalOverlay.scrollTo === 'function') {
+          modalOverlay.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        }
+        const modalContainer = modalOverlay.querySelector('.modal');
+        if (modalContainer) {
+          modalContainer.scrollTop = 0;
+          if (typeof modalContainer.scrollTo === 'function') {
+            modalContainer.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+          }
+        }
+      }
       currentTaskId = null;
       currentAttachments = [];
     }
