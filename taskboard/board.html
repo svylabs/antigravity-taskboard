@@ -7066,6 +7066,12 @@
             </div>
             <div class="card-title">${escapeHtml(task.title)}</div>
             ${subtaskHtml}
+            ${(col === 'planned' && !isAutonomousModeActive) ? `
+              <div style="margin-top: 8px; padding-top: 6px; border-top: 1px dashed #E2E8F0; display: flex; justify-content: space-between; align-items: center; gap: 6px;">
+                <span style="font-size: 11px; font-weight: 600; color: #6B21A8; display: inline-flex; align-items: center; gap: 4px;">📋 Plan Ready</span>
+                <button type="button" class="btn btn-sm btn-primary" onclick="event.stopPropagation(); handleProceedPlan('${task.id}')" style="background: #16A34A; border-color: #15803D; font-size: 11px; padding: 2px 10px; border-radius: 4px; font-weight: 600;" title="Approve plan and begin work">▶️ Proceed</button>
+              </div>
+            ` : ''}
             <div class="card-footer">
               ${verifyBadge}
               <div class="card-counts">
@@ -7289,6 +7295,16 @@
             </div>
           </div>
         ` : ''}
+
+        <!-- Dedicated Implementation Plan Hero Card (when in Planned status) -->
+        <div id="planHighlightContainer">
+          ${task.status === 'planned' ? `
+            <div class="plan-hero-card" style="background: #FAF5FF; border: 1px dashed #C084FC; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">📋</span>
+              <div style="font-size: 12px; color: #581C87; font-weight: 600;">Loading Implementation Plan...</div>
+            </div>
+          ` : ''}
+        </div>
 
         <!-- Collapsible Task Details (Click Down Arrow to show/hide) -->
         <div class="task-details-collapsible ${isBacklog ? 'open' : ''}" id="taskDetailsContainer">
@@ -7693,15 +7709,70 @@
 
     async function loadComments(taskId, autoScroll = false) {
       try {
+        const task = tasks.find(t => t.id === taskId) || {};
         const res = await fetch(`/api/tasks/${taskId}/comments`);
         const data = await res.json();
         const list = document.getElementById('commentsList');
         const countBadge = document.getElementById('modalCommentCount');
+        const planHighlight = document.getElementById('planHighlightContainer');
         
         if (!data.success || data.comments.length === 0) {
           list.innerHTML = `<div style="font-size: 12px; color: #94A3B8; text-align: center; padding: 12px;">No activity yet. Agent questions, plans, and notes will appear here.</div>`;
           countBadge.innerText = '0';
+          if (planHighlight) {
+            if (task.status === 'planned') {
+              planHighlight.innerHTML = `
+                <div class="plan-hero-card" style="background: #FAF5FF; border: 1px dashed #C084FC; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 16px;">📋</span>
+                  <div style="font-size: 12px; color: #581C87; font-weight: 600;">Status is Planned • Waiting for AI agent to formulate implementation plan...</div>
+                </div>
+              `;
+            } else {
+              planHighlight.innerHTML = '';
+            }
+          }
           return;
+        }
+
+        // Render dedicated implementation plan hero block if task is planned
+        if (planHighlight) {
+          const planComments = (data.comments || []).filter(c => c.comment_type === 'plan');
+          if (task.status === 'planned' && planComments.length > 0) {
+            const latestPlan = planComments[planComments.length - 1];
+            planHighlight.innerHTML = `
+              <div class="plan-hero-card" style="background: #FAF5FF; border: 1.5px solid #C084FC; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(168, 85, 247, 0.08);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 18px;">📋</span>
+                    <div>
+                      <div style="font-size: 13.5px; font-weight: 700; color: #581C87;">Implementation Plan</div>
+                      <div style="font-size: 11px; color: #7E22CE;">Proposed by <b>${escapeHtml(latestPlan.author)}</b> • ${formatDate(latestPlan.created_at)}</div>
+                    </div>
+                  </div>
+                  ${!isAutonomousModeActive ? `
+                    <button type="button" class="btn btn-sm btn-primary" onclick="handleProceedPlan('${taskId}')" style="background: #16A34A; border-color: #15803D; font-size: 12px; font-weight: 700; padding: 6px 16px; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" title="Approve plan and trigger agent execution">
+                      <span>▶️ Proceed with Plan</span>
+                    </button>
+                  ` : `
+                    <span style="font-size: 11px; color: #047857; background: #DCFCE7; padding: 3px 10px; border-radius: 4px; font-weight: 600;">⚡ Auto-executing</span>
+                  `}
+                </div>
+                <div class="form-formatted-text" style="background: #FFFFFF; border: 1px solid #E9D5FF; border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.55; max-height: 360px; overflow-y: auto;">
+                  ${renderMarkdown(latestPlan.content)}
+                </div>
+              </div>
+            `;
+            postProcessMarkdownInContainer(planHighlight);
+          } else if (task.status === 'planned') {
+            planHighlight.innerHTML = `
+              <div class="plan-hero-card" style="background: #FAF5FF; border: 1px dashed #C084FC; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 16px;">📋</span>
+                <div style="font-size: 12px; color: #581C87; font-weight: 600;">Status is Planned • Waiting for AI agent to formulate implementation plan...</div>
+              </div>
+            `;
+          } else {
+            planHighlight.innerHTML = '';
+          }
         }
 
         countBadge.innerText = data.comments.length;
@@ -7770,9 +7841,11 @@
         });
         if (res.ok) {
           attentionManager.taskActedOn(id);
-          await loadComments(id, true);
+          if (currentTaskId === id) {
+            await loadComments(id, true);
+          }
           await fetchTasks();
-          showToast('Comment "Proceed" posted successfully.', 'success');
+          showToast('Plan approved. Posted "Proceed" for agent.', 'success');
         } else {
           showToast('Failed to post proceed comment.', 'error');
         }
