@@ -514,6 +514,14 @@
       border-color: #CBD5E1;
     }
 
+    .btn.btn-active, .btn-secondary.btn-active {
+      background: #EFF6FF !important;
+      border-color: #3B82F6 !important;
+      color: #1D4ED8 !important;
+      font-weight: 600 !important;
+      box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.25);
+    }
+
     /* Audio Alert Controls & Notifications */
     .btn-audio-toggle {
       position: relative;
@@ -810,23 +818,81 @@
     /* Board Area */
     .board-container {
       flex: 1;
-      padding: 24px 28px;
+      padding: 16px 20px;
       overflow-x: auto;
       display: flex;
-      gap: 20px;
+      gap: 12px;
       align-items: flex-start;
+      transition: padding 0.2s ease, gap 0.2s ease;
     }
 
     .column {
       background: #F1F5F9;
       border: 1px solid #E2E8F0;
-      border-radius: 16px;
-      width: 320px;
-      min-width: 320px;
+      border-radius: 14px;
+      flex: 1 1 240px;
+      min-width: 200px;
+      max-width: 380px;
       max-height: calc(100vh - 120px);
       display: flex;
       flex-direction: column;
       box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+      transition: min-width 0.2s ease, max-width 0.2s ease, width 0.2s ease;
+    }
+
+    /* Fit Screen (Fluid All Lists Visible) Mode */
+    @media (min-width: 769px) {
+      .board-container.board-fit-screen {
+        overflow-x: hidden;
+        padding: 12px 14px;
+        gap: 8px;
+      }
+
+      .board-container.board-fit-screen .column:not(.column-backlog-tree) {
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: none;
+        width: auto;
+      }
+
+      .board-container.board-fit-screen .column-header {
+        padding: 10px 10px;
+      }
+
+      .board-container.board-fit-screen .col-title {
+        font-size: 11.5px;
+        gap: 4px;
+        letter-spacing: 0.2px;
+      }
+
+      .board-container.board-fit-screen .col-count {
+        font-size: 10px;
+        padding: 1px 6px;
+      }
+
+      .board-container.board-fit-screen .card-list {
+        padding: 8px 6px;
+        gap: 8px;
+      }
+
+      .board-container.board-fit-screen .task-card {
+        padding: 10px 8px;
+      }
+
+      .board-container.board-fit-screen .card-title {
+        font-size: 12.5px;
+        line-height: 1.35;
+        margin-bottom: 6px;
+      }
+
+      .board-container.board-fit-screen .card-footer {
+        font-size: 10px;
+      }
+
+      .board-container.board-fit-screen .column[data-status="done"] .column-header a.btn {
+        padding: 1px 5px !important;
+        font-size: 10px !important;
+      }
     }
 
     .column-header {
@@ -944,7 +1010,87 @@
       min-width: 320px;
       max-width: min(90vw, 1200px);
       flex-shrink: 0;
-      transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Product Doc Minimized Slim Bar */
+    .product-doc-minimized-bar {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      height: 100%;
+      padding: 12px 4px;
+      gap: 12px;
+      cursor: pointer;
+    }
+
+    .btn-expand-product-doc {
+      background: #FFFFFF;
+      border: 1px solid #CBD5E1;
+      border-radius: 6px;
+      width: 26px;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #334155;
+      cursor: pointer;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: all 0.15s ease;
+    }
+
+    .btn-expand-product-doc:hover {
+      background: #EFF6FF;
+      border-color: #3B82F6;
+      color: #1D4ED8;
+      transform: scale(1.05);
+    }
+
+    .product-doc-vertical-label {
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      font-size: 12px;
+      font-weight: 700;
+      color: #475569;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      user-select: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .column-backlog-tree.is-minimized {
+      width: 44px !important;
+      min-width: 44px !important;
+      max-width: 44px !important;
+      padding: 0 !important;
+      cursor: pointer;
+      overflow: hidden;
+      user-select: none;
+      background: #F8FAFC;
+      border: 1px solid #CBD5E1;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+      transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease;
+    }
+
+    .column-backlog-tree.is-minimized:hover {
+      background: #F1F5F9;
+      border-color: #94A3B8;
+    }
+
+    .column-backlog-tree.is-minimized .product-doc-minimized-bar {
+      display: flex;
+    }
+
+    .column-backlog-tree.is-minimized .column-header,
+    .column-backlog-tree.is-minimized .backlog-file-bar,
+    .column-backlog-tree.is-minimized .backlog-tree-container,
+    .column-backlog-tree.is-minimized .column-resizer {
+      display: none !important;
     }
 
     .column-backlog-tree.is-resizing {
@@ -3525,6 +3671,12 @@
           <span id="saveProductTopLabel">Save</span>
           <span class="save-product-badge"></span>
         </button>
+        <button class="btn btn-secondary btn-toggle-doc" id="btnToggleProductDocTop" onclick="toggleMinimizeProductDoc(event)" title="Minimize / Expand Product Doc to view full board (Alt+B)">
+          <span>📖</span><span id="labelToggleProductDocTop">Doc</span>
+        </button>
+        <button class="btn btn-secondary btn-layout-mode" id="btnToggleLayoutMode" onclick="toggleLayoutFitMode(event)" title="Toggle View: Fit Screen (No horizontal scroll) vs Scroll View">
+          <span>↔️</span><span id="labelLayoutMode">Fit Screen</span>
+        </button>
         <button class="btn btn-secondary btn-feat-action" onclick="openInlineDraft('root', event)" title="Add feature to product doc">
           <span>🔷</span><span>Feature</span>
         </button>
@@ -3710,9 +3862,32 @@
 
   <!-- Kanban Columns -->
   <div class="board-container" id="board">
+    <script>
+      try {
+        if (localStorage.getItem('tb_product_doc_minimized') === 'true') {
+          document.getElementById('colProductDoc')?.classList.add('is-minimized');
+        }
+        const savedFit = localStorage.getItem('tb_board_fit_mode');
+        if (savedFit === 'fit' || (savedFit === null && window.innerWidth >= 1024)) {
+          document.getElementById('board')?.classList.add('board-fit-screen');
+        }
+      } catch (e) {}
+    </script>
     <!-- Product Doc Tree Column -->
     <div class="column column-backlog-tree" data-status="backlog" id="colProductDoc">
       <div class="column-resizer" id="productDocResizer" title="Drag to resize Product Doc horizontally"></div>
+
+      <!-- Minimized Slim Bar (Visible only when is-minimized) -->
+      <div class="product-doc-minimized-bar" id="productDocMinimizedBar" onclick="toggleMinimizeProductDoc(event)" title="Click to expand Product Doc (Alt+B)">
+        <button type="button" class="btn-expand-product-doc" onclick="toggleMinimizeProductDoc(event)" title="Expand Product Doc">
+          ▶
+        </button>
+        <span class="col-count" id="minimizedCountBacklog" style="font-size: 10px; padding: 2px 5px; border-radius: 10px; background: #E2E8F0; color: #475569; font-weight: 700;">0</span>
+        <div class="product-doc-vertical-label">
+          <span>📖 Product Doc</span>
+        </div>
+      </div>
+
       <div class="column-header">
         <div style="display: flex; align-items: center; gap: 8px;">
           <span class="col-title">📖 Product Doc</span>
@@ -3722,6 +3897,7 @@
           <button class="tree-header-btn" onclick="openInlineDraft('root', event)" title="Add feature in place">➕</button>
           <button class="tree-header-btn" id="btnToggleExpandTree" onclick="toggleExpandAllBacklogTree()" title="Expand / Collapse all items">↕️</button>
           <button class="tree-header-btn" id="btnResizeProductDoc" onclick="cycleProductDocWidth()" title="Cycle width: Standard (360px) → Wide (600px) → Ultra-wide (880px)">↔️</button>
+          <button class="tree-header-btn btn-minimize-doc" id="btnMinimizeProductDoc" onclick="toggleMinimizeProductDoc(event)" title="Minimize Product Doc to view full task board (Alt+B)">◀</button>
         </div>
       </div>
       <div class="backlog-file-bar" id="backlogFileBar">
@@ -5410,6 +5586,8 @@
           const fileLabel = document.getElementById('backlogFilePath');
           if (countBadge) countBadge.innerText = backlogCount;
           if (tabCountBadge) tabCountBadge.innerText = backlogCount;
+          const minCountBadge = document.getElementById('minimizedCountBacklog');
+          if (minCountBadge) minCountBadge.innerText = backlogCount;
           if (fileLabel && backlogFilePath) {
             const base = backlogFilePath.split('/').pop() || 'product.yaml';
             fileLabel.innerText = '📄 ' + base;
@@ -5459,6 +5637,11 @@
     function applyProductDocWidth(width, save = true) {
       const col = document.getElementById('colProductDoc');
       if (!col) return;
+      if (col.classList.contains('is-minimized')) {
+        col.classList.remove('is-minimized');
+        isProductDocMinimized = false;
+        try { localStorage.setItem('tb_product_doc_minimized', 'false'); } catch (e) {}
+      }
       const maxAllowed = Math.min(window.innerWidth * 0.9, 1200);
       const clampedWidth = Math.round(Math.max(320, Math.min(width, maxAllowed)));
       col.style.setProperty('--product-doc-width', `${clampedWidth}px`);
@@ -5473,6 +5656,11 @@
     function cycleProductDocWidth() {
       const col = document.getElementById('colProductDoc');
       if (!col) return;
+      if (col.classList.contains('is-minimized')) {
+        applyProductDocMinimized(false, true);
+        showToast('📖 Product Doc expanded');
+        return;
+      }
       const currentWidth = col.getBoundingClientRect().width;
       let nextPreset = PRODUCT_DOC_WIDTH_PRESETS[0];
       for (const preset of PRODUCT_DOC_WIDTH_PRESETS) {
@@ -5508,6 +5696,7 @@
 
       function onPointerDown(e) {
         if (window.innerWidth <= 640) return; // Ignore on mobile
+        if (col.classList.contains('is-minimized')) return; // Ignore when minimized
         isDragging = true;
         startX = e.clientX || (e.touches && e.touches[0] ? e.touches[0].clientX : 0);
         startWidth = col.getBoundingClientRect().width;
@@ -5548,6 +5737,127 @@
 
       resizer.addEventListener('mousedown', onPointerDown);
       resizer.addEventListener('touchstart', onPointerDown, { passive: false });
+    }
+
+    // --- Product Doc Minimize & Responsive Fit Screen Layout ---
+    let isProductDocMinimized = false;
+    let isBoardFitMode = true;
+
+    function toggleMinimizeProductDoc(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      isProductDocMinimized = !isProductDocMinimized;
+      applyProductDocMinimized(isProductDocMinimized, true);
+    }
+
+    function applyProductDocMinimized(minimized, save = true) {
+      const col = document.getElementById('colProductDoc');
+      const topBtnLabel = document.getElementById('labelToggleProductDocTop');
+      const topBtn = document.getElementById('btnToggleProductDocTop');
+      if (!col) return;
+
+      isProductDocMinimized = Boolean(minimized);
+      if (isProductDocMinimized) {
+        col.classList.add('is-minimized');
+        col.title = 'Click to expand Product Doc (Alt+B)';
+        if (topBtnLabel) topBtnLabel.innerText = 'Show Doc';
+        if (topBtn) {
+          topBtn.classList.add('btn-active');
+          topBtn.title = 'Product Doc is minimized. Click to expand (Alt+B).';
+        }
+      } else {
+        col.classList.remove('is-minimized');
+        col.title = '';
+        if (topBtnLabel) topBtnLabel.innerText = 'Doc';
+        if (topBtn) {
+          topBtn.classList.remove('btn-active');
+          topBtn.title = 'Minimize Product Doc to view full task board (Alt+B)';
+        }
+        let width = 360;
+        try {
+          const savedWidth = localStorage.getItem('tb_product_doc_width');
+          if (savedWidth) width = parseInt(savedWidth, 10) || 360;
+        } catch (e) {}
+        const maxAllowed = Math.min(window.innerWidth * 0.9, 1200);
+        const clampedWidth = Math.round(Math.max(320, Math.min(width, maxAllowed)));
+        col.style.setProperty('--product-doc-width', `${clampedWidth}px`);
+        col.style.width = `${clampedWidth}px`;
+      }
+
+      // Sync minimized count badge
+      const countEl = document.getElementById('count-backlog');
+      const minCountEl = document.getElementById('minimizedCountBacklog');
+      if (countEl && minCountEl) {
+        minCountEl.innerText = countEl.innerText;
+      }
+
+      if (save) {
+        try {
+          localStorage.setItem('tb_product_doc_minimized', isProductDocMinimized ? 'true' : 'false');
+        } catch (e) {}
+      }
+    }
+
+    function toggleLayoutFitMode(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      isBoardFitMode = !isBoardFitMode;
+      applyBoardFitMode(isBoardFitMode, true);
+    }
+
+    function applyBoardFitMode(fitMode, save = true) {
+      const board = document.getElementById('board');
+      const label = document.getElementById('labelLayoutMode');
+      const btn = document.getElementById('btnToggleLayoutMode');
+      if (!board) return;
+
+      isBoardFitMode = Boolean(fitMode);
+      if (isBoardFitMode) {
+        board.classList.add('board-fit-screen');
+        if (label) label.innerText = 'Fit Screen';
+        if (btn) {
+          btn.classList.add('btn-active');
+          btn.title = 'Fit Screen Active (All lists fit without horizontal scrolling). Click to switch to Scrollable view.';
+        }
+      } else {
+        board.classList.remove('board-fit-screen');
+        if (label) label.innerText = 'Scroll View';
+        if (btn) {
+          btn.classList.remove('btn-active');
+          btn.title = 'Scrollable View Active (Wide cards with horizontal scroll). Click to switch to Fit Screen.';
+        }
+      }
+
+      if (save) {
+        try {
+          localStorage.setItem('tb_board_fit_mode', isBoardFitMode ? 'fit' : 'scroll');
+        } catch (e) {}
+      }
+    }
+
+    function initLayoutModes() {
+      // 1. Restore Product Doc Minimized
+      try {
+        const savedDocMin = localStorage.getItem('tb_product_doc_minimized');
+        if (savedDocMin !== null) {
+          applyProductDocMinimized(savedDocMin === 'true', false);
+        }
+      } catch (e) {}
+
+      // 2. Restore Fit Screen Mode
+      try {
+        const savedFitMode = localStorage.getItem('tb_board_fit_mode');
+        if (savedFitMode !== null) {
+          applyBoardFitMode(savedFitMode === 'fit', false);
+        } else {
+          // Default to Fit Screen on desktop/laptop (screen width >= 1024px)
+          applyBoardFitMode(window.innerWidth >= 1024, false);
+        }
+      } catch (e) {}
     }
 
     function toggleNodeCollapse(nodeId, e) {
@@ -5739,6 +6049,8 @@
 
       if (countBadge) countBadge.innerText = backlogCount;
       if (tabCountBadge) tabCountBadge.innerText = backlogCount;
+      const minCountBadge = document.getElementById('minimizedCountBacklog');
+      if (minCountBadge) minCountBadge.innerText = backlogCount;
       if (fileLabel && backlogFilePath) {
         const base = backlogFilePath.split('/').pop() || 'product.yaml';
         fileLabel.innerText = '📄 ' + base;
@@ -9954,12 +10266,16 @@
     fetchTasks();
     fetchBacklog(true);
     initProductDocResizer();
+    initLayoutModes();
     loadProjects();
     setInterval(fetchTasks, 3000);
     setInterval(() => fetchBacklog(false), 5000);
     setInterval(loadProjects, 10000);
 
     function scrollToColumn(status, btn) {
+      if (status === 'backlog' && isProductDocMinimized) {
+        applyProductDocMinimized(false, true);
+      }
       const col = document.querySelector(`.column[data-status="${status}"]`);
       const board = document.getElementById('board');
       if (col && board) {
@@ -10021,6 +10337,16 @@
         const detailModal = document.getElementById('detailModal');
         if (detailModal && detailModal.classList.contains('active')) {
           closeDetailModal();
+          return;
+        }
+      }
+
+      // Alt+B or Ctrl+B / Cmd+B to toggle Product Doc minimization (when not typing in form inputs)
+      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName);
+      if (!isInput) {
+        if ((e.altKey && e.key.toLowerCase() === 'b') || ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b')) {
+          e.preventDefault();
+          toggleMinimizeProductDoc();
           return;
         }
       }
