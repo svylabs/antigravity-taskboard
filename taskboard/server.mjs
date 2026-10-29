@@ -910,6 +910,25 @@ const server = http.createServer(async (req, res) => {
         projectName: info.projectName,
         db
       });
+      if (result && result.node && result.node.taskId) {
+        try {
+          const existingTask = getTaskById(result.node.taskId);
+          if (existingTask) {
+            const taskUpdates = {};
+            if (body.title !== undefined && body.title.trim()) taskUpdates.title = body.title.trim();
+            if (body.description !== undefined) taskUpdates.description = body.description.trim();
+            if (body.priority !== undefined) taskUpdates.priority = body.priority;
+            if (body.subagent_role !== undefined) taskUpdates.subagent_role = body.subagent_role;
+            if (body.scope_size !== undefined) taskUpdates.scope_size = body.scope_size;
+            if (body.acceptance_criteria !== undefined) taskUpdates.acceptance_criteria = body.acceptance_criteria;
+            if (body.verification_cmd !== undefined) taskUpdates.verification_cmd = body.verification_cmd;
+            if (body.status !== undefined) taskUpdates.status = body.status;
+            if (Object.keys(taskUpdates).length > 0) {
+              updateTask(result.node.taskId, taskUpdates);
+            }
+          }
+        } catch {}
+      }
       return sendJson(res, 200, result);
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });

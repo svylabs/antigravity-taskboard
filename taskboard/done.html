@@ -850,11 +850,11 @@
         <div class="filter-group">
           <span class="filter-label">Group By:</span>
           <select class="form-select" id="groupBySelect" onchange="handleGroupByChange(this.value)">
-            <option value="scope" selected>🏷️ Label / Scope</option>
+            <option value="date" selected>📅 Date Completed</option>
+            <option value="none">📋 Flat List (No Grouping)</option>
+            <option value="scope">🏷️ Label / Scope</option>
             <option value="role">👷 Subagent Role</option>
             <option value="priority">🔥 Priority</option>
-            <option value="date">📅 Date Completed</option>
-            <option value="none">📋 Flat List (No Grouping)</option>
           </select>
         </div>
 
@@ -960,7 +960,7 @@
     let allTasks = [];
     let doneTasks = [];
     let allSessions = [];
-    let currentGroupBy = 'scope';
+    let currentGroupBy = 'date';
     let searchQuery = '';
     const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
 
@@ -1262,12 +1262,25 @@
 
       // Priority ordering for certain group keys
       const groupArray = Object.values(groups);
+      const sortVal = document.getElementById('sortSelect') ? document.getElementById('sortSelect').value : 'newest';
       if (groupBy === 'priority') {
         const order = ['urgent', 'high', 'medium', 'low'];
         groupArray.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
       } else if (groupBy === 'date') {
         const order = ['today', 'yesterday', 'last_7_days', 'last_30_days', 'older'];
         groupArray.sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+      } else if (sortVal === 'newest') {
+        groupArray.sort((a, b) => {
+          const latestA = a.tasks.length ? parseTaskDate(a.tasks[0]).getTime() : 0;
+          const latestB = b.tasks.length ? parseTaskDate(b.tasks[0]).getTime() : 0;
+          return latestB !== latestA ? latestB - latestA : a.title.localeCompare(b.title);
+        });
+      } else if (sortVal === 'oldest') {
+        groupArray.sort((a, b) => {
+          const oldestA = a.tasks.length ? parseTaskDate(a.tasks[0]).getTime() : 0;
+          const oldestB = b.tasks.length ? parseTaskDate(b.tasks[0]).getTime() : 0;
+          return oldestA !== oldestB ? oldestA - oldestB : a.title.localeCompare(b.title);
+        });
       } else {
         groupArray.sort((a, b) => a.title.localeCompare(b.title));
       }

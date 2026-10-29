@@ -1006,8 +1006,8 @@
       background: #F8FAFC;
       border: 1px solid #E2E8F0;
       position: relative;
-      width: var(--product-doc-width, 360px);
-      min-width: 320px;
+      width: var(--product-doc-width, 420px);
+      min-width: 350px;
       max-width: min(90vw, 1200px);
       flex-shrink: 0;
       transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1187,14 +1187,15 @@
 
     .backlog-tree-node {
       position: relative;
-      margin: 3px 0;
+      margin: 4px 0;
     }
 
     .tree-node-row {
       display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 8px;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      padding: 8px 10px;
       border-radius: 8px;
       background: white;
       border: 1px solid #E2E8F0;
@@ -1205,6 +1206,135 @@
       color: #1E293B;
       position: relative;
       user-select: none;
+    }
+
+    .tree-node-top {
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      width: 100%;
+    }
+
+    .tree-node-badges {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    .tree-node-verbose-body {
+      padding-left: 24px;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .tree-node-desc-preview {
+      font-size: 11.5px;
+      font-weight: 400;
+      color: #475569;
+      line-height: 1.45;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: pre-line;
+      word-break: break-word;
+    }
+
+    .tree-node-att-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 1px;
+    }
+
+    .tree-node-att-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #4338CA;
+      background: #EEF2FF;
+      border: 1px solid #C7D2FE;
+      border-radius: 4px;
+      padding: 1px 6px;
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tree-inline-card.is-view-mode {
+      border-color: #818CF8;
+      background: #FFFFFF;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.1);
+    }
+
+    .tree-view-title-box {
+      padding: 6px 9px;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      background: #F8FAFC;
+      cursor: text;
+      transition: all 0.15s ease;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .tree-view-title-box:hover {
+      border-color: #CBD5E1;
+      background: #F1F5F9;
+    }
+
+    .tree-view-title-text {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0F172A;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .tree-view-desc-box {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #E2E8F0;
+      background: #F8FAFC;
+      font-size: 12.5px;
+      line-height: 1.55;
+      color: #1E293B;
+      cursor: text;
+      transition: all 0.15s ease;
+      min-height: 42px;
+      word-break: break-word;
+    }
+
+    .tree-view-desc-box:hover {
+      border-color: #94A3B8;
+      background: #F1F5F9;
+    }
+
+    .tree-view-desc-box p:last-child,
+    .tree-view-desc-box ul:last-child,
+    .tree-view-desc-box ol:last-child {
+      margin-bottom: 0;
+    }
+
+    .tree-view-edit-hint {
+      font-size: 10px;
+      font-weight: 600;
+      color: #6366F1;
+      opacity: 0.75;
+      flex-shrink: 0;
+      white-space: nowrap;
     }
 
     .tree-node-row:hover {
@@ -1434,10 +1564,11 @@
 
     .tree-node-title {
       flex: 1 1 auto;
-      min-width: 60px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      min-width: 80px;
+      white-space: normal;
+      word-break: break-word;
+      line-height: 1.35;
+      font-weight: 600;
       padding-right: 4px;
     }
 
@@ -5459,6 +5590,7 @@
     let backlogCount = 0;
     let backlogFilePath = 'product.yaml';
     const collapsedNodes = new Set();
+    let activeViewNodeId = null;
     let activeEditNodeId = null;
     let addingChildUnderParentId = null;
     let showConvertDrawerForNodeId = null;
@@ -5594,13 +5726,14 @@
             fileLabel.title = `Living product specification stored in ${backlogFilePath} (checked into git)`;
           }
 
-          // Do NOT re-render during background polling if user is drafting, editing, or typing in Product Doc
+          // Do NOT re-render during background polling if user is drafting, editing, viewing, or typing in Product Doc
           const container = document.getElementById('backlogTreeContainer');
           const isFocusedInDoc = container && container.contains(document.activeElement);
           const isDrafting = addingChildUnderParentId !== null;
           const isEditing = activeEditNodeId !== null;
+          const isViewing = activeViewNodeId !== null;
 
-          if (!forceRender && (isDrafting || isEditing || isFocusedInDoc)) {
+          if (!forceRender && (isDrafting || isEditing || isViewing || isFocusedInDoc)) {
             return;
           }
 
@@ -5632,7 +5765,7 @@
     }
 
     // --- Product Doc Column Resizer ---
-    const PRODUCT_DOC_WIDTH_PRESETS = [360, 600, 880];
+    const PRODUCT_DOC_WIDTH_PRESETS = [420, 620, 880];
 
     function applyProductDocWidth(width, save = true) {
       const col = document.getElementById('colProductDoc');
@@ -5643,7 +5776,7 @@
         try { localStorage.setItem('tb_product_doc_minimized', 'false'); } catch (e) {}
       }
       const maxAllowed = Math.min(window.innerWidth * 0.9, 1200);
-      const clampedWidth = Math.round(Math.max(320, Math.min(width, maxAllowed)));
+      const clampedWidth = Math.round(Math.max(350, Math.min(width, maxAllowed)));
       col.style.setProperty('--product-doc-width', `${clampedWidth}px`);
       col.style.width = `${clampedWidth}px`;
       if (save) {
@@ -5670,7 +5803,7 @@
         }
       }
       applyProductDocWidth(nextPreset, true);
-      const label = nextPreset === 360 ? 'Standard (360px)' : nextPreset === 600 ? 'Wide (600px)' : 'Ultra-wide (880px)';
+      const label = nextPreset === 420 ? 'Standard (420px)' : nextPreset === 620 ? 'Wide (620px)' : 'Ultra-wide (880px)';
       showToast(`↔️ Product Doc width: ${label}`);
     }
 
@@ -5775,13 +5908,13 @@
           topBtn.classList.remove('btn-active');
           topBtn.title = 'Minimize Product Doc to view full task board (Alt+B)';
         }
-        let width = 360;
+        let width = 420;
         try {
           const savedWidth = localStorage.getItem('tb_product_doc_width');
-          if (savedWidth) width = parseInt(savedWidth, 10) || 360;
+          if (savedWidth) width = parseInt(savedWidth, 10) || 420;
         } catch (e) {}
         const maxAllowed = Math.min(window.innerWidth * 0.9, 1200);
-        const clampedWidth = Math.round(Math.max(320, Math.min(width, maxAllowed)));
+        const clampedWidth = Math.round(Math.max(350, Math.min(width, maxAllowed)));
         col.style.setProperty('--product-doc-width', `${clampedWidth}px`);
         col.style.width = `${clampedWidth}px`;
       }
@@ -6330,7 +6463,14 @@
     }
 
     function openInlineDraft(parentId = 'root', initialType = 'feature', e) {
-      if (e) e.stopPropagation();
+      if (initialType && typeof initialType === 'object' && typeof initialType.stopPropagation === 'function') {
+        e = initialType;
+        initialType = 'feature';
+      }
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (isProductDocMinimized) {
+        applyProductDocMinimized(false, true);
+      }
 
       // If parent has a child named "features/", "components/", or "improvements/" matching initialType, automatically target it
       let targetParentId = parentId;
@@ -6413,6 +6553,9 @@
         if (data.success) {
           addingChildUnderParentId = null;
           activeEditNodeId = null;
+          if (data.node && data.node.id) {
+            activeViewNodeId = data.node.id;
+          }
           setUnsavedProductChanges(true);
           const typeName = type === 'bug' ? '🐛 Bug / Improvement' : (type === 'component' ? '🧩 Component' : '🔷 Feature');
           showToast(`✅ Added ${typeName} "${title}" (click Save to commit)`);
@@ -6425,32 +6568,134 @@
       }
     }
 
-    function toggleNodeEditInPlace(nodeId, e) {
-      if (e) e.stopPropagation();
-      if (activeEditNodeId === nodeId) {
+    function expandAncestorsOfNode(nodeId) {
+      if (!backlogTree || !nodeId) return;
+      function expandPath(curr, target) {
+        if (!curr) return false;
+        if (curr.id === target) return true;
+        if (Array.isArray(curr.children)) {
+          for (const child of curr.children) {
+            if (expandPath(child, target)) {
+              collapsedNodes.delete(curr.id);
+              return true;
+            }
+          }
+        }
+        return false;
+      }
+      expandPath(backlogTree, nodeId);
+    }
+
+    function toggleNodeViewInPlace(nodeId, e) {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (isProductDocMinimized) {
+        applyProductDocMinimized(false, true);
+      }
+      if (activeViewNodeId === nodeId && activeEditNodeId !== nodeId) {
+        activeViewNodeId = null;
         activeEditNodeId = null;
         showConvertDrawerForNodeId = null;
       } else {
-        activeEditNodeId = nodeId;
+        expandAncestorsOfNode(nodeId);
+        activeViewNodeId = nodeId;
+        activeEditNodeId = null;
         showConvertDrawerForNodeId = null;
         addingChildUnderParentId = null;
       }
       renderBacklogTree();
-      if (activeEditNodeId === nodeId) {
+      if (activeViewNodeId === nodeId) {
         setTimeout(() => {
-          const el = document.getElementById(`inline-title-${nodeId}`);
-          if (el) el.focus();
-          const descEl = document.getElementById(`inline-desc-${nodeId}`);
-          if (descEl) triggerMermaidPreview(nodeId, descEl.value);
-        }, 50);
+          const node = findBacklogNode(backlogTree, nodeId);
+          if (node && node.description) {
+            triggerMermaidPreview(nodeId, node.description);
+          }
+          const cardEl = document.querySelector(`.backlog-tree-node[data-node-id="${nodeId}"] > .tree-inline-card`);
+          if (cardEl) {
+            cardEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }, 40);
       }
     }
 
+    function startNodeEditInPlace(nodeId, e, focusField = 'title') {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (isProductDocMinimized) {
+        applyProductDocMinimized(false, true);
+      }
+      expandAncestorsOfNode(nodeId);
+      activeViewNodeId = nodeId;
+      activeEditNodeId = nodeId;
+      addingChildUnderParentId = null;
+      renderBacklogTree();
+      setTimeout(() => {
+        const titleEl = document.getElementById(`inline-title-${nodeId}`);
+        const descEl = document.getElementById(`inline-desc-${nodeId}`);
+        if (focusField === 'desc' && descEl) {
+          descEl.focus();
+        } else if (titleEl) {
+          titleEl.focus();
+        }
+        if (descEl) triggerMermaidPreview(nodeId, descEl.value);
+      }, 40);
+    }
+
+    function toggleNodeEditInPlace(nodeId, e) {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (activeEditNodeId === nodeId) {
+        activeEditNodeId = null;
+        renderBacklogTree();
+        setTimeout(() => {
+          const node = findBacklogNode(backlogTree, nodeId);
+          if (node && node.description) triggerMermaidPreview(nodeId, node.description);
+        }, 40);
+      } else {
+        startNodeEditInPlace(nodeId, e, 'title');
+      }
+    }
+
+    function cancelNodeEditToView(nodeId, e) {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      activeEditNodeId = null;
+      activeViewNodeId = nodeId;
+      showConvertDrawerForNodeId = null;
+      renderBacklogTree();
+      setTimeout(() => {
+        const node = findBacklogNode(backlogTree, nodeId);
+        if (node && node.description) triggerMermaidPreview(nodeId, node.description);
+      }, 40);
+    }
+
     function closeInlineEditor(e) {
-      if (e) e.stopPropagation();
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      activeViewNodeId = null;
       activeEditNodeId = null;
       showConvertDrawerForNodeId = null;
       renderBacklogTree();
+    }
+
+    async function changeLinkedTaskStatusInPlace(taskId, newStatus, e) {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (!taskId || !newStatus) return;
+      await moveTaskStatus(taskId, newStatus);
+      await fetchBacklog(true);
+    }
+
+    function focusProductFeatureByTask(taskId, e) {
+      if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+      if (!backlogTree || !taskId) return;
+      let targetNodeId = null;
+      function searchByTask(n) {
+        if (!n || targetNodeId) return;
+        if (n.taskId === taskId) {
+          targetNodeId = n.id;
+          return;
+        }
+        if (Array.isArray(n.children)) n.children.forEach(searchByTask);
+      }
+      searchByTask(backlogTree);
+      if (targetNodeId) {
+        toggleNodeViewInPlace(targetNodeId, e);
+      }
     }
 
     async function saveInlineEdit(nodeId, e) {
@@ -6468,19 +6713,39 @@
         return;
       }
 
+      const payload = { title, description };
+      const prioEl = document.getElementById(`inline-task-prio-${nodeId}`);
+      const roleEl = document.getElementById(`inline-task-role-${nodeId}`);
+      const scopeEl = document.getElementById(`inline-task-scope-${nodeId}`);
+      const verifyEl = document.getElementById(`inline-task-verify-${nodeId}`);
+      const criteriaEl = document.getElementById(`inline-task-criteria-${nodeId}`);
+      if (prioEl) payload.priority = prioEl.value;
+      if (roleEl) payload.subagent_role = roleEl.value;
+      if (scopeEl) payload.scope_size = scopeEl.value;
+      if (verifyEl) payload.verification_cmd = verifyEl.value.trim();
+      if (criteriaEl) payload.acceptance_criteria = criteriaEl.value.trim();
+
       try {
         const res = await fetch(`/api/product/nodes/${nodeId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title, description })
+          body: JSON.stringify(payload)
         });
         const data = await res.json();
         if (data.success) {
           activeEditNodeId = null;
+          activeViewNodeId = nodeId;
           showConvertDrawerForNodeId = null;
           setUnsavedProductChanges(true);
           showToast(`Updated "${title}" (click Save to commit)`);
+          await fetchTasks();
           await fetchBacklog(true);
+          setTimeout(() => {
+            const updatedNode = findBacklogNode(backlogTree, nodeId);
+            if (updatedNode && updatedNode.description) {
+              triggerMermaidPreview(nodeId, updatedNode.description);
+            }
+          }, 50);
         } else {
           alert('Error saving feature: ' + (data.error || 'Unknown error'));
         }
@@ -6717,6 +6982,16 @@
       }
     }
 
+    function isGenericContainerDescription(desc) {
+      if (!desc) return true;
+      const d = desc.trim().toLowerCase();
+      return d === '' ||
+             d === 'features specification' ||
+             d === 'child components and screens' ||
+             d === 'bugs and improvements' ||
+             d === 'project requirements and description tree';
+    }
+
     function buildTreeNodeElement(node, depth = 0, isRoot = false) {
       const wrapper = document.createElement('div');
       wrapper.className = 'backlog-tree-node';
@@ -6724,6 +6999,7 @@
 
       const hasChildren = Array.isArray(node.children) && node.children.length > 0;
       const isCollapsed = collapsedNodes.has(node.id);
+      const isViewing = activeViewNodeId === node.id || activeEditNodeId === node.id;
       const isEditing = activeEditNodeId === node.id;
       const attCount = Array.isArray(node.attachments) ? node.attachments.length : 0;
       const nodeType = getNodeType(node);
@@ -6736,18 +7012,19 @@
 
       // Determine live task status and completion
       let effectiveStatus = (node.taskStatus || '').toLowerCase();
+      let liveTask = null;
       if (node.taskId) {
-        const liveTask = tasks.find(t => t.id === node.taskId);
+        liveTask = tasks.find(t => t.id === node.taskId) || null;
         if (liveTask && liveTask.status) {
           effectiveStatus = liveTask.status.toLowerCase();
         }
       }
       const isDone = Boolean(node.taskId && effectiveStatus === 'done');
 
-      if (isEditing) {
-        // Render in-place editor card
+      if (isViewing) {
+        // Render in-place view or in-place editor card (never opens a modal)
         const card = document.createElement('div');
-        card.className = `tree-inline-card ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''}`;
+        card.className = `tree-inline-card ${!isEditing ? 'is-view-mode' : ''} ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''}`;
         card.onclick = (e) => e.stopPropagation();
         card.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id, isRoot));
         card.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
@@ -6778,17 +7055,17 @@
 
           breakdownHtml = `
             <div class="component-breakdown-card" style="margin-top: 10px; padding: 10px 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
-              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+              <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; flex-wrap: wrap; gap: 6px;">
                 <span style="font-size: 11.5px; font-weight: 700; color: #1E293B; letter-spacing: 0.2px;">
                   🧩 <strong>${escapeHtml(node.title || 'Component')}</strong> (${stats.features} feature${stats.features === 1 ? '' : 's'}, ${stats.bugs} bug${stats.bugs === 1 ? '' : 's'} / improvement${stats.bugs === 1 ? '' : 's'}${stats.components > 0 ? `, ${stats.components} component${stats.components === 1 ? '' : 's'}` : ''})
                 </span>
-                <div style="display: flex; gap: 4px;">
+                <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                   <button type="button" class="btn btn-sm btn-secondary btn-feat-action" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
                   <button type="button" class="btn btn-sm btn-secondary btn-bug-action" style="font-size: 10.5px; padding: 2px 7px;" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug / Improvement</button>
                   <button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF; font-weight: 600;" onclick="openInlineDraft('${node.id}', 'component', event)">🧩 + Component</button>
                 </div>
               </div>
-              <div style="max-height: 160px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
+              <div style="max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;">
                 ${childList.length === 0 ? '<div style="font-size: 11px; color: #94A3B8; font-style: italic;">No features, components, or improvements added yet. Click above to add items.</div>' : ''}
                 ${childList.map(item => {
                   const itType = getNodeType(item);
@@ -6800,24 +7077,30 @@
                     if (lt && lt.status) itemTaskStatus = lt.status.toLowerCase();
                   }
                   const itDone = Boolean(item.taskId && itemTaskStatus === 'done');
+                  const itemDescSnippet = (item.description && !isGenericContainerDescription(item.description))
+                    ? item.description.replace(/```mermaid[\s\S]*?```/g, '').trim()
+                    : '';
                   return `
-                    <div class="component-item-row" style="display: flex; align-items: center; justify-content: space-between; padding: 5px 8px; background: white; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 11.5px;">
-                      <div style="display: flex; align-items: center; gap: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px;">
-                        <span>${itIsBug ? '🐛' : (itIsComp ? '🧩' : '🔷')}</span>
-                        <span style="font-weight: 600; color: ${itDone ? '#94A3B8' : '#1E293B'}; ${itDone ? 'text-decoration: line-through;' : ''}">${escapeHtml(item.title)}</span>
+                    <div class="component-item-row" style="display: flex; flex-direction: column; align-items: stretch; gap: 3px; padding: 6px 8px; background: white; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 11.5px; cursor: pointer;" onclick="toggleNodeViewInPlace('${item.id}', event)" title="Click to view or edit in place">
+                      <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+                        <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0;">
+                          <span>${itIsBug ? '🐛' : (itIsComp ? '🧩' : '🔷')}</span>
+                          <span style="font-weight: 600; color: ${itDone ? '#94A3B8' : '#1E293B'}; ${itDone ? 'text-decoration: line-through;' : ''} word-break: break-word;">${escapeHtml(item.title)}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 5px; flex-shrink: 0;">
+                          ${item.taskId ? `
+                            <span class="tree-task-badge" style="font-size: 10px; padding: 1px 5px; cursor: pointer; ${itDone ? 'background: #DCFCE7; color: #166534;' : 'background: #FEF3C7; color: #92400E;'}" onclick="toggleNodeViewInPlace('${item.id}', event)" title="Click to view in place">
+                              ${itDone ? '✅ Done' : `📋 ${itemTaskStatus ? itemTaskStatus.toUpperCase() : 'Task'} #${item.taskId.slice(-5)}`}
+                            </span>
+                          ` : `
+                            <button type="button" class="btn btn-sm btn-ghost" style="font-size: 10.5px; padding: 1px 6px; color: #4F46E5; font-weight: 600;" onclick="activeViewNodeId = '${item.id}'; activeEditNodeId = null; showConvertDrawerForNodeId = '${item.id}'; expandAncestorsOfNode('${item.id}'); renderBacklogTree(); event.stopPropagation();">
+                              🚀 Include
+                            </button>
+                          `}
+                          <button type="button" class="btn btn-sm btn-ghost" style="padding: 1px 4px; font-size: 11px;" onclick="startNodeEditInPlace('${item.id}', event)" title="Edit in place">✏️</button>
+                        </div>
                       </div>
-                      <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                        ${item.taskId ? `
-                          <span class="tree-task-badge" style="font-size: 10px; padding: 1px 5px; cursor: pointer; ${itDone ? 'background: #DCFCE7; color: #166534;' : 'background: #FEF3C7; color: #92400E;'}" onclick="openDetailModal('${item.taskId}'); event.stopPropagation();">
-                            ${itDone ? '✅ Done' : `Task #${item.taskId.slice(-5)}`}
-                          </span>
-                        ` : `
-                          <button type="button" class="btn btn-sm btn-ghost" style="font-size: 10.5px; padding: 1px 6px; color: #4F46E5; font-weight: 600;" onclick="activeEditNodeId = '${item.id}'; showConvertDrawerForNodeId = '${item.id}'; renderBacklogTree(); event.stopPropagation();">
-                            🚀 Include
-                          </button>
-                        `}
-                        <button type="button" class="btn btn-sm btn-ghost" style="padding: 1px 4px; font-size: 11px;" onclick="toggleNodeEditInPlace('${item.id}', event)" title="Edit">✏️</button>
-                      </div>
+                      ${itemDescSnippet ? `<div style="font-size: 11px; color: #64748B; padding-left: 20px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${escapeHtml(itemDescSnippet)}</div>` : ''}
                     </div>
                   `;
                 }).join('')}
@@ -6826,18 +7109,96 @@
           `;
         }
 
+        const cleanMarkdownDesc = (currentDesc || '').replace(/```mermaid[\s\S]*?```/g, '').trim();
+        const linkedTaskHtml = (!isCategory && node.taskId) ? `
+          <div style="margin-top: 8px; padding: 8px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-size: 11px; font-weight: 700; color: #334155;">📋 Linked Task #${escapeHtml(node.taskId.slice(-5))}</span>
+                ${liveTask ? `<span class="badge badge-${liveTask.priority}" style="font-size: 9.5px; padding: 1px 6px;">${escapeHtml(liveTask.priority)}</span>` : ''}
+                ${liveTask && liveTask.subagent_role ? `<span class="role-badge" style="font-size: 10px; padding: 1px 6px;">${escapeHtml(liveTask.subagent_role)}</span>` : ''}
+                ${liveTask && liveTask.scope_size ? `<span class="role-badge" style="font-size: 10px; padding: 1px 6px;">${escapeHtml(liveTask.scope_size.toUpperCase())}</span>` : ''}
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <select class="tree-inline-select" style="width: auto; padding: 2px 6px; font-size: 11px; font-weight: 600;" onchange="changeLinkedTaskStatusInPlace('${node.taskId}', this.value, event)" onclick="event.stopPropagation()" title="Change task status in place">
+                  <option value="todo" ${effectiveStatus === 'todo' ? 'selected' : ''}>📋 To Do</option>
+                  <option value="planned" ${effectiveStatus === 'planned' ? 'selected' : ''}>📋 Planned</option>
+                  <option value="in_progress" ${effectiveStatus === 'in_progress' ? 'selected' : ''}>⚡ In Progress</option>
+                  <option value="verification" ${effectiveStatus === 'verification' ? 'selected' : ''}>👀 Pending Review</option>
+                  <option value="done" ${effectiveStatus === 'done' ? 'selected' : ''}>✅ Done</option>
+                  <option value="failed" ${effectiveStatus === 'failed' ? 'selected' : ''}>⚠️ Failed</option>
+                </select>
+              </div>
+            </div>
+            ${(liveTask && (liveTask.acceptance_criteria || liveTask.verification_cmd)) ? `
+              <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #E2E8F0; font-size: 11px; color: #475569;">
+                ${liveTask.verification_cmd ? `<div style="margin-bottom: 3px;"><strong>Verify Cmd:</strong> <code style="background: #EEF2FF; color: #4338CA; padding: 1px 5px; border-radius: 4px;">${escapeHtml(liveTask.verification_cmd)}</code></div>` : ''}
+                ${liveTask.acceptance_criteria ? `<div><strong>Criteria:</strong> ${escapeHtml(liveTask.acceptance_criteria)}</div>` : ''}
+              </div>
+            ` : ''}
+          </div>
+        ` : '';
+
+        const inlineTaskEditHtml = (isEditing && !isCategory && liveTask) ? `
+          <div style="margin-top: 8px; padding: 8px 10px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px;">
+            <div style="font-size: 10.5px; font-weight: 700; color: #475569; text-transform: uppercase; margin-bottom: 6px;">📋 Linked Task #${escapeHtml(node.taskId.slice(-5))} Settings (In-Place)</div>
+            <div class="tree-inline-grid">
+              <div>
+                <label class="tree-inline-label">Priority</label>
+                <select class="tree-inline-select" id="inline-task-prio-${node.id}">
+                  <option value="low" ${liveTask.priority === 'low' ? 'selected' : ''}>Low</option>
+                  <option value="medium" ${liveTask.priority === 'medium' ? 'selected' : ''}>Medium</option>
+                  <option value="high" ${liveTask.priority === 'high' ? 'selected' : ''}>High</option>
+                  <option value="urgent" ${liveTask.priority === 'urgent' ? 'selected' : ''}>Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label class="tree-inline-label">Subagent Role</label>
+                <select class="tree-inline-select" id="inline-task-role-${node.id}">
+                  <option value="Fullstack Engineer" ${liveTask.subagent_role === 'Fullstack Engineer' ? 'selected' : ''}>Fullstack Engineer</option>
+                  <option value="Frontend Specialist" ${liveTask.subagent_role === 'Frontend Specialist' ? 'selected' : ''}>Frontend Specialist</option>
+                  <option value="Backend / API Engineer" ${liveTask.subagent_role === 'Backend / API Engineer' ? 'selected' : ''}>Backend / API Engineer</option>
+                  <option value="QA / Test Engineer" ${liveTask.subagent_role === 'QA / Test Engineer' ? 'selected' : ''}>QA / Test Engineer</option>
+                  <option value="Architect & System Designer" ${liveTask.subagent_role === 'Architect & System Designer' ? 'selected' : ''}>Architect & System Designer</option>
+                </select>
+              </div>
+            </div>
+            <div class="tree-inline-grid">
+              <div>
+                <label class="tree-inline-label">Verification Command</label>
+                <input type="text" class="tree-inline-title" id="inline-task-verify-${node.id}" value="${escapeHtml(liveTask.verification_cmd || '')}" placeholder="e.g. npm test" style="font-size: 12px; padding: 5px 8px;">
+              </div>
+              <div>
+                <label class="tree-inline-label">Scope Size</label>
+                <select class="tree-inline-select" id="inline-task-scope-${node.id}">
+                  <option value="small" ${liveTask.scope_size === 'small' ? 'selected' : ''}>Small (Parallel)</option>
+                  <option value="medium" ${liveTask.scope_size === 'medium' ? 'selected' : ''}>Medium (Parallel)</option>
+                  <option value="large" ${liveTask.scope_size === 'large' ? 'selected' : ''}>Large (Isolated)</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="tree-inline-label">Acceptance Criteria</label>
+              <textarea class="tree-inline-desc" id="inline-task-criteria-${node.id}" rows="2" placeholder="Acceptance criteria checklist..." style="min-height: 44px; font-size: 12px;">${escapeHtml(liveTask.acceptance_criteria || '')}</textarea>
+            </div>
+          </div>
+        ` : '';
+
         card.innerHTML = `
           <div class="tree-inline-header">
-            <span class="tree-inline-tag" ${isCategory ? 'style="background: #F1F5F9; color: #334155; border: 1px solid #CBD5E1;"' : (isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0;"' : (isBug ? 'style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3;"' : (isComponent ? 'style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;"' : '')))}>
-              ${isRoot ? '📁 Project Root' : (isCategory ? `📁 Category Container: ${escapeHtml(node.title || '')}` : (isDone ? `✅ Completed ${isBug ? 'Bug / Improvement' : (isComponent ? 'Component' : 'Feature')} (Task #${node.taskId.slice(-5)})` : (node.taskId ? `📋 Task #${node.taskId.slice(-5)}: ${escapeHtml(node.title || '')}` : (isBug ? `🐛 Bug / Improvement: ${escapeHtml(node.title || 'Untitled')}` : (isComponent ? `🧩 Component: ${escapeHtml(node.title || 'Untitled')}` : `🔷 Feature: ${escapeHtml(node.title || 'Untitled')}`)))))}
+            <span class="tree-inline-tag" ${isCategory ? 'style="background: #F1F5F9; color: #334155; border: 1px solid #CBD5E1; padding: 2px 7px; border-radius: 5px;"' : (isDone ? 'style="background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; padding: 2px 7px; border-radius: 5px;"' : (isBug ? 'style="background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; padding: 2px 7px; border-radius: 5px;"' : (isComponent ? 'style="background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; padding: 2px 7px; border-radius: 5px;"' : 'style="background: #EFF6FF; color: #1D4ED8; border: 1px solid #BFDBFE; padding: 2px 7px; border-radius: 5px;"')))}>
+              ${isRoot ? '📁 Project Root' : (isCategory ? `📁 Category Container: ${escapeHtml(node.title || '')}` : (isDone ? `✅ Completed ${isBug ? 'Bug / Improvement' : (isComponent ? 'Component' : 'Feature')}` : (isBug ? '🐛 Bug / Improvement' : (isComponent ? '🧩 Component' : '🔷 Feature'))))}
             </span>
-            <button type="button" class="tree-inline-close" onclick="closeInlineEditor(event)" title="Close editor">&times;</button>
+            <div style="display: flex; align-items: center; gap: 4px;">
+              ${(!isEditing && !isCategory) ? `<button type="button" class="btn btn-sm btn-secondary" style="padding: 2px 8px; font-size: 11px; font-weight: 600; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF;" onclick="startNodeEditInPlace('${node.id}', event, 'title')" title="Edit in place">✏️ Edit</button>` : ''}
+              <button type="button" class="tree-inline-close" onclick="closeInlineEditor(event)" title="Collapse in-place view">&times;</button>
+            </div>
           </div>
 
           ${(isDone && !isCategory) ? `
           <div class="tree-completed-banner">
             <span>✅</span>
-            <span>This ${isBug ? 'bug / improvement' : (isComponent ? 'component' : 'feature')} has been completed and verified (Task #${node.taskId ? node.taskId.slice(-5) : ''}).</span>
+            <span>Completed and verified${node.taskId ? ` (Task #${node.taskId.slice(-5)})` : ''}.</span>
           </div>
           ` : ''}
 
@@ -6851,14 +7212,33 @@
           </div>
           ` : ''}
 
-          <label class="tree-inline-label">${isCategory ? 'Category Name' : (isBug ? 'Bug / Improvement Summary' : (isComponent ? 'Component Name' : 'Title'))} <span style="color: #EF4444;">*</span></label>
-          <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" ${isCategory ? 'readonly style="background: #F8FAFC; cursor: not-allowed;"' : ''} placeholder="${isBug ? 'Bug or improvement summary (e.g. Header text clipped on mobile, add filter option)...' : (isComponent ? 'Component name (e.g. Welcome Screen)...' : 'Feature title...')}" onkeydown="if(event.key==='Enter') { event.preventDefault(); if(!${isCategory}) saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">
+          ${isEditing ? `
+            <label class="tree-inline-label">${isCategory ? 'Category Name' : (isBug ? 'Bug / Improvement Summary' : (isComponent ? 'Component Name' : 'Title'))} <span style="color: #EF4444;">*</span></label>
+            <input type="text" class="tree-inline-title ${isDone ? 'is-completed-title' : ''}" id="inline-title-${node.id}" value="${escapeHtml(currentTitle)}" ${isCategory ? 'readonly style="background: #F8FAFC; cursor: not-allowed;"' : ''} placeholder="${isBug ? 'Bug or improvement summary...' : (isComponent ? 'Component name...' : 'Feature title...')}" onkeydown="if(event.key==='Enter') { event.preventDefault(); if(!${isCategory}) saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { cancelNodeEditToView('${node.id}', event); }">
 
-          <div class="tree-inline-label">
-            <span>Description & Specifications</span>
-            <button type="button" class="btn btn-sm btn-ghost" onclick="insertMermaidTemplate('${node.id}', event)" title="Insert Mermaid diagram snippet">📊 + Mermaid Diagram</button>
-          </div>
-          <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="4" placeholder="${isBug ? 'Details, expected vs actual behavior, steps to reproduce, or enhancement ideas...' : (isComponent ? 'Component overview, UI layout, child modules...' : 'Document specifications, user stories, acceptance criteria, or mermaid diagrams...')}" oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { closeInlineEditor(event); }">${escapeHtml(currentDesc)}</textarea>
+            <div class="tree-inline-label">
+              <span>Description & Specifications</span>
+              <button type="button" class="btn btn-sm btn-ghost" onclick="insertMermaidTemplate('${node.id}', event)" title="Insert Mermaid diagram snippet">📊 + Mermaid Diagram</button>
+            </div>
+            <textarea class="tree-inline-desc" id="inline-desc-${node.id}" rows="5" placeholder="${isBug ? 'Details, expected vs actual behavior, steps to reproduce, or enhancement ideas...' : (isComponent ? 'Component overview, UI layout, child modules...' : 'Document specifications, user stories, acceptance criteria, or mermaid diagrams...')}" oninput="triggerMermaidPreview('${node.id}', this.value)" onkeydown="if(event.key==='Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); saveInlineEdit('${node.id}', event); } else if(event.key==='Escape') { cancelNodeEditToView('${node.id}', event); }">${escapeHtml(currentDesc)}</textarea>
+            ${inlineTaskEditHtml}
+          ` : `
+            <div class="tree-view-title-box" onclick="${isCategory ? '' : `startNodeEditInPlace('${node.id}', event, 'title')`}" title="${isCategory ? '' : 'Click to edit title in place'}">
+              <div class="tree-view-title-text" style="${isDone ? 'text-decoration: line-through; color: #64748B;' : ''}">${escapeHtml(currentTitle || (isRoot ? 'Project Root' : 'Untitled'))}</div>
+              ${!isCategory ? '<span class="tree-view-edit-hint">✏️ Edit</span>' : ''}
+            </div>
+
+            <div class="tree-inline-label" style="margin-top: 4px;">
+              <span>Specifications & Details</span>
+              ${!isCategory ? `<button type="button" class="btn btn-sm btn-ghost" style="padding: 1px 6px; font-size: 10.5px;" onclick="startNodeEditInPlace('${node.id}', event, 'desc')">✏️ Edit Specs</button>` : ''}
+            </div>
+            <div class="tree-view-desc-box" onclick="${isCategory ? '' : `startNodeEditInPlace('${node.id}', event, 'desc')`}" title="${isCategory ? '' : 'Click anywhere to edit specifications in place'}">
+              ${cleanMarkdownDesc
+                ? renderMarkdown(cleanMarkdownDesc)
+                : `<span style="color: #94A3B8; font-style: italic; font-size: 12px;">No detailed specification written yet. Click here to add specifications, acceptance criteria, or diagrams in place...</span>`}
+            </div>
+            ${linkedTaskHtml}
+          `}
 
           <div class="tree-mermaid-box" id="mermaid-preview-${node.id}" style="display: none;"></div>
 
@@ -6892,7 +7272,12 @@
           </div>
 
           <div class="tree-inline-actions">
-            ${!isCategory ? `<button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save</button>` : ''}
+            ${isEditing ? `
+              ${!isCategory ? `<button type="button" class="btn btn-sm btn-primary" onclick="saveInlineEdit('${node.id}', event)">💾 Save Changes</button>` : ''}
+              <button type="button" class="btn btn-sm btn-secondary" onclick="cancelNodeEditToView('${node.id}', event)">Done Editing</button>
+            ` : `
+              ${!isCategory ? `<button type="button" class="btn btn-sm btn-primary" style="background: #4F46E5; border-color: #4338CA;" onclick="startNodeEditInPlace('${node.id}', event, 'title')">✏️ Edit in Place</button>` : ''}
+            `}
             ${isCategory ? `
               ${isFeaturesContainer ? `<button type="button" class="btn btn-sm btn-secondary btn-feat-action" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>` : ''}
               ${isComponentsContainer ? `<button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF; font-weight: 600;" onclick="openInlineDraft('${node.id}', 'component', event)">🧩 + Component</button>` : ''}
@@ -6901,12 +7286,10 @@
               <button type="button" class="btn btn-sm btn-secondary btn-feat-action" onclick="openInlineDraft('${node.id}', 'feature', event)">🔷 + Feature</button>
               <button type="button" class="btn btn-sm btn-secondary btn-bug-action" onclick="openInlineDraft('${node.id}', 'bug', event)">🐛 + Bug / Improvement</button>
               ${(isComponent || isRoot) ? `<button type="button" class="btn btn-sm btn-secondary" style="font-size: 10.5px; padding: 2px 7px; color: #4338CA; border-color: #C7D2FE; background: #EEF2FF; font-weight: 600;" onclick="openInlineDraft('${node.id}', 'component', event)">🧩 + Component</button>` : ''}
-              ${node.taskId 
-                ? `<button type="button" class="btn btn-sm btn-secondary" onclick="openDetailModal('${node.taskId}'); event.stopPropagation();">📋 View Task #${node.taskId.slice(-5)}${isDone ? ' (Completed)' : ''}</button>` 
-                : `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do (Assigns Task ID)</button>`}
+              ${!node.taskId ? `<button type="button" class="btn btn-sm btn-convert" onclick="toggleInlineConvert('${node.id}', event)">🚀 Include in To Do</button>` : ''}
               ${!isRoot ? `<button type="button" class="btn btn-sm btn-ghost" style="color: #EF4444;" onclick="deleteNodeInPlace('${node.id}', event)" title="Delete">🗑️</button>` : ''}
             `}
-            <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Cancel</button>
+            <button type="button" class="btn btn-sm btn-ghost" onclick="closeInlineEditor(event)">Collapse</button>
           </div>
 
           ${(!isCategory && showConvertDrawerForNodeId === node.id) ? `
@@ -6962,15 +7345,18 @@
         `;
         wrapper.appendChild(card);
       } else {
-        // Compact single-line row
+        // Slightly verbose tree item (shows full wrapping title, type/status badges, and inline description summary)
         const row = document.createElement('div');
         row.className = `tree-node-row ${isRoot ? 'is-root' : ''} ${isCategory ? 'is-container-folder' : ''} ${isDone ? 'is-completed' : ''} ${isBug ? 'is-bug' : ''} ${isComponent ? 'is-component' : ''}`;
-        row.onclick = (e) => toggleNodeEditInPlace(node.id, e);
+        row.onclick = (e) => toggleNodeViewInPlace(node.id, e);
 
         // Every row is a drop target (drop inside feature, or drop onto root)
         row.addEventListener('dragover', (e) => handleTreeNodeDragOver(e, node.id, isRoot));
         row.addEventListener('dragleave', (e) => handleTreeNodeDragLeave(e));
         row.addEventListener('drop', (e) => handleTreeNodeDrop(e, node.id, node.title || (isRoot ? 'Project Root' : 'Feature'), isRoot));
+
+        const topBar = document.createElement('div');
+        topBar.className = 'tree-node-top';
 
         // Allow dragging feature node to another feature or To Do column
         if (!isRoot && !isCategory) {
@@ -6999,25 +7385,28 @@
           // Drag handle indicator
           const dragHandle = document.createElement('span');
           dragHandle.className = 'tree-drag-handle';
+          dragHandle.style.marginTop = '2px';
           dragHandle.innerHTML = '⋮⋮';
           dragHandle.title = 'Drag to move into another feature, or drop onto To Do';
-          row.appendChild(dragHandle);
+          topBar.appendChild(dragHandle);
         }
 
         // Toggle Chevron
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
         toggleBtn.className = 'tree-toggle-btn';
+        toggleBtn.style.marginTop = '1px';
         toggleBtn.innerHTML = hasChildren ? (isCollapsed ? '▶' : '▼') : '•';
         toggleBtn.title = hasChildren ? (isCollapsed ? 'Expand branch' : 'Collapse branch') : 'Leaf item';
         toggleBtn.onclick = (e) => {
           if (hasChildren) toggleNodeCollapse(node.id, e);
         };
-        row.appendChild(toggleBtn);
+        topBar.appendChild(toggleBtn);
 
         // Icon
         const iconSpan = document.createElement('span');
         iconSpan.className = 'tree-node-icon';
+        iconSpan.style.marginTop = '2px';
         let rowIcon = '🔷';
         if (isRoot) rowIcon = '📁';
         else if (isCategory) rowIcon = '📁';
@@ -7026,7 +7415,7 @@
         else if (isComponent) rowIcon = '🧩';
         else if (hasChildren) rowIcon = '📦';
         iconSpan.innerHTML = rowIcon;
-        row.appendChild(iconSpan);
+        topBar.appendChild(iconSpan);
 
         // Title with strike mark if completed
         const titleSpan = document.createElement('span');
@@ -7041,12 +7430,11 @@
           titleSpan.style.textDecoration = 'line-through';
           titleSpan.style.color = '#94A3B8';
         }
-        if (node.description) {
-          titleSpan.title = `${node.title}${isDone ? ' (Completed)' : ''}\n\n${node.description}\n\n(Click to view/edit in place)`;
-        } else {
-          titleSpan.title = `${node.title}${isDone ? ' (Completed)' : ''}\n(Click to view/edit in place)`;
-        }
-        row.appendChild(titleSpan);
+        titleSpan.title = 'Click to view & edit in place';
+        topBar.appendChild(titleSpan);
+
+        const badgesWrap = document.createElement('div');
+        badgesWrap.className = 'tree-node-badges';
 
         // Category count pill
         if (isCategory) {
@@ -7054,15 +7442,23 @@
           countPill.className = 'tree-container-count-pill';
           const childCount = Array.isArray(node.children) ? node.children.length : 0;
           countPill.innerText = `${childCount} item${childCount === 1 ? '' : 's'}`;
-          row.appendChild(countPill);
+          badgesWrap.appendChild(countPill);
         }
 
-        // Bug type badge (for bugs / improvements only)
-        if (!isRoot && !isCategory && isBug) {
+        // Type pill for non-category items
+        if (!isRoot && !isCategory) {
           const typePill = document.createElement('span');
-          typePill.className = 'tree-type-pill pill-bug';
-          typePill.innerHTML = '🐛 Bug / Improvement';
-          row.appendChild(typePill);
+          if (isBug) {
+            typePill.className = 'tree-type-pill pill-bug';
+            typePill.innerHTML = '🐛 Bug';
+          } else if (isComponent) {
+            typePill.className = 'tree-type-pill pill-component';
+            typePill.innerHTML = '🧩 Component';
+          } else {
+            typePill.className = 'tree-type-pill pill-feature';
+            typePill.innerHTML = '🔷 Feature';
+          }
+          badgesWrap.appendChild(typePill);
         }
 
         // Component aggregate counter pill (🔷 N • 🐛 N)
@@ -7076,52 +7472,55 @@
             if (stats.bugs > 0) pillText += (pillText ? ' • ' : '') + `🐛 ${stats.bugs}`;
             counterPill.innerHTML = pillText;
             counterPill.title = `Contains ${stats.features} feature(s) and ${stats.bugs} bug(s) / improvement(s)`;
-            row.appendChild(counterPill);
+            badgesWrap.appendChild(counterPill);
           }
         }
 
         // Attachment indicator
         if (attCount > 0) {
           const attBadge = document.createElement('span');
-          attBadge.style.cssText = 'font-size: 10px; color: #6366F1; margin-right: 4px;';
+          attBadge.style.cssText = 'font-size: 10px; color: #6366F1; font-weight: 600;';
           attBadge.innerHTML = `📎 ${attCount}`;
           attBadge.title = `${attCount} artifact(s) attached`;
-          row.appendChild(attBadge);
+          badgesWrap.appendChild(attBadge);
         }
 
-        // Task Badge - ONLY assigned after a task is included in To Do
+        // Task Badge - opens in-place view (never opens modal)
         if (node.taskId && !isCategory) {
           const badge = document.createElement('span');
           badge.className = 'tree-task-badge';
           const st = effectiveStatus || 'todo';
           let badgeStyle = 'background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1;';
           let badgeIcon = '📋';
-          let badgeText = `Task #${node.taskId.slice(-5)}`;
+          let badgeText = `#${node.taskId.slice(-5)}`;
           if (st === 'in_progress') {
             badgeStyle = 'background: #FEF3C7; color: #B45309; border: 1px solid #FDE68A;';
             badgeIcon = '⚡';
+            badgeText = `Working #${node.taskId.slice(-5)}`;
           } else if (st === 'done') {
             badgeStyle = 'background: #DCFCE7; color: #166534; border: 1px solid #BBF7D0; font-weight: 700;';
             badgeIcon = '✅';
-            badgeText = `Task #${node.taskId.slice(-5)} (Done)`;
+            badgeText = `Done #${node.taskId.slice(-5)}`;
           } else if (st === 'verification') {
             badgeStyle = 'background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE;';
             badgeIcon = '👀';
+            badgeText = `Review #${node.taskId.slice(-5)}`;
           } else if (st === 'planned') {
             badgeStyle = 'background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE;';
             badgeIcon = '📋';
+            badgeText = `Planned #${node.taskId.slice(-5)}`;
           }
           badge.style = badgeStyle;
           badge.innerHTML = `${badgeIcon} ${escapeHtml(badgeText)}`;
-          badge.title = `Task #${node.taskId} (${st.toUpperCase()}). Click to open task details.`;
+          badge.title = `Task #${node.taskId} (${st.toUpperCase()}). Click to view & edit in place.`;
           badge.onclick = (e) => {
             e.stopPropagation();
-            openDetailModal(node.taskId);
+            toggleNodeViewInPlace(node.id, e);
           };
-          row.appendChild(badge);
+          badgesWrap.appendChild(badge);
         }
 
-        // Action icons on hover
+        // Action icons on hover (all in-place, never modal)
         const actionsDiv = document.createElement('div');
         actionsDiv.className = 'tree-node-actions';
 
@@ -7153,13 +7552,13 @@
             actionsDiv.appendChild(addBugBtn);
           }
 
-          // ✏️ Edit
+          // ✏️ View / Edit in place
           const editBtn = document.createElement('button');
           editBtn.type = 'button';
           editBtn.className = 'tree-action-btn';
           editBtn.innerHTML = '✏️';
-          editBtn.title = 'Edit in place';
-          editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
+          editBtn.title = 'View in place';
+          editBtn.onclick = (e) => toggleNodeViewInPlace(node.id, e);
           actionsDiv.appendChild(editBtn);
         } else {
           // 🔷 Add feature
@@ -7167,7 +7566,7 @@
           addFeatBtn.type = 'button';
           addFeatBtn.className = 'tree-action-btn tree-btn-add-feature';
           addFeatBtn.innerHTML = '🔷';
-          addFeatBtn.title = 'Add feature';
+          addFeatBtn.title = 'Add feature in place';
           addFeatBtn.onclick = (e) => openInlineDraft(node.id, 'feature', e);
           actionsDiv.appendChild(addFeatBtn);
 
@@ -7176,7 +7575,7 @@
           addBugBtn.type = 'button';
           addBugBtn.className = 'tree-action-btn tree-btn-add-bug';
           addBugBtn.innerHTML = '🐛';
-          addBugBtn.title = 'Add bug / improvement';
+          addBugBtn.title = 'Add bug / improvement in place';
           addBugBtn.onclick = (e) => openInlineDraft(node.id, 'bug', e);
           actionsDiv.appendChild(addBugBtn);
 
@@ -7187,22 +7586,22 @@
             addCompBtn.className = 'tree-action-btn';
             addCompBtn.style.color = '#4338CA';
             addCompBtn.innerHTML = '🧩';
-            addCompBtn.title = 'Add component';
+            addCompBtn.title = 'Add component in place';
             addCompBtn.onclick = (e) => openInlineDraft(node.id, 'component', e);
             actionsDiv.appendChild(addCompBtn);
           }
 
-          // ✏️ Edit
+          // ✏️ Edit directly in place
           const editBtn = document.createElement('button');
           editBtn.type = 'button';
           editBtn.className = 'tree-action-btn';
           editBtn.innerHTML = '✏️';
           editBtn.title = 'Edit in place';
-          editBtn.onclick = (e) => toggleNodeEditInPlace(node.id, e);
+          editBtn.onclick = (e) => startNodeEditInPlace(node.id, e, 'title');
           actionsDiv.appendChild(editBtn);
 
           if (!node.taskId) {
-            // 🚀 Include in To Do (Assigns Task ID)
+            // 🚀 Include in To Do (Assigns Task ID in place)
             const convertBtn = document.createElement('button');
             convertBtn.type = 'button';
             convertBtn.className = 'tree-action-btn tree-btn-convert';
@@ -7210,23 +7609,12 @@
             convertBtn.title = 'Include in To Do (Assigns Task ID)';
             convertBtn.onclick = (e) => {
               e.stopPropagation();
-              activeEditNodeId = node.id;
+              activeViewNodeId = node.id;
+              activeEditNodeId = null;
               showConvertDrawerForNodeId = node.id;
               renderBacklogTree();
             };
             actionsDiv.appendChild(convertBtn);
-          } else {
-            // Task already created
-            const viewBtn = document.createElement('button');
-            viewBtn.type = 'button';
-            viewBtn.className = 'tree-action-btn';
-            viewBtn.innerHTML = isDone ? '✅' : '📋';
-            viewBtn.title = `Task #${node.taskId.slice(-5)} (${effectiveStatus.toUpperCase()}) - Click to view`;
-            viewBtn.onclick = (e) => {
-              e.stopPropagation();
-              openDetailModal(node.taskId);
-            };
-            actionsDiv.appendChild(viewBtn);
           }
 
           // 🗑️ Delete (non-root only)
@@ -7241,7 +7629,52 @@
           }
         }
 
-        row.appendChild(actionsDiv);
+        badgesWrap.appendChild(actionsDiv);
+        topBar.appendChild(badgesWrap);
+        row.appendChild(topBar);
+
+        // Slightly verbose body: show inline description preview + attachment chips for non-category items
+        if (!isCategory) {
+          const rawDesc = (node.description || '').trim();
+          const hasMermaid = /```mermaid[\s\S]*?```/.test(rawDesc);
+          const cleanPreview = rawDesc.replace(/```mermaid[\s\S]*?```/g, '').trim();
+          const showDescPreview = !isGenericContainerDescription(cleanPreview) && cleanPreview.toLowerCase() !== (node.title || '').trim().toLowerCase();
+
+          if (showDescPreview || hasMermaid || attCount > 0) {
+            const verboseBody = document.createElement('div');
+            verboseBody.className = 'tree-node-verbose-body';
+
+            if (showDescPreview) {
+              const descPreviewEl = document.createElement('div');
+              descPreviewEl.className = 'tree-node-desc-preview';
+              descPreviewEl.innerText = cleanPreview;
+              verboseBody.appendChild(descPreviewEl);
+            }
+
+            if (hasMermaid || attCount > 0) {
+              const chipsRow = document.createElement('div');
+              chipsRow.className = 'tree-node-att-chips';
+              if (hasMermaid) {
+                const mChip = document.createElement('span');
+                mChip.className = 'tree-node-att-chip';
+                mChip.innerHTML = '📊 Mermaid Diagram';
+                chipsRow.appendChild(mChip);
+              }
+              if (Array.isArray(node.attachments)) {
+                node.attachments.forEach(att => {
+                  const aChip = document.createElement('span');
+                  aChip.className = 'tree-node-att-chip';
+                  aChip.innerHTML = `📎 ${escapeHtml(att.fileName || 'artifact')}`;
+                  chipsRow.appendChild(aChip);
+                });
+              }
+              verboseBody.appendChild(chipsRow);
+            }
+
+            row.appendChild(verboseBody);
+          }
+        }
+
         wrapper.appendChild(row);
       }
 
@@ -7287,13 +7720,19 @@
           totalDoneCount = colTasks.length;
           const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
           const now = Date.now();
-          colTasks = colTasks.filter(t => {
+          const getTaskTimeMs = (t) => {
             const rawTime = t.updated_at || t.created_at;
-            if (!rawTime) return true;
+            if (!rawTime) return 0;
             const tDate = new Date(rawTime.endsWith('Z') ? rawTime : rawTime.replace(' ', 'T') + 'Z');
-            const ageMs = now - tDate.getTime();
-            return isNaN(ageMs) || ageMs <= FIVE_DAYS_MS;
+            const ms = tDate.getTime();
+            return isNaN(ms) ? 0 : ms;
+          };
+          colTasks = colTasks.filter(t => {
+            const ms = getTaskTimeMs(t);
+            if (!ms) return true;
+            return (now - ms) <= FIVE_DAYS_MS;
           });
+          colTasks.sort((a, b) => getTaskTimeMs(b) - getTaskTimeMs(a));
           olderDoneCount = totalDoneCount - colTasks.length;
         }
         
@@ -7362,7 +7801,7 @@
                               task.product_context.match(/-\s*\*\*Parent Component\*\*:\s*\*\*([^*]+)\*\*/i);
             const pathMatch = task.product_context.match(/-\s*\*\*Path\*\*:\s*`([^`]+)`/i);
             const label = compMatch ? compMatch[1].trim() : (pathMatch ? pathMatch[1].split('›').pop().trim() : 'Product');
-            productBadge = `<span class="role-badge" style="background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; font-size: 10px; font-weight: 600; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="Product Context: ${pathMatch ? escapeHtml(pathMatch[1].trim()) : escapeHtml(label)}">📐 ${escapeHtml(label)}</span>`;
+            productBadge = `<span class="role-badge" onclick="focusProductFeatureByTask('${task.id}', event)" style="background: #ECFDF5; color: #047857; border: 1px solid #A7F3D0; font-size: 10px; font-weight: 600; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;" title="Product Context: ${pathMatch ? escapeHtml(pathMatch[1].trim()) : escapeHtml(label)} (Click to view in Product Doc)">📐 ${escapeHtml(label)}</span>`;
           }
 
           card.innerHTML = `
