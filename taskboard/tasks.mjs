@@ -30,6 +30,19 @@ import {
   getAllSessions,
   getRunningSessionIds
 } from './sessions.mjs';
+import {
+  ensureCostSchema,
+  loadPricing,
+  refreshTaskCost,
+  getSavedCostReport,
+  getProjectCostSummary,
+  bindConversation,
+  transcriptPathForConversation,
+  formatCostMarkdown,
+  fmtNum,
+  fmtUsd,
+  fmtBytes
+} from './cost.mjs';
 
 export {
   readProductTree,
@@ -214,6 +227,11 @@ try {
 
 try {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);`);
+} catch (e) {}
+
+// Cost tracking tables (task_cost_bindings, task_file_access, task_cost_reports)
+try {
+  ensureCostSchema(db);
 } catch (e) {}
 
 // Migration: Migrate any legacy 'needs_revision' task statuses to 'planned'
@@ -497,8 +515,68 @@ export function updateTask(id, fields) {
     }
   }
 
+  // Finalize the cost report whenever a task reaches the end of an execution cycle
+  if (['verification', 'done', 'failed'].includes(fields.status)) {
+    try { finalizeTaskCost(id); } catch (e) {}
+  }
+
   setMetadata('idle_since', null);
   return getTaskById(id);
+}
+
+// ---------------------------------------------------------------------------
+// Cost tracking API (see cost.mjs)
+// ---------------------------------------------------------------------------
+export function getCostPricing() {
+  return loadPricing(getProjectInfo().dbDir);
+}
+
+/** Recomputes the task's cost report from bindings, hook logs and transcripts and stores it. */
+export function computeAndStoreTaskCost(taskId) {
+  return refreshTaskCost(db, taskId, { pricing: getCostPricing() });
+}
+
+export function getTaskCost(taskId, { refresh = false } = {}) {
+  if (!refresh) {
+    const saved = getSavedCostReport(db, taskId);
+    if (saved) return saved;
+  }
+  return computeAndStoreTaskCost(taskId);
+}
+
+export function getCostSummary() {
+  return getProjectCostSummary(db, { pricing: getCostPricing() });
+}
+
+export function bindTaskCost(taskId, { conversationId, transcriptPath, modelName } = {}) {
+  if (!conversationId && transcriptPath) {
+    const m = String(transcriptPath).match(/brain[\\/]+([^\\/]+)[\\/]+/);
+    if (m) conversationId = m[1];
+  }
+  if (!conversationId) throw new Error('A conversation id or transcript path is required (--conversation <id> or --transcript <path>).');
+  if (!transcriptPath) transcriptPath = transcriptPathForConversation(conversationId);
+  return bindConversation(db, { conversationId, taskId, stepIdx: 0, transcriptPath, modelName: modelName || null, source: 'manual' });
+}
+
+/**
+ * Computes the cost report and upserts a single `cost` comment on the card
+ * (updated in place on subsequent cycles so the stream is not spammed).
+ */
+export function finalizeTaskCost(taskId) {
+  const report = computeAndStoreTaskCost(taskId);
+  if (!report || report.conversations.length === 0) return report;
+  const content = formatCostMarkdown(report, { projectDir: getProjectInfo().projectDir });
+  const existing = db.prepare("SELECT id FROM task_comments WHERE task_id = ? AND comment_type = 'cost' ORDER BY created_at DESC LIMIT 1").get(taskId);
+  if (existing) {
+    db.prepare('UPDATE task_comments SET content = ? WHERE id = ?').run(content, existing.id);
+  } else {
+    const cid = `comment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    db.prepare(`
+      INSERT INTO task_comments (id, task_id, author, comment_type, content, processed_by_agent)
+      VALUES (?, ?, 'agent (cost-tracker)', 'cost', ?, 1)
+    `).run(cid, taskId, content);
+  }
+  return report;
 }
 
 export function deleteTask(id) {
@@ -1645,8 +1723,69 @@ if (isCliEntry && command) {
       break;
     }
 
+    case 'cost-bind': {
+      // Bind the current agent conversation to a task so its token usage is attributed to it.
+      const [taskId, ...rest] = args;
+      const opt = (name) => { const i = rest.indexOf(name); return i >= 0 ? rest[i + 1] : undefined; };
+      if (!taskId) {
+        console.error('Usage: cost-bind <TASK_ID> [--transcript <PATH>] [--conversation <ID>] [--model <NAME>]');
+        process.exit(1);
+      }
+      try {
+        const binding = bindTaskCost(taskId, {
+          transcriptPath: opt('--transcript'),
+          conversationId: opt('--conversation'),
+          modelName: opt('--model')
+        });
+        console.log(`✅ Cost tracking bound: conversation ${binding.conversation_id} → ${taskId}`);
+      } catch (e) {
+        // When hooks are enabled the PostToolUse hook binds this command automatically.
+        console.log(`ℹ️ ${e.message} (with plugin hooks enabled, this command is auto-bound by the hook)`);
+      }
+      break;
+    }
+    case 'cost': {
+      const [taskId, ...rest] = args;
+      if (!taskId) {
+        console.error('Usage: cost <TASK_ID> [--refresh] [--json]');
+        process.exit(1);
+      }
+      const report = getTaskCost(taskId, { refresh: true });
+      if (rest.includes('--json')) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        console.log(formatCostMarkdown(report, { projectDir: getProjectInfo().projectDir }).replace(/\n<!-- COST_REPORT[^>]*-->/, ''));
+      }
+      break;
+    }
+    case 'costs': {
+      const summary = getCostSummary();
+      if (args.includes('--json')) {
+        console.log(JSON.stringify(summary, null, 2));
+        break;
+      }
+      const t = summary.totals;
+      console.log(`💰 Project cost summary (${t.tasks} tasks tracked)`);
+      console.log(`   Est. cost: ${fmtUsd(t.est_cost_usd)} · avg/task ${fmtUsd(t.avg_cost_per_task)}`);
+      console.log(`   Tokens: input ${fmtNum(t.input_tokens)} · cache ${fmtNum(t.cache_read_tokens)} · output ${fmtNum(t.output_tokens)}`);
+      console.log(`   File reads: ${t.file_reads} (~${fmtNum(t.file_read_tokens)} tokens)\n`);
+      console.log('Top tasks by cost:');
+      for (const r of summary.tasks.slice(0, 10)) {
+        console.log(`   ${fmtUsd(r.est_cost_usd).padStart(9)}  ${fmtNum(r.total_tokens).padStart(7)} tok  ${r.task_id}  ${r.title || ''}`);
+      }
+      console.log('\nTop files by tokens read:');
+      for (const f of summary.top_files_by_tokens.slice(0, 10)) {
+        console.log(`   ${fmtNum(f.est_tokens).padStart(7)} tok  ${String(f.reads).padStart(3)} reads  ${String(f.tasks).padStart(2)} tasks  ${fmtBytes(f.current_size).padStart(8)}  ${f.file_path}`);
+      }
+      if (summary.recommendations.length) {
+        console.log('\nRecommendations:');
+        summary.recommendations.forEach(r => console.log(`   • ${r}`));
+      }
+      break;
+    }
+
     default: {
-      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup, begin-session, stop-session, running-sessions, sessions.`);
+      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup, begin-session, stop-session, running-sessions, sessions, cost, cost-bind, costs.`);
     }
   }
 }

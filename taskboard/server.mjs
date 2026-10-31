@@ -27,6 +27,9 @@ import {
   deleteAttachment,
   isAutonomousMode,
   setAutonomousMode,
+  getTaskCost,
+  getCostSummary,
+  computeAndStoreTaskCost,
   db
 } from './tasks.mjs';
 import {
@@ -1264,6 +1267,30 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 201, { success: true, task });
     } catch (e) {
       return sendJson(res, 400, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: GET /api/costs (project-wide cost summary for optimization decisions)
+  if (pathname === '/api/costs' && req.method === 'GET') {
+    try {
+      if (urlObj.searchParams.get('refresh') === '1') {
+        const ids = db.prepare('SELECT DISTINCT task_id FROM task_cost_bindings').all().map(r => r.task_id);
+        for (const id of ids) { try { computeAndStoreTaskCost(id); } catch (e) {} }
+      }
+      return sendJson(res, 200, { success: true, summary: getCostSummary() });
+    } catch (e) {
+      return sendJson(res, 500, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: GET /api/tasks/:id/cost[?refresh=1]
+  const taskCostMatch = pathname.match(/^\/api\/tasks\/([^/]+)\/cost$/);
+  if (taskCostMatch && req.method === 'GET') {
+    try {
+      const report = getTaskCost(taskCostMatch[1], { refresh: urlObj.searchParams.get('refresh') === '1' });
+      return sendJson(res, 200, { success: true, report });
+    } catch (e) {
+      return sendJson(res, 500, { success: false, error: e.message });
     }
   }
 

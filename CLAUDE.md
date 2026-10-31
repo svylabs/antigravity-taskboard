@@ -88,6 +88,11 @@ node taskboard/tasks.mjs get-attachment <ATTACHMENT_ID> [OUTPUT_PATH]
 # Update status
 node taskboard/tasks.mjs update <ID> done "Verification passed"
 
+# Cost tracking (token usage, files read, estimated USD per task)
+node taskboard/tasks.mjs cost-bind <ID> --transcript <PATH/transcript.jsonl>
+node taskboard/tasks.mjs cost <ID>
+node taskboard/tasks.mjs costs
+
 # Follow-up tasks suggestions & creation
 node taskboard/tasks.mjs followups <TASK_ID>
 node taskboard/tasks.mjs create-followup <TASK_ID> 1

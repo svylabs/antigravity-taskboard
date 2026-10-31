@@ -163,6 +163,9 @@ Posting the plan comment advances the task to **`Planned`**.
      ```
   2. In the very same turn, dispatch the subagent in an isolated workspace branch (`Workspace: "branch"`) to begin implementation:
      `invoke_subagent(Subagents=[{TypeName: "self", Role: task.subagent_role, Workspace: "branch", Prompt: ...}])`
+     **Cost tracking**: the subagent prompt must tell the subagent to run this as its first command, so its token usage is attributed to the task:
+     `node .agents/plugins/antigravity-taskboard/taskboard/tasks.mjs cost-bind <ID> --transcript <its own transcript.jsonl path>`
+     With plugin hooks enabled the hook binds the conversation automatically and `--transcript` can be left out. The cost report is computed and posted as a `cost` comment when the task moves to `verification`, `done` or `failed`.
 - **If Autonomous Mode is OFF (`autonomous_mode == false`)**:
   The task pauses in **`📋 Planned`** for user plan review. The user will review the plan in the web taskboard and click `▶️ Proceed` (or reply with modifications). Stop calling tools and wait for user approval.
 

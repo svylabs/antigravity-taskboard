@@ -140,6 +140,30 @@ flowchart TD
 ### 14. 8-Hour Inactivity Auto-Termination
 * Automatically terminates the supervisor loop after 8 continuous hours of inactivity (no active tasks, no pending todo items, and no unread comments) to conserve tokens and resources.
 
+### 15. Per-Task Cost Tracker (Tokens, Files & Estimated USD)
+Every task gets a cost report stored in the project SQLite DB, so you can see where tokens go and decide what to optimize.
+* **What is tracked**: input (uncached), cache-read and output tokens, model calls, tool calls, files read/written/searched, **how many times each file was read**, **file size at the time of access** versus now, and estimated tokens per file.
+* **How it is collected**:
+  - **Lifecycle hooks** (`hooks.json` at the plugin root → `taskboard/cost_hook.mjs`): a `PostToolUse` hook (matcher `*`) logs every file access with its size at that moment into `task_file_access`. It also auto-binds the agent conversation to a task when the agent runs a `tasks.mjs` command (or MCP tool) that references the task id. A `Stop` hook refreshes reports for active tasks.
+  - **Transcripts**: per-step `input_tokens` / `cache_read_tokens` / `output_tokens` come from the conversation `transcript.jsonl`. When hook data is missing, file reads are taken from transcript tool calls instead.
+  - **Attribution**: a conversation that works on several tasks (for example the supervisor) is split by step ranges. Each step counts toward the task that was bound most recently before it.
+* **When**: a report is computed and posted as one `cost` comment (updated in place) whenever a task moves to `verification`, `done` or `failed`. You can also recompute it at any time.
+* **Where to see it**:
+  - Task detail modal → **💰 Cost & Token Usage** panel (stats, token mix bar, sortable per-file table, tool calls, per-conversation breakdown, hints).
+  - Header → **💰 Costs** dashboard: totals, tasks ranked by cost, token-heavy and frequently re-read files across tasks, and optimization recommendations.
+  - CLI: `tasks.mjs cost <TASK_ID>` and `tasks.mjs costs`. MCP: `taskboard_get_cost` and `taskboard_get_cost_summary`.
+* **Pricing**: USD per 1M tokens, with defaults per model family. Override with `.agents/taskboard/pricing.json`:
+  ```json
+  { "default": { "input": 3, "cache_read": 0.3, "output": 15 },
+    "models": { "opus": { "input": 15, "cache_read": 1.5, "output": 75 } },
+    "chars_per_token": 4,
+    "hints": { "reread_threshold": 3, "large_file_tokens": 8000, "cache_ratio_warn": 0.5 } }
+  ```
+* **Env switches**: `TASKBOARD_COST_TRACKING=0` disables the hook. `TASKBOARD_COST_DEBUG=1` logs hook errors to `.agents/taskboard/cost_hook.log`. `TASKBOARD_IMAGE_TOKENS` sets the flat token estimate per image read (default 1600). `TASKBOARD_READ_CAP_BYTES` sets the per-read cap (default 46080).
+* **SQLite tables**: `task_cost_bindings` (conversation → task step ranges), `task_file_access` (raw per-access log), `task_cost_reports` (latest computed report per task).
+
+> File token counts are estimates (bytes ÷ `chars_per_token`, capped per read). Model token counts come straight from the transcripts.
+
 ---
 
 ## 🗄️ Multi-Project Architecture
@@ -163,6 +187,7 @@ flowchart TD
 ```text
 antigravity-taskboard/
 ├── plugin.json                 # Antigravity Plugin Manifest
+├── hooks.json                  # Lifecycle hooks (per-task cost tracking)
 ├── README.md                   # Comprehensive Plugin Documentation
 ├── package.json                # Server & CLI dependencies
 ├── product.yaml                # Example/self-tracking product backlog tree
@@ -179,6 +204,8 @@ antigravity-taskboard/
     ├── board.html              # Responsive Drag-and-Drop Kanban UI
     ├── server.mjs              # Standalone Node micro-server (Port 4040)
     ├── repo_viewer.mjs         # Repository file & code viewer
+    ├── cost.mjs                # Cost tracking: token/file attribution, reports, summaries
+    ├── cost_hook.mjs           # PostToolUse / Stop hook entry point (writes to SQLite)
     └── tasks.mjs               # Black-box project-scoped SQLite CLI & API
 ```
 
@@ -339,6 +366,18 @@ node taskboard/tasks.mjs get-attachment <ATTACHMENT_ID> [OUTPUT_PATH]
 node taskboard/tasks.mjs delete-attachment <ATTACHMENT_ID>
 ```
 
+### 9. Cost Tracking
+```bash
+# Bind the current agent conversation to a task (automatic when hooks are enabled)
+node taskboard/tasks.mjs cost-bind <TASK_ID> [--transcript <PATH/transcript.jsonl>] [--conversation <ID>] [--model <NAME>]
+
+# Recompute and print a task's cost report (add --json for the full report)
+node taskboard/tasks.mjs cost <TASK_ID> [--json]
+
+# Project-wide summary: most expensive tasks, hot files, recommendations
+node taskboard/tasks.mjs costs [--json]
+```
+
 ---
 
 ## 🌐 Micro-Server REST API Reference
@@ -361,6 +400,8 @@ The embedded HTTP server running on `http://localhost:4040` exposes standard JSO
 | `/api/product/move` | `POST` | Reorder or move nodes within the backlog hierarchy |
 | `/api/autonomous` | `GET`, `POST` | Inspect or toggle Autonomous Mode (`on` / `off`) |
 | `/api/sessions` | `GET`, `POST` | List all sessions or create a new active session |
+| `/api/tasks/:id/cost` | `GET` | Task cost report (`?refresh=1` recomputes from transcripts + hook logs) |
+| `/api/costs` | `GET` | Project cost summary: totals, tasks by cost, hot files, recommendations (`?refresh=1`) |
 | `/repo/*`, `/docs/*` | `GET` | Web repository code browser and Markdown previewer |
 
 ---

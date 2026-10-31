@@ -1,0 +1,23 @@
+{
+  "taskboard-cost-tracker": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node taskboard/cost_hook.mjs post-tool",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node taskboard/cost_hook.mjs stop",
+        "timeout": 20
+      }
+    ]
+  }
+}

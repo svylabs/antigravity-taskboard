@@ -24,6 +24,9 @@ import {
   syncTaskStatusesWithTree,
   isAutonomousMode,
   setAutonomousMode,
+  getTaskCost,
+  getCostSummary,
+  bindTaskCost,
   db
 } from './tasks.mjs';
 
@@ -221,6 +224,36 @@ const TOOLS = [
       },
       required: ['enabled']
     }
+  },
+  {
+    name: 'taskboard_get_cost',
+    description: 'Get the cost report for a task: input/cache/output tokens, estimated USD cost, tool calls, and per-file read counts, sizes and estimated tokens, plus optimization hints.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'Task ID' },
+        refresh: { type: 'boolean', description: 'Recompute from transcripts and hook logs (default true)' }
+      },
+      required: ['task_id']
+    }
+  },
+  {
+    name: 'taskboard_get_cost_summary',
+    description: 'Get the project-wide cost summary: totals, most expensive tasks, most read / token-heavy files and optimization recommendations.',
+    inputSchema: { type: 'object', properties: {} }
+  },
+  {
+    name: 'taskboard_cost_bind',
+    description: 'Bind the calling agent conversation to a task so its token usage is attributed to that task. Provide the transcript path (preferred) or conversation id.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id: { type: 'string', description: 'Task ID' },
+        transcript_path: { type: 'string', description: 'Absolute path to the conversation transcript.jsonl' },
+        conversation_id: { type: 'string', description: 'Conversation ID' }
+      },
+      required: ['task_id']
+    }
   }
 ];
 
@@ -228,6 +261,16 @@ function handleToolCall(name, args) {
   switch (name) {
     case 'taskboard_poll': {
       return checkPoll();
+    }
+    case 'taskboard_get_cost': {
+      return { success: true, report: getTaskCost(args.task_id, { refresh: args.refresh !== false }) };
+    }
+    case 'taskboard_get_cost_summary': {
+      return { success: true, summary: getCostSummary() };
+    }
+    case 'taskboard_cost_bind': {
+      const binding = bindTaskCost(args.task_id, { transcriptPath: args.transcript_path, conversationId: args.conversation_id });
+      return { success: true, binding };
     }
     case 'taskboard_set_autonomous_mode': {
       const state = setAutonomousMode(args.enabled);

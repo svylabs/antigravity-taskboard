@@ -99,6 +99,8 @@ When executing tasks under the `antigravity-taskboard` plugin, all subagents and
       - **Get Follow-up Suggestions**: `node taskboard/tasks.mjs followups <TASK_ID>`
       - **Create Follow-up Task**: `node taskboard/tasks.mjs create-followup <TASK_ID> <INDEX>`
       - **Toggle / Check Autonomous Mode**: `node taskboard/tasks.mjs autonomous [on|off|status]`
+      - **Bind Conversation for Cost Tracking**: `node taskboard/tasks.mjs cost-bind <TASK_ID> [--transcript <PATH>]` (first command of every task subagent)
+      - **Task Cost Report**: `node taskboard/tasks.mjs cost <TASK_ID>` / **Project Cost Summary**: `node taskboard/tasks.mjs costs`
 
 12. **Permission Request Alerts & Beeps**:
     * Whenever an agent or subagent needs user approval (e.g. sandbox bypass, destructive action, or subagent entering `waiting_for_input`), it must immediately run:
