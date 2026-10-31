@@ -3074,6 +3074,22 @@
     .cost-meta { font-size: 11px; color: #94A3B8; }
     .cost-task-link { color: var(--primary); cursor: pointer; text-decoration: none; font-weight: 600; }
     .cost-task-link:hover { text-decoration: underline; }
+    .cost-tabs { display: flex; gap: 4px; border-bottom: 1px solid #E2E8F0; margin-bottom: 14px; }
+    .cost-tab { background: none; border: none; border-bottom: 2px solid transparent; padding: 8px 14px; font-size: 13px; font-weight: 600; color: #64748B; cursor: pointer; margin-bottom: -1px; }
+    .cost-tab:hover { color: #0F172A; }
+    .cost-tab.active { color: #B45309; border-bottom-color: #D97706; }
+    .cost-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+    .cost-chart { width: 100%; height: auto; display: block; margin-bottom: 8px; overflow: visible; }
+    .cost-hbars { display: flex; flex-direction: column; gap: 5px; }
+    .cost-hbar-row { display: grid; grid-template-columns: minmax(120px, 38%) 1fr auto; align-items: center; gap: 8px; font-size: 12px; padding: 2px 4px; border-radius: 4px; }
+    .cost-hbar-row:hover { background: #F8FAFC; }
+    .cost-hbar-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #334155; }
+    .cost-hbar-track { background: #F1F5F9; border-radius: 4px; height: 10px; overflow: hidden; }
+    .cost-hbar-fill { height: 100%; border-radius: 4px; }
+    .cost-hbar-value { font-variant-numeric: tabular-nums; font-weight: 600; color: #0F172A; white-space: nowrap; }
+    .cost-click-row { cursor: pointer; }
+    .cost-click-row.expanded td { background: #FEF3C7 !important; }
+    .cost-file-detail { border: 1px solid #FDE68A; background: #FFFDF5; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
 
     .comment-meta {
       display: flex;
@@ -4344,7 +4360,7 @@
 
   <!-- Project Cost Dashboard Modal -->
   <div class="modal-overlay" id="costsModal">
-    <div class="modal" style="max-width: 1000px;">
+    <div class="modal" style="max-width: 1180px;">
       <div class="modal-header" style="background: #FFFBEB; border-bottom: 1px solid #FDE68A;">
         <div style="display: flex; align-items: center; gap: 10px;">
           <span style="font-size: 24px;">💰</span>
@@ -4354,6 +4370,7 @@
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-secondary" onclick="runCostBackfill()" title="Reconstruct costs for older tasks from past agent transcripts">⏪ Backfill</button>
           <button type="button" class="btn btn-sm btn-secondary" onclick="loadCostSummary(true)" title="Recompute all task cost reports from transcripts and hook logs">🔄 Recompute</button>
           <button class="close-btn" onclick="closeCostsModal()">&times;</button>
         </div>
@@ -10042,7 +10059,8 @@
     // ---------------------------------------------------------------------
     // Cost tracker UI
     // ---------------------------------------------------------------------
-    const COST_COLORS = { input: '#6366F1', cache: '#22C55E', output: '#F59E0B' };
+    const COST_COLORS = { input: '#6366F1', cache: '#22C55E', output: '#F59E0B', file: '#EF4444', size: '#0EA5E9' };
+    const costState = { summary: null, tab: 'overview', taskFilter: '', fileFilter: '', minReads: 1, fileSort: 'cost', selectedFile: null, expandedTask: null, taskReports: {} };
 
     function costFmtNum(n) {
       n = Number(n || 0);
@@ -10067,6 +10085,10 @@
       if (root && p.startsWith(root + '/')) return p.slice(root.length + 1);
       return p.replace(/^\/Users\/[^/]+/, '~');
     }
+    function costShortDay(day) {
+      const d = new Date(day + 'T00:00:00');
+      return isNaN(d) ? day : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    }
     function costHintHtml(h) {
       const msg = escapeHtml(h.message).replace(/`([^`]+)`/g, (m, p1) => `<code title="${p1}">${escapeHtml(costShortPath(p1))}</code>`);
       const file = h.file ? `<code title="${escapeHtml(h.file)}">${escapeHtml(costShortPath(h.file))}</code>: ` : '';
@@ -10087,6 +10109,84 @@
         </div>`;
     }
 
+    // ---------- SVG charts (dependency-free) ----------
+    // Vertical stacked bar chart. points: [{ label, title?, values: { key: number } }], keys: [{ key, color, label }]
+    function costBarChart(points, keys, { height = 180, fmt = costFmtUsd, line = null } = {}) {
+      if (!points.length) return '<div class="cost-empty">No data yet.</div>';
+      const W = 860, H = height, padL = 54, padR = line ? 54 : 10, padT = 10, padB = 34;
+      const max = Math.max(...points.map(p => keys.reduce((s, k) => s + (p.values[k.key] || 0), 0)), 1e-9);
+      const lineMax = line ? Math.max(...points.map(p => p.line || 0), 1) : 1;
+      const bw = (W - padL - padR) / points.length;
+      const barW = Math.max(2, Math.min(42, bw * 0.7));
+      let bars = '', labels = '', linePts = [];
+      const every = Math.ceil(points.length / 14);
+      points.forEach((p, i) => {
+        let y = H - padB;
+        const x = padL + i * bw + (bw - barW) / 2;
+        const total = keys.reduce((s, k) => s + (p.values[k.key] || 0), 0);
+        keys.forEach(k => {
+          const v = p.values[k.key] || 0;
+          const h = (v / max) * (H - padT - padB);
+          y -= h;
+          bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, h).toFixed(1)}" fill="${k.color}" rx="1.5"><title>${escapeHtml(p.title || p.label)} · ${escapeHtml(k.label)}: ${fmt(v)} (total ${fmt(total)})</title></rect>`;
+        });
+        if (i % every === 0) labels += `<text x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H - padB + 14}" text-anchor="middle" font-size="10" fill="#64748B">${escapeHtml(p.label)}</text>`;
+        if (line && p.line != null) linePts.push(`${(padL + i * bw + bw / 2).toFixed(1)},${(H - padB - (p.line / lineMax) * (H - padT - padB)).toFixed(1)}`);
+      });
+      const grid = [0, 0.5, 1].map(f => {
+        const y = H - padB - f * (H - padT - padB);
+        return `<line x1="${padL}" x2="${W - padR}" y1="${y}" y2="${y}" stroke="#E2E8F0" stroke-dasharray="3 3"/><text x="${padL - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="#94A3B8">${fmt(max * f)}</text>`
+          + (line ? `<text x="${W - padR + 6}" y="${y + 3}" font-size="10" fill="${line.color}">${line.fmt(lineMax * f)}</text>` : '');
+      }).join('');
+      const lineSvg = line && linePts.length ? `<polyline points="${linePts.join(' ')}" fill="none" stroke="${line.color}" stroke-width="2"/>${linePts.map(pt => `<circle cx="${pt.split(',')[0]}" cy="${pt.split(',')[1]}" r="2.5" fill="${line.color}"/>`).join('')}` : '';
+      const legend = keys.map(k => `<span style="--c:${k.color}">${escapeHtml(k.label)}</span>`).join('') + (line ? `<span style="--c:${line.color}">${escapeHtml(line.label)}</span>` : '');
+      return `<div class="cost-legend">${legend}</div><svg viewBox="0 0 ${W} ${H}" class="cost-chart" preserveAspectRatio="none">${grid}${bars}${lineSvg}${labels}</svg>`;
+    }
+
+    // Horizontal bar chart. rows: [{ label, value, sub?, onclick? }]
+    function costHBarChart(rows, { fmt = costFmtUsd, color = COST_COLORS.output } = {}) {
+      if (!rows.length) return '<div class="cost-empty">No data yet.</div>';
+      const max = Math.max(...rows.map(r => r.value), 1e-9);
+      return `<div class="cost-hbars">${rows.map(r => `
+        <div class="cost-hbar-row" ${r.onclick ? `onclick="${r.onclick}" style="cursor:pointer"` : ''} title="${escapeHtml(r.title || r.label)}">
+          <div class="cost-hbar-label">${escapeHtml(r.label)}</div>
+          <div class="cost-hbar-track"><div class="cost-hbar-fill" style="width:${Math.max(1, (r.value / max) * 100)}%; background:${color}"></div></div>
+          <div class="cost-hbar-value">${fmt(r.value)}${r.sub ? `<span class="cost-meta"> ${escapeHtml(r.sub)}</span>` : ''}</div>
+        </div>`).join('')}</div>`;
+    }
+
+    // Cumulative line chart. points: [{ ts, cost }]
+    function costLineChart(points, { height = 120 } = {}) {
+      if (!points || points.length < 2) return '';
+      const W = 860, H = height, padL = 54, padR = 10, padT = 8, padB = 22;
+      const t0 = new Date(points[0].ts).getTime(), t1 = new Date(points[points.length - 1].ts).getTime();
+      const span = Math.max(1, t1 - t0);
+      const max = Math.max(...points.map(p => p.cost), 1e-9);
+      const xy = points.map(p => [padL + ((new Date(p.ts).getTime() - t0) / span) * (W - padL - padR), H - padB - (p.cost / max) * (H - padT - padB)]);
+      const path = xy.map((q, i) => `${i ? 'L' : 'M'}${q[0].toFixed(1)},${q[1].toFixed(1)}`).join(' ');
+      const area = `${path} L${xy[xy.length - 1][0].toFixed(1)},${H - padB} L${padL},${H - padB} Z`;
+      const fmtT = ms => new Date(ms).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return `
+        <svg viewBox="0 0 ${W} ${H}" class="cost-chart" preserveAspectRatio="none">
+          <line x1="${padL}" x2="${W - padR}" y1="${padT}" y2="${padT}" stroke="#E2E8F0" stroke-dasharray="3 3"/>
+          <text x="${padL - 6}" y="${padT + 3}" text-anchor="end" font-size="10" fill="#94A3B8">${costFmtUsd(max)}</text>
+          <text x="${padL - 6}" y="${H - padB + 3}" text-anchor="end" font-size="10" fill="#94A3B8">$0</text>
+          <path d="${area}" fill="rgba(245,158,11,0.15)"/>
+          <path d="${path}" fill="none" stroke="#D97706" stroke-width="2"/>
+          <text x="${padL}" y="${H - 6}" font-size="10" fill="#64748B">${escapeHtml(fmtT(t0))}</text>
+          <text x="${W - padR}" y="${H - 6}" text-anchor="end" font-size="10" fill="#64748B">${escapeHtml(fmtT(t1))}</text>
+        </svg>`;
+    }
+
+    function costSparkline(values, color = COST_COLORS.file) {
+      if (!values || !values.length) return '';
+      const W = 80, H = 18, max = Math.max(...values, 1e-9), bw = W / values.length;
+      return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align: middle;">${values.map((v, i) => {
+        const h = Math.max(v > 0 ? 1.5 : 0, (v / max) * H);
+        return `<rect x="${(i * bw + 0.5).toFixed(1)}" y="${(H - h).toFixed(1)}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" rx="0.5"/>`;
+      }).join('')}</svg>`;
+    }
+
     // Generic client-side sortable table (click headers)
     function costSortTable(th) {
       const table = th.closest('table');
@@ -10095,7 +10195,7 @@
       table.querySelectorAll('th').forEach(h => delete h.dataset.sort);
       th.dataset.sort = asc ? 'asc' : 'desc';
       const tbody = table.tBodies[0];
-      const rows = Array.from(tbody.rows);
+      const rows = Array.from(tbody.rows).filter(r => !r.classList.contains('cost-expand-row'));
       rows.sort((a, b) => {
         const av = a.cells[idx].dataset.v ?? a.cells[idx].innerText;
         const bv = b.cells[idx].dataset.v ?? b.cells[idx].innerText;
@@ -10103,6 +10203,7 @@
         const cmp = (!isNaN(an) && !isNaN(bn)) ? an - bn : String(av).localeCompare(String(bv));
         return asc ? cmp : -cmp;
       });
+      tbody.querySelectorAll('.cost-expand-row').forEach(r => r.remove());
       rows.forEach(r => tbody.appendChild(r));
     }
 
@@ -10111,6 +10212,39 @@
       try { const info = await (await fetch('/api/info')).json(); window.__repoRoot = info.repoRoot || info.projectDir || ''; } catch (e) { window.__repoRoot = ''; }
     }
 
+    // Shared "files accessed" table for a task report
+    function costTaskFilesTable(r, { maxHeight = 280 } = {}) {
+      const files = (r.files || []).filter(f => f.reads || f.writes || f.searches);
+      if (!files.length) return '<div class="cost-empty">No file access recorded for this task.</div>';
+      const maxCost = Math.max(1e-9, ...files.map(f => f.read_cost_usd || 0));
+      return `
+        <div class="cost-table-wrap" style="max-height:${maxHeight}px"><table class="cost-table">
+          <thead><tr>
+            <th onclick="costSortTable(this)">File</th>
+            <th class="num" onclick="costSortTable(this)">Reads</th>
+            <th class="num" onclick="costSortTable(this)">Writes</th>
+            <th class="num" onclick="costSortTable(this)">Searches</th>
+            <th class="num" onclick="costSortTable(this)">Size at access</th>
+            <th class="num" onclick="costSortTable(this)">Current size</th>
+            <th class="num" onclick="costSortTable(this)">~Tokens read</th>
+            <th class="num" onclick="costSortTable(this)">~Context cost</th>
+          </tr></thead>
+          <tbody>${files.map(f => `
+            <tr>
+              <td class="path" title="${escapeHtml(f.file_path)}">${escapeHtml(costShortPath(f.file_path))}</td>
+              <td class="num" data-v="${f.reads}">${f.reads}${f.reads >= 3 ? ' 🔁' : ''}</td>
+              <td class="num" data-v="${f.writes}">${f.writes}</td>
+              <td class="num" data-v="${f.searches}">${f.searches}</td>
+              <td class="num" data-v="${f.size_at_last_access ?? -1}">${costFmtBytes(f.size_at_last_access)}</td>
+              <td class="num" data-v="${f.current_size ?? -1}">${costFmtBytes(f.current_size)}</td>
+              <td class="num" data-v="${f.est_tokens}">${costFmtNum(f.est_tokens)}</td>
+              <td class="num" data-v="${f.read_cost_usd || 0}">${costFmtUsd(f.read_cost_usd)}<span class="heat" style="width:${Math.round(((f.read_cost_usd || 0) / maxCost) * 36)}px"></span></td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>`;
+    }
+
+    // ---------- Task detail panel ----------
     async function loadTaskCost(taskId, refresh = false) {
       const panel = document.getElementById('costPanel');
       if (!panel || !taskId) return;
@@ -10134,13 +10268,11 @@
       if (!r || !r.conversations || r.conversations.length === 0) {
         return `<div class="cost-empty">
           No agent conversation is linked to this task yet. Costs are recorded automatically by the plugin hooks
-          when an agent runs <code>tasks.mjs</code> commands for this task. Without hooks, the agent can run
-          <code>node taskboard/tasks.mjs cost-bind ${escapeHtml(r ? r.task_id : '')} --transcript &lt;transcript.jsonl&gt;</code>.
+          when an agent runs <code>tasks.mjs</code> commands for this task. For older tasks, run
+          <code>node taskboard/tasks.mjs cost-backfill</code> (or use <b>💰 Costs → Backfill</b>).
         </div>`;
       }
       const t = r.totals;
-      const maxTok = Math.max(1, ...r.files.map(f => f.est_tokens || 0));
-      const files = r.files.filter(f => f.reads || f.writes || f.searches);
       return `
         <div class="cost-stats">
           <div class="cost-stat primary"><div class="cost-stat-label">Est. Cost</div><div class="cost-stat-value">${costFmtUsd(t.est_cost_usd)}</div><div class="cost-stat-sub">${escapeHtml(r.currency || 'USD')} · ${r.conversations.map(c => c.rate_key).filter((v, i, a) => a.indexOf(v) === i).join(', ')} rates</div></div>
@@ -10148,32 +10280,13 @@
           <div class="cost-stat"><div class="cost-stat-label">Cache Read</div><div class="cost-stat-value">${costFmtNum(t.cache_read_tokens)}</div><div class="cost-stat-sub">${Math.round((t.cache_hit_ratio || 0) * 100)}% hit ratio</div></div>
           <div class="cost-stat"><div class="cost-stat-label">Output</div><div class="cost-stat-value">${costFmtNum(t.output_tokens)}</div><div class="cost-stat-sub">${t.model_calls} model calls</div></div>
           <div class="cost-stat"><div class="cost-stat-label">Files Read</div><div class="cost-stat-value">${t.files_read}</div><div class="cost-stat-sub">${t.file_reads} reads · ~${costFmtNum(t.file_read_tokens)} tok</div></div>
-          <div class="cost-stat"><div class="cost-stat-label">Tool Calls</div><div class="cost-stat-value">${t.tool_calls}</div><div class="cost-stat-sub">${t.files_written} files written</div></div>
+          <div class="cost-stat"><div class="cost-stat-label">File Read Cost</div><div class="cost-stat-value">${costFmtUsd(t.file_read_cost_usd)}</div><div class="cost-stat-sub">${t.est_cost_usd ? Math.round(((t.file_read_cost_usd || 0) / t.est_cost_usd) * 100) : 0}% of task cost</div></div>
         </div>
         ${costTokenBar(t.input_tokens, t.cache_read_tokens, t.output_tokens)}
+        ${r.cost_series && r.cost_series.length > 1 ? `<div class="cost-subtitle">📈 Cumulative cost</div>${costLineChart(r.cost_series)}` : ''}
         ${r.hints && r.hints.length ? `<div class="cost-hints">${r.hints.map(costHintHtml).join('')}</div>` : ''}
-        ${files.length ? `
-          <div class="cost-subtitle">📄 Files accessed <span class="cost-meta">(${r.data_sources.hooks ? 'size at access from hooks' : 'from transcript; size at access unavailable'}) · click a header to sort</span></div>
-          <div class="cost-table-wrap"><table class="cost-table">
-            <thead><tr>
-              <th onclick="costSortTable(this)">File</th>
-              <th class="num" onclick="costSortTable(this)">Reads</th>
-              <th class="num" onclick="costSortTable(this)">Writes</th>
-              <th class="num" onclick="costSortTable(this)">Size at access</th>
-              <th class="num" onclick="costSortTable(this)">Current size</th>
-              <th class="num" onclick="costSortTable(this)">~Tokens read</th>
-            </tr></thead>
-            <tbody>${files.map(f => `
-              <tr>
-                <td class="path" title="${escapeHtml(f.file_path)}">${escapeHtml(costShortPath(f.file_path))}</td>
-                <td class="num" data-v="${f.reads}">${f.reads}${f.reads >= 3 ? ' 🔁' : ''}</td>
-                <td class="num" data-v="${f.writes}">${f.writes}</td>
-                <td class="num" data-v="${f.size_at_last_access ?? -1}">${costFmtBytes(f.size_at_last_access)}</td>
-                <td class="num" data-v="${f.current_size ?? -1}">${costFmtBytes(f.current_size)}</td>
-                <td class="num" data-v="${f.est_tokens}">${costFmtNum(f.est_tokens)}<span class="heat" style="width:${Math.round((f.est_tokens / maxTok) * 40)}px"></span></td>
-              </tr>`).join('')}
-            </tbody>
-          </table></div>` : ''}
+        <div class="cost-subtitle">📄 Files accessed <span class="cost-meta">(${r.data_sources.hooks ? 'size at access from hooks' : 'from transcript, so size at access is unavailable'}) · click a header to sort</span></div>
+        ${costTaskFilesTable(r)}
         ${r.tools && r.tools.length ? `
           <div class="cost-subtitle">🛠️ Tool calls</div>
           <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
@@ -10196,6 +10309,7 @@
         </table></div>`;
     }
 
+    // ---------- Project dashboard ----------
     function openCostsModal() {
       const m = document.getElementById('costsModal');
       if (m) m.classList.add('active');
@@ -10218,7 +10332,9 @@
         await ensureCostRepoRoot();
         const res = await fetch(`/api/costs${refresh ? '?refresh=1' : ''}`);
         const data = await res.json();
-        body.innerHTML = renderCostSummary(data.summary);
+        costState.summary = data.summary;
+        if (refresh) costState.taskReports = {};
+        renderCostDashboard();
       } catch (e) {
         body.innerHTML = `<div class="cost-empty">Could not load cost summary: ${escapeHtml(e.message)}</div>`;
       } finally {
@@ -10226,93 +10342,281 @@
       }
     }
 
-    function renderCostSummary(s) {
+    async function runCostBackfill() {
+      const since = prompt('Backfill costs from agent transcripts since (YYYY-MM-DD). Only transcripts with token data are used.', '2026-10-23');
+      if (!since) return;
+      const body = document.getElementById('costsModalBody');
+      if (body) body.style.opacity = '0.5';
+      try {
+        const res = await fetch('/api/costs/backfill', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ since }) });
+        const data = await res.json();
+        const r = data.result || {};
+        if (r.error) alert('Backfill failed: ' + r.error);
+        else alert(`Backfill complete.\n\nScanned ${r.scanned} transcripts. Matched ${r.matched_conversations} conversations to ${r.tasks.length} tasks.\nSkipped: ${r.skipped_old} older, ${r.skipped_no_tokens} without token data, ${r.skipped_existing} already tracked.`);
+      } catch (e) {
+        alert('Backfill failed: ' + e.message);
+      }
+      costState.taskReports = {};
+      await loadCostSummary(false);
+    }
+
+    function setCostTab(tab) {
+      costState.tab = tab;
+      renderCostDashboard();
+    }
+
+    function renderCostDashboard() {
+      const body = document.getElementById('costsModalBody');
+      const s = costState.summary;
+      if (!body) return;
       if (!s || !s.tasks || s.tasks.length === 0) {
-        return `<div class="cost-empty">
+        body.innerHTML = `<div class="cost-empty">
           No cost reports yet. Reports are generated automatically when a task moves to <b>Pending Review</b>, <b>Done</b> or <b>Failed</b>,
           using token usage from agent transcripts and file-access logs captured by the plugin's <code>hooks.json</code>.
+          <div style="margin-top:10px;"><button type="button" class="btn btn-sm btn-primary" onclick="runCostBackfill()">⏪ Backfill from past transcripts</button></div>
         </div>`;
+        return;
       }
+      const tabs = [['overview', '📊 Overview'], ['tasks', `📋 Tasks (${s.tasks.length})`], ['files', `📄 Files (${s.top_files_by_cost.length})`]];
+      body.innerHTML = `
+        <div class="cost-tabs">${tabs.map(([k, l]) => `<button type="button" class="cost-tab ${costState.tab === k ? 'active' : ''}" onclick="setCostTab('${k}')">${l}</button>`).join('')}</div>
+        <div id="costTabBody">${costState.tab === 'tasks' ? renderCostTasksTab() : costState.tab === 'files' ? renderCostFilesTab() : renderCostOverviewTab()}</div>`;
+      if (costState.tab === 'tasks') renderCostTasksTable();
+      if (costState.tab === 'files') renderCostFilesTable();
+    }
+
+    function renderCostOverviewTab() {
+      const s = costState.summary;
       const t = s.totals;
-      const maxCost = Math.max(...s.tasks.map(x => x.est_cost_usd || 0), 0.000001);
-      const maxFileTok = Math.max(...s.top_files_by_tokens.map(f => f.est_tokens || 0), 1);
+      const oh = t.overhead;
+      const daily = (s.daily || []).filter(d => d.cost > 0).map(d => ({ label: costShortDay(d.day), title: `${d.day} · ${d.tasks} tasks · ${d.calls} calls`, values: { input: d.input_cost, cache: d.cache_cost, output: d.output_cost } }));
+      const topTasks = s.tasks.slice(0, 10).map(x => ({ label: x.title || x.task_id, value: x.est_cost_usd, sub: costFmtNum(x.total_tokens) + ' tok', onclick: `openTaskFromCosts('${escapeHtml(x.task_id)}')` }));
+      const topFiles = s.top_files_by_cost.slice(0, 10).map((f, i) => ({ label: costShortPath(f.file_path), title: f.file_path, value: f.read_cost_usd, sub: `${f.reads} reads · ${f.tasks} tasks`, onclick: `costState.tab='files'; costState.selectedFile=${i}; renderCostDashboard();` }));
       return `
         <div class="cost-stats">
-          <div class="cost-stat primary"><div class="cost-stat-label">Total Est. Cost</div><div class="cost-stat-value">${costFmtUsd(t.est_cost_usd)}</div><div class="cost-stat-sub">${t.tasks} tasks tracked</div></div>
-          <div class="cost-stat"><div class="cost-stat-label">Avg / Task</div><div class="cost-stat-value">${costFmtUsd(t.avg_cost_per_task)}</div><div class="cost-stat-sub">${costFmtNum(t.total_tokens / Math.max(1, t.tasks))} tok/task</div></div>
-          <div class="cost-stat"><div class="cost-stat-label">Input</div><div class="cost-stat-value">${costFmtNum(t.input_tokens)}</div></div>
+          <div class="cost-stat primary"><div class="cost-stat-label">Task Cost</div><div class="cost-stat-value">${costFmtUsd(t.est_cost_usd)}</div><div class="cost-stat-sub">${t.tasks} tasks · avg ${costFmtUsd(t.avg_cost_per_task)}</div></div>
+          ${oh ? `<div class="cost-stat" style="background:#FEF2F2; border-color:#FECACA;" title="Supervisor loop time not attributable to a task: polling, waiting, idle cron wakeups"><div class="cost-stat-label">Loop Overhead</div><div class="cost-stat-value" style="color:#B91C1C;">${costFmtUsd(oh.est_cost_usd)}</div><div class="cost-stat-sub">${oh.model_calls} calls · polling / idle</div></div>` : ''}
+          <div class="cost-stat"><div class="cost-stat-label">Input</div><div class="cost-stat-value">${costFmtNum(t.input_tokens)}</div><div class="cost-stat-sub">uncached tokens</div></div>
           <div class="cost-stat"><div class="cost-stat-label">Cache Read</div><div class="cost-stat-value">${costFmtNum(t.cache_read_tokens)}</div><div class="cost-stat-sub">${Math.round((t.cache_read_tokens / Math.max(1, t.input_tokens + t.cache_read_tokens)) * 100)}% hit ratio</div></div>
-          <div class="cost-stat"><div class="cost-stat-label">Output</div><div class="cost-stat-value">${costFmtNum(t.output_tokens)}</div></div>
-          <div class="cost-stat"><div class="cost-stat-label">File Reads</div><div class="cost-stat-value">${t.file_reads}</div><div class="cost-stat-sub">~${costFmtNum(t.file_read_tokens)} tok</div></div>
+          <div class="cost-stat"><div class="cost-stat-label">Output</div><div class="cost-stat-value">${costFmtNum(t.output_tokens)}</div><div class="cost-stat-sub">${t.model_calls} model calls</div></div>
+          <div class="cost-stat"><div class="cost-stat-label">File Reads</div><div class="cost-stat-value">${costFmtNum(t.file_reads)}</div><div class="cost-stat-sub">${t.unique_files_read || 0} files · ~${costFmtNum(t.file_read_tokens)} tok</div></div>
+          <div class="cost-stat"><div class="cost-stat-label">File Read Cost</div><div class="cost-stat-value">${costFmtUsd(t.file_read_cost_usd)}</div><div class="cost-stat-sub">${t.est_cost_usd ? Math.round((t.file_read_cost_usd / t.est_cost_usd) * 100) : 0}% of task cost</div></div>
         </div>
         ${costTokenBar(t.input_tokens, t.cache_read_tokens, t.output_tokens)}
-
         ${s.recommendations && s.recommendations.length ? `
           <div class="cost-subtitle">🎯 Optimization recommendations</div>
-          <div class="cost-hints">${s.recommendations.map(m => costHintHtml({ level: 'warn', message: m })).join('')}</div>` : ''}
+          <div class="cost-hints">${s.recommendations.map(m => costHintHtml({ level: 'warn', message: m })).join('')}
+            ${oh && oh.est_cost_usd > t.est_cost_usd * 0.25 ? costHintHtml({ level: 'warn', message: `The supervisor loop's polling and idle time cost ${costFmtUsd(oh.est_cost_usd)}, which is ${Math.round((oh.est_cost_usd / Math.max(1e-9, t.est_cost_usd)) * 100)}% of all task cost. Poll less often, or stop the loop when the board is idle.` }) : ''}
+          </div>` : ''}
+        <div class="cost-subtitle">📅 Daily task cost <span class="cost-meta">(stacked by token type)</span></div>
+        ${costBarChart(daily, [{ key: 'input', color: COST_COLORS.input, label: 'Input' }, { key: 'cache', color: COST_COLORS.cache, label: 'Cache read' }, { key: 'output', color: COST_COLORS.output, label: 'Output' }])}
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 16px; margin-top: 8px;">
+          <div><div class="cost-subtitle">🏆 Most expensive tasks</div>${costHBarChart(topTasks)}</div>
+          <div><div class="cost-subtitle">🔥 Files with the highest read cost</div>${costHBarChart(topFiles, { color: COST_COLORS.file })}</div>
+        </div>
+        <div class="cost-meta" style="margin-top: 10px;">
+          Rates (USD / 1M tokens, default): input ${s.pricing.default.input}, cache read ${s.pricing.default.cache_read}, output ${s.pricing.default.output}. Model-specific rates apply when the model is known.
+          File context cost ≈ tokens × input rate + tokens × cache-read rate × following calls (max ${s.pricing.carry_max_calls}). It is a share of the task cost, not an extra cost.
+          Override in <code>.agents/taskboard/pricing.json</code>.
+        </div>`;
+    }
 
-        <div class="cost-subtitle">📋 Tasks by cost <span class="cost-meta">· click a task to open it · click a header to sort</span></div>
-        <div class="cost-table-wrap"><table class="cost-table">
+    // ----- Tasks tab: cost / tokens per task + files accessed per task -----
+    function renderCostTasksTab() {
+      return `
+        <div class="cost-controls">
+          <input type="text" class="form-input" placeholder="Filter tasks by title or id…" value="${escapeHtml(costState.taskFilter)}" oninput="costState.taskFilter=this.value; renderCostTasksTable()" style="max-width: 320px; padding: 6px 10px; font-size: 12.5px;">
+          <span class="cost-meta">Click a row to see the files that task accessed.</span>
+        </div>
+        <div id="costTasksTableHost"></div>`;
+    }
+
+    function renderCostTasksTable() {
+      const host = document.getElementById('costTasksTableHost');
+      if (!host) return;
+      const q = costState.taskFilter.trim().toLowerCase();
+      const rows = costState.summary.tasks.filter(x => !q || (x.title || '').toLowerCase().includes(q) || x.task_id.toLowerCase().includes(q));
+      const maxCost = Math.max(1e-9, ...rows.map(x => x.est_cost_usd || 0));
+      host.innerHTML = `
+        <div class="cost-table-wrap" style="max-height: 560px;"><table class="cost-table">
           <thead><tr>
             <th onclick="costSortTable(this)">Task</th>
             <th onclick="costSortTable(this)">Status</th>
+            <th onclick="costSortTable(this)">Last activity</th>
             <th class="num" onclick="costSortTable(this)">Est. cost</th>
             <th class="num" onclick="costSortTable(this)">Input</th>
             <th class="num" onclick="costSortTable(this)">Cache</th>
             <th class="num" onclick="costSortTable(this)">Output</th>
             <th class="num" onclick="costSortTable(this)">Calls</th>
             <th class="num" onclick="costSortTable(this)">Files</th>
-            <th class="num" onclick="costSortTable(this)">File tok</th>
+            <th class="num" onclick="costSortTable(this)">File reads</th>
+            <th class="num" onclick="costSortTable(this)">File cost</th>
           </tr></thead>
-          <tbody>${s.tasks.map(x => `
-            <tr>
-              <td class="path" style="font-family: inherit; max-width: 300px;" title="${escapeHtml(x.task_id)}"><a class="cost-task-link" onclick="openTaskFromCosts('${escapeHtml(x.task_id)}')">${escapeHtml(x.title || x.task_id)}</a></td>
+          <tbody>${rows.map(x => `
+            <tr class="cost-click-row ${costState.expandedTask === x.task_id ? 'expanded' : ''}" data-task="${escapeHtml(x.task_id)}" onclick="toggleCostTaskRow(this)">
+              <td class="path" style="font-family: inherit; max-width: 260px;" title="${escapeHtml(x.task_id)}">${costState.expandedTask === x.task_id ? '▾' : '▸'} <a class="cost-task-link" onclick="event.stopPropagation(); openTaskFromCosts('${escapeHtml(x.task_id)}')">${escapeHtml(x.title || x.task_id)}</a>${x.backfilled ? ' <span class="cost-meta" title="Reconstructed from past transcripts">⏪</span>' : ''}${x.partial ? ' <span class="cost-meta" title="Partial data">◐</span>' : ''}</td>
               <td>${escapeHtml(x.status || 'deleted')}</td>
-              <td class="num" data-v="${x.est_cost_usd}">${costFmtUsd(x.est_cost_usd)}<span class="heat" style="width:${Math.round(((x.est_cost_usd || 0) / maxCost) * 40)}px"></span></td>
+              <td data-v="${escapeHtml(x.last_at || '')}">${x.last_at ? escapeHtml(new Date(x.last_at).toLocaleDateString()) : '—'}</td>
+              <td class="num" data-v="${x.est_cost_usd}">${costFmtUsd(x.est_cost_usd)}<span class="heat" style="width:${Math.round(((x.est_cost_usd || 0) / maxCost) * 36)}px"></span></td>
               <td class="num" data-v="${x.input_tokens}">${costFmtNum(x.input_tokens)}</td>
               <td class="num" data-v="${x.cache_read_tokens}">${costFmtNum(x.cache_read_tokens)}</td>
               <td class="num" data-v="${x.output_tokens}">${costFmtNum(x.output_tokens)}</td>
               <td class="num" data-v="${x.model_calls}">${x.model_calls}</td>
               <td class="num" data-v="${x.files_read}">${x.files_read}</td>
-              <td class="num" data-v="${x.file_read_tokens}">${costFmtNum(x.file_read_tokens)}</td>
+              <td class="num" data-v="${x.file_reads}">${x.file_reads}</td>
+              <td class="num" data-v="${x.file_read_cost_usd || 0}">${costFmtUsd(x.file_read_cost_usd)}</td>
             </tr>`).join('')}
           </tbody>
-        </table></div>
+        </table></div>`;
+      if (costState.expandedTask) {
+        const tr = host.querySelector(`tr[data-task="${CSS.escape(costState.expandedTask)}"]`);
+        if (tr) insertCostTaskExpansion(tr, costState.expandedTask);
+      }
+    }
 
-        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 14px;">
-          <div>
-            <div class="cost-subtitle">🔥 Most token-heavy files (across tasks)</div>
-            <div class="cost-table-wrap"><table class="cost-table">
-              <thead><tr><th onclick="costSortTable(this)">File</th><th class="num" onclick="costSortTable(this)">~Tokens</th><th class="num" onclick="costSortTable(this)">Reads</th><th class="num" onclick="costSortTable(this)">Tasks</th><th class="num" onclick="costSortTable(this)">Size</th></tr></thead>
-              <tbody>${s.top_files_by_tokens.map(f => `
-                <tr>
-                  <td class="path" style="max-width: 220px;" title="${escapeHtml(f.file_path)}">${escapeHtml(costShortPath(f.file_path))}</td>
-                  <td class="num" data-v="${f.est_tokens}">${costFmtNum(f.est_tokens)}<span class="heat" style="width:${Math.round((f.est_tokens / maxFileTok) * 30)}px"></span></td>
-                  <td class="num" data-v="${f.reads}">${f.reads}</td>
-                  <td class="num" data-v="${f.tasks}">${f.tasks}</td>
-                  <td class="num" data-v="${f.current_size ?? -1}">${costFmtBytes(f.current_size)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table></div>
+    async function toggleCostTaskRow(tr) {
+      const id = tr.dataset.task;
+      const host = document.getElementById('costTasksTableHost');
+      host.querySelectorAll('.cost-expand-row').forEach(r => r.remove());
+      host.querySelectorAll('tr.expanded').forEach(r => { r.classList.remove('expanded'); r.cells[0].innerHTML = r.cells[0].innerHTML.replace(/^▾/, '▸'); });
+      if (costState.expandedTask === id) { costState.expandedTask = null; return; }
+      costState.expandedTask = id;
+      tr.classList.add('expanded');
+      tr.cells[0].innerHTML = tr.cells[0].innerHTML.replace(/^▸/, '▾');
+      insertCostTaskExpansion(tr, id);
+    }
+
+    async function insertCostTaskExpansion(tr, id) {
+      const exp = document.createElement('tr');
+      exp.className = 'cost-expand-row';
+      exp.innerHTML = `<td colspan="11" style="white-space: normal; background: #FFFBEB; padding: 10px 12px;"><div class="cost-meta">Loading files…</div></td>`;
+      tr.after(exp);
+      try {
+        let rep = costState.taskReports[id];
+        if (!rep) {
+          const res = await fetch(`/api/tasks/${id}/cost`);
+          rep = (await res.json()).report;
+          costState.taskReports[id] = rep;
+        }
+        const t = rep.totals;
+        exp.cells[0].innerHTML = `
+          <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 8px; flex-wrap: wrap;">
+            <div class="cost-meta" style="color:#475569;">📄 <b>${t.files_read}</b> files read (${t.file_reads} reads, ~${costFmtNum(t.file_read_tokens)} tokens, ${costFmtUsd(t.file_read_cost_usd)} context cost) · ${t.files_written} files written · ${rep.conversations.length} conversation(s)</div>
+            <button type="button" class="btn btn-sm btn-secondary" onclick="openTaskFromCosts('${escapeHtml(id)}')" style="padding: 2px 10px; font-size: 11.5px;">Open card ↗</button>
           </div>
-          <div>
-            <div class="cost-subtitle">🔁 Most frequently read files</div>
-            <div class="cost-table-wrap"><table class="cost-table">
-              <thead><tr><th onclick="costSortTable(this)">File</th><th class="num" onclick="costSortTable(this)">Reads</th><th class="num" onclick="costSortTable(this)">Tasks</th><th class="num" onclick="costSortTable(this)">~Tokens</th></tr></thead>
-              <tbody>${s.top_files_by_reads.map(f => `
-                <tr>
-                  <td class="path" style="max-width: 240px;" title="${escapeHtml(f.file_path)}">${escapeHtml(costShortPath(f.file_path))}</td>
-                  <td class="num" data-v="${f.reads}">${f.reads}</td>
-                  <td class="num" data-v="${f.tasks}">${f.tasks}</td>
-                  <td class="num" data-v="${f.est_tokens}">${costFmtNum(f.est_tokens)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table></div>
-          </div>
+          ${rep.cost_series && rep.cost_series.length > 1 ? costLineChart(rep.cost_series, { height: 90 }) : ''}
+          ${costTaskFilesTable(rep, { maxHeight: 240 })}`;
+      } catch (e) {
+        exp.cells[0].innerHTML = `<div class="cost-meta">Could not load files: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+
+    // ----- Files tab: aggregate hot files across all tasks -----
+    function renderCostFilesTab() {
+      return `
+        <div class="cost-controls">
+          <input type="text" class="form-input" placeholder="Filter files…" value="${escapeHtml(costState.fileFilter)}" oninput="costState.fileFilter=this.value; renderCostFilesTable()" style="max-width: 280px; padding: 6px 10px; font-size: 12.5px;">
+          <label class="cost-meta" style="display:flex; align-items:center; gap:6px;">Min reads
+            <select class="form-select" style="width:auto; padding: 4px 8px; font-size: 12px;" onchange="costState.minReads=parseInt(this.value,10); renderCostFilesTable()">
+              ${[1, 2, 3, 5, 10, 25, 50].map(n => `<option value="${n}" ${costState.minReads === n ? 'selected' : ''}>${n}+</option>`).join('')}
+            </select>
+          </label>
+          <span class="cost-meta">Reads from subagent worktrees are merged with the main checkout. Click a file to see its cost over time and which tasks read it.</span>
         </div>
-        <div class="cost-meta" style="margin-top: 6px;">
-          Rates (USD / 1M tokens, default): input ${s.pricing.default.input}, cache read ${s.pricing.default.cache_read}, output ${s.pricing.default.output}.
-          File tokens are estimated at ~${s.pricing.chars_per_token} chars/token. Override in <code>.agents/taskboard/pricing.json</code>.
+        <div id="costFileDetail"></div>
+        <div id="costFilesTableHost"></div>`;
+    }
+
+    function costFileRows() {
+      const s = costState.summary;
+      const timelines = new Map((s.file_timelines || []).map(t => [t.file_path, t]));
+      return s.top_files_by_cost.map((f, i) => ({ ...f, idx: i, timeline: timelines.get(f.file_path) }));
+    }
+
+    function renderCostFilesTable() {
+      const host = document.getElementById('costFilesTableHost');
+      if (!host) return;
+      const q = costState.fileFilter.trim().toLowerCase();
+      const rows = costFileRows().filter(f => f.reads >= costState.minReads && (!q || f.file_path.toLowerCase().includes(q)));
+      const days = (costState.summary.daily || []).map(d => d.day);
+      const maxCost = Math.max(1e-9, ...rows.map(f => f.read_cost_usd || 0));
+      host.innerHTML = `
+        <div class="cost-meta" style="margin-bottom: 4px;">${rows.length} files · ${costFmtNum(rows.reduce((a, f) => a + f.reads, 0))} reads · ~${costFmtNum(rows.reduce((a, f) => a + f.est_tokens, 0))} tokens · ${costFmtUsd(rows.reduce((a, f) => a + (f.read_cost_usd || 0), 0))} context cost</div>
+        <div class="cost-table-wrap" style="max-height: 520px;"><table class="cost-table">
+          <thead><tr>
+            <th onclick="costSortTable(this)">File</th>
+            <th class="num" onclick="costSortTable(this)">Reads</th>
+            <th class="num" onclick="costSortTable(this)">Tasks</th>
+            <th class="num" onclick="costSortTable(this)">Reads / task</th>
+            <th class="num" onclick="costSortTable(this)">Current size</th>
+            <th class="num" onclick="costSortTable(this)">Max size at access</th>
+            <th class="num" onclick="costSortTable(this)">~Tokens read</th>
+            <th class="num" onclick="costSortTable(this)">~Context cost</th>
+            <th class="num" onclick="costSortTable(this)">Cost / read</th>
+            <th>Daily cost</th>
+          </tr></thead>
+          <tbody>${rows.map(f => {
+            const byDay = new Map(((f.timeline && f.timeline.points) || []).map(p => [p.day, p.cost]));
+            return `
+            <tr class="cost-click-row ${costState.selectedFile === f.idx ? 'expanded' : ''}" onclick="selectCostFile(${f.idx})">
+              <td class="path" title="${escapeHtml(f.file_path)}">${escapeHtml(costShortPath(f.file_path))}</td>
+              <td class="num" data-v="${f.reads}">${f.reads}${f.reads >= 10 ? ' 🔁' : ''}</td>
+              <td class="num" data-v="${f.tasks}">${f.tasks}</td>
+              <td class="num" data-v="${(f.reads / Math.max(1, f.tasks)).toFixed(2)}">${(f.reads / Math.max(1, f.tasks)).toFixed(1)}</td>
+              <td class="num" data-v="${f.current_size ?? -1}">${costFmtBytes(f.current_size)}</td>
+              <td class="num" data-v="${f.max_size_at_access ?? -1}">${costFmtBytes(f.max_size_at_access)}</td>
+              <td class="num" data-v="${f.est_tokens}">${costFmtNum(f.est_tokens)}</td>
+              <td class="num" data-v="${f.read_cost_usd || 0}">${costFmtUsd(f.read_cost_usd)}<span class="heat" style="width:${Math.round(((f.read_cost_usd || 0) / maxCost) * 36)}px"></span></td>
+              <td class="num" data-v="${(f.read_cost_usd || 0) / Math.max(1, f.reads)}">${costFmtUsd((f.read_cost_usd || 0) / Math.max(1, f.reads))}</td>
+              <td>${costSparkline(days.map(d => byDay.get(d) || 0))}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table></div>`;
+      renderCostFileDetail();
+    }
+
+    function selectCostFile(idx) {
+      costState.selectedFile = costState.selectedFile === idx ? null : idx;
+      renderCostFilesTable();
+      const d = document.getElementById('costFileDetail');
+      if (d && costState.selectedFile !== null) d.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function renderCostFileDetail() {
+      const host = document.getElementById('costFileDetail');
+      if (!host) return;
+      if (costState.selectedFile === null || costState.selectedFile === undefined) { host.innerHTML = ''; return; }
+      const f = costFileRows()[costState.selectedFile];
+      if (!f) { host.innerHTML = ''; return; }
+      const pts = (f.timeline && f.timeline.points) || [];
+      const chartPts = pts.map(p => ({ label: costShortDay(p.day), title: `${p.day} · ${p.reads} reads · ${p.tasks} tasks · ~${costFmtNum(p.tokens)} tokens`, values: { cost: p.cost }, line: p.max_size }));
+      const hasSize = pts.some(p => p.max_size != null);
+      const tasks = (f.timeline && f.timeline.tasks) || [];
+      host.innerHTML = `
+        <div class="cost-file-detail">
+          <div style="display:flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px;">
+            <div style="font-weight: 700; font-size: 13px; font-family: ui-monospace, Menlo, monospace; word-break: break-all;">${escapeHtml(costShortPath(f.file_path))}</div>
+            <button type="button" class="close-btn" onclick="selectCostFile(${f.idx})" style="font-size: 18px;">&times;</button>
+          </div>
+          <div class="cost-meta" style="margin-bottom: 8px; color:#475569;">
+            ${f.reads} reads by ${f.tasks} tasks · ~${costFmtNum(f.est_tokens)} tokens · ${costFmtUsd(f.read_cost_usd)} context cost · current size ${costFmtBytes(f.current_size)} (~${costFmtNum((f.current_size || 0) / (costState.summary.pricing.chars_per_token || 4))} tokens)
+          </div>
+          <div class="cost-subtitle" style="margin-top: 0;">📅 Read cost per day${hasSize ? ' and file size at access' : ''}</div>
+          ${costBarChart(chartPts, [{ key: 'cost', color: COST_COLORS.file, label: 'Read context cost' }], { height: 160, line: hasSize ? { color: COST_COLORS.size, label: 'Max size at access', fmt: costFmtBytes } : null })}
+          <div class="cost-subtitle">📋 Tasks that read this file</div>
+          <div class="cost-table-wrap" style="max-height: 220px;"><table class="cost-table">
+            <thead><tr><th onclick="costSortTable(this)">Task</th><th class="num" onclick="costSortTable(this)">Reads</th><th class="num" onclick="costSortTable(this)">~Tokens</th><th class="num" onclick="costSortTable(this)">~Context cost</th><th onclick="costSortTable(this)">Last read</th></tr></thead>
+            <tbody>${tasks.map(t => `
+              <tr>
+                <td class="path" style="font-family: inherit; max-width: 320px;"><a class="cost-task-link" onclick="openTaskFromCosts('${escapeHtml(t.task_id)}')">${escapeHtml(t.title || t.task_id)}</a></td>
+                <td class="num" data-v="${t.reads}">${t.reads}</td>
+                <td class="num" data-v="${t.tokens}">${costFmtNum(t.tokens)}</td>
+                <td class="num" data-v="${t.cost}">${costFmtUsd(t.cost)}</td>
+                <td data-v="${escapeHtml(t.last_read_at || '')}">${t.last_read_at ? escapeHtml(new Date(t.last_read_at).toLocaleString()) : '—'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table></div>
         </div>`;
     }
 

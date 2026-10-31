@@ -92,6 +92,7 @@ node taskboard/tasks.mjs update <ID> done "Verification passed"
 node taskboard/tasks.mjs cost-bind <ID> --transcript <PATH/transcript.jsonl>
 node taskboard/tasks.mjs cost <ID>
 node taskboard/tasks.mjs costs
+node taskboard/tasks.mjs cost-backfill --since 2026-10-23
 
 # Follow-up tasks suggestions & creation
 node taskboard/tasks.mjs followups <TASK_ID>

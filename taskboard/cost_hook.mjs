@@ -111,7 +111,7 @@ async function main() {
           let status = null;
           try { status = db.prepare('SELECT status FROM agent_tasks WHERE id = ?').get(taskId)?.status; } catch {}
           if (status && !['in_progress', 'verification', 'planned'].includes(status)) continue;
-          try { refreshTaskCost(db, taskId, { pricing }); } catch {}
+          try { refreshTaskCost(db, taskId, { pricing, projectDir: path.dirname(path.dirname(path.dirname(dbPath))) }); } catch {}
         }
       }
     }

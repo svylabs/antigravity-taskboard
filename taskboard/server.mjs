@@ -30,6 +30,8 @@ import {
   getTaskCost,
   getCostSummary,
   computeAndStoreTaskCost,
+  refreshAllTaskCosts,
+  backfillTaskCosts,
   db
 } from './tasks.mjs';
 import {
@@ -1273,11 +1275,19 @@ const server = http.createServer(async (req, res) => {
   // REST API: GET /api/costs (project-wide cost summary for optimization decisions)
   if (pathname === '/api/costs' && req.method === 'GET') {
     try {
-      if (urlObj.searchParams.get('refresh') === '1') {
-        const ids = db.prepare('SELECT DISTINCT task_id FROM task_cost_bindings').all().map(r => r.task_id);
-        for (const id of ids) { try { computeAndStoreTaskCost(id); } catch (e) {} }
-      }
+      if (urlObj.searchParams.get('refresh') === '1') refreshAllTaskCosts();
       return sendJson(res, 200, { success: true, summary: getCostSummary() });
+    } catch (e) {
+      return sendJson(res, 500, { success: false, error: e.message });
+    }
+  }
+
+  // REST API: POST /api/costs/backfill { since?: 'YYYY-MM-DD', dry_run?: bool }
+  if (pathname === '/api/costs/backfill' && req.method === 'POST') {
+    try {
+      const body = await parseBody(req).catch(() => ({}));
+      const result = backfillTaskCosts({ since: (body && body.since) || '2026-10-23', dryRun: !!(body && body.dry_run) });
+      return sendJson(res, 200, { success: !result.error, result });
     } catch (e) {
       return sendJson(res, 500, { success: false, error: e.message });
     }

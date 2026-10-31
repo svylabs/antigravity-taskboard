@@ -148,15 +148,22 @@ Every task gets a cost report stored in the project SQLite DB, so you can see wh
   - **Transcripts**: per-step `input_tokens` / `cache_read_tokens` / `output_tokens` come from the conversation `transcript.jsonl`. When hook data is missing, file reads are taken from transcript tool calls instead.
   - **Attribution**: a conversation that works on several tasks (for example the supervisor) is split by step ranges. Each step counts toward the task that was bound most recently before it.
 * **When**: a report is computed and posted as one `cost` comment (updated in place) whenever a task moves to `verification`, `done` or `failed`. You can also recompute it at any time.
+* **Supervisor loop overhead**: polling (`tasks.mjs poll/next/list`) and the idle time after a task is moved to `verification`/`done`/`failed` (or after its walkthrough is posted) are not charged to any task. They are tracked separately as **Loop Overhead**.
+* **Backfill for older tasks**: `tasks.mjs cost-backfill [--since 2026-10-23] [--dry-run]` (or **💰 Costs → ⏪ Backfill**) scans past Antigravity transcripts (`~/.gemini/antigravity/brain/*/…/transcript_full.jsonl`) that contain token data. It matches each conversation to tasks in *this* project (subagent opening messages, `tasks.mjs` commands, MCP calls, subagent prompts), then computes reports. Conversations already tracked by hooks are skipped, and re-running is idempotent. File sizes at access time are not available for backfilled data.
+* **File context cost**: each file read is assigned an estimated cost of tokens × input rate, plus tokens × cache-read rate × the task's later model calls (capped by `carry_max_calls`, default 30), because the content stays in context. This is a share of the task cost, not an extra cost. Reads from subagent worktrees (`~/.gemini/antigravity/worktrees/<conv>/<subagent>/…`) are merged with the main checkout path.
 * **Where to see it**:
   - Task detail modal → **💰 Cost & Token Usage** panel (stats, token mix bar, sortable per-file table, tool calls, per-conversation breakdown, hints).
-  - Header → **💰 Costs** dashboard: totals, tasks ranked by cost, token-heavy and frequently re-read files across tasks, and optimization recommendations.
+  - Header → **💰 Costs** dashboard with three tabs:
+    - **Overview**: task cost, loop overhead, token mix, file-read cost share, a daily cost chart stacked by token type, the most expensive tasks and files, and recommendations.
+    - **Tasks**: cost and tokens per task (input, cache, output, calls, files, file reads, file cost). Expand a row to see that task's cumulative cost curve and every file it accessed.
+    - **Files**: aggregate across all tasks. For each file: reads, tasks, reads per task, current size, max size at access, tokens, context cost, cost per read, and a daily sparkline. Click a file to see its read cost per day (with file size at access) and the tasks that read it. Use this to decide which files to split.
   - CLI: `tasks.mjs cost <TASK_ID>` and `tasks.mjs costs`. MCP: `taskboard_get_cost` and `taskboard_get_cost_summary`.
 * **Pricing**: USD per 1M tokens, with defaults per model family. Override with `.agents/taskboard/pricing.json`:
   ```json
   { "default": { "input": 3, "cache_read": 0.3, "output": 15 },
     "models": { "opus": { "input": 15, "cache_read": 1.5, "output": 75 } },
     "chars_per_token": 4,
+    "carry_max_calls": 30,
     "hints": { "reread_threshold": 3, "large_file_tokens": 8000, "cache_ratio_warn": 0.5 } }
   ```
 * **Env switches**: `TASKBOARD_COST_TRACKING=0` disables the hook. `TASKBOARD_COST_DEBUG=1` logs hook errors to `.agents/taskboard/cost_hook.log`. `TASKBOARD_IMAGE_TOKENS` sets the flat token estimate per image read (default 1600). `TASKBOARD_READ_CAP_BYTES` sets the per-read cap (default 46080).
@@ -376,6 +383,9 @@ node taskboard/tasks.mjs cost <TASK_ID> [--json]
 
 # Project-wide summary: most expensive tasks, hot files, recommendations
 node taskboard/tasks.mjs costs [--json]
+
+# Reconstruct costs for older tasks from past transcripts (only those with token data)
+node taskboard/tasks.mjs cost-backfill [--since 2026-10-23] [--dry-run] [--json]
 ```
 
 ---
@@ -401,7 +411,8 @@ The embedded HTTP server running on `http://localhost:4040` exposes standard JSO
 | `/api/autonomous` | `GET`, `POST` | Inspect or toggle Autonomous Mode (`on` / `off`) |
 | `/api/sessions` | `GET`, `POST` | List all sessions or create a new active session |
 | `/api/tasks/:id/cost` | `GET` | Task cost report (`?refresh=1` recomputes from transcripts + hook logs) |
-| `/api/costs` | `GET` | Project cost summary: totals, tasks by cost, hot files, recommendations (`?refresh=1`) |
+| `/api/costs` | `GET` | Project cost summary: totals, loop overhead, daily series, tasks by cost, per-file aggregates and timelines, recommendations (`?refresh=1`) |
+| `/api/costs/backfill` | `POST` | Backfill from past transcripts. Body: `{ "since": "YYYY-MM-DD", "dry_run": false }` |
 | `/repo/*`, `/docs/*` | `GET` | Web repository code browser and Markdown previewer |
 
 ---

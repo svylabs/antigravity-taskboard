@@ -28,15 +28,18 @@ export const TASK_ID_REGEX = /\btask-[a-z0-9]{4,}-[a-z0-9]{2,}\b/gi;
 export const DEFAULT_PRICING = {
   currency: 'USD',
   chars_per_token: 4,
+  // Max later model calls a file read is assumed to stay in (cached) context
+  carry_max_calls: 30,
   default: { input: 3.0, cache_read: 0.3, output: 15.0 },
   // Matched case-insensitively as a substring of the model name reported by hooks.
   models: {
     opus: { input: 15.0, cache_read: 1.5, output: 75.0 },
     sonnet: { input: 3.0, cache_read: 0.3, output: 15.0 },
     haiku: { input: 0.8, cache_read: 0.08, output: 4.0 },
-    'gemini-3-pro': { input: 2.0, cache_read: 0.2, output: 12.0 },
+    flash: { input: 0.3, cache_read: 0.03, output: 2.5 },
     'gemini-2.5-pro': { input: 1.25, cache_read: 0.31, output: 10.0 },
-    flash: { input: 0.3, cache_read: 0.03, output: 2.5 }
+    'gemini-3': { input: 2.0, cache_read: 0.2, output: 12.0 },
+    'gemini-4': { input: 2.0, cache_read: 0.2, output: 12.0 }
   },
   // Thresholds used to generate optimization hints
   hints: {
@@ -128,9 +131,11 @@ export function loadPricing(dbDir) {
 
 export function ratesForModel(pricing, modelName) {
   const name = String(modelName || '').toLowerCase();
+  const dashed = name.replace(/\s+/g, '-');
   if (name) {
     for (const [key, rates] of Object.entries(pricing.models || {})) {
-      if (name.includes(key.toLowerCase())) return { ...pricing.default, ...rates, matched: key };
+      const k = key.toLowerCase();
+      if (name.includes(k) || dashed.includes(k)) return { ...pricing.default, ...rates, matched: key };
     }
   }
   return { ...pricing.default, matched: 'default' };
@@ -235,6 +240,10 @@ export function measureFileAccess(filePath, args, accessType, charsPerToken = 4)
 // ---------------------------------------------------------------------------
 // Bindings (conversation -> task attribution by step ranges)
 // ---------------------------------------------------------------------------
+// A binding with task_id = IDLE_TASK marks a range of steps that belongs to no task
+// (e.g. a supervisor polling after it moved a task to verification/done).
+export const IDLE_TASK = '__idle__';
+
 export function getLatestBinding(db, conversationId) {
   return db.prepare(
     'SELECT * FROM task_cost_bindings WHERE conversation_id = ? ORDER BY from_step DESC, id DESC LIMIT 1'
@@ -252,11 +261,12 @@ export function bindConversation(db, { conversationId, taskId, stepIdx = 0, tran
     }
     return latest;
   }
+  if (!latest && taskId === IDLE_TASK) return null;
   // First binding of a conversation claims everything from the start
   const fromStep = latest ? Math.max(0, Number(stepIdx) || 0) : 0;
   db.prepare(
     'INSERT INTO task_cost_bindings (conversation_id, task_id, from_step, transcript_path, model_name, source) VALUES (?, ?, ?, ?, ?, ?)'
-  ).run(conversationId, taskId, fromStep, transcriptPath, modelName, source);
+  ).run(conversationId, taskId, fromStep, transcriptPath || (latest && latest.transcript_path) || null, modelName || (latest && latest.model_name) || null, source);
   if (!latest) {
     // Attribute file accesses logged before the first binding to this task
     db.prepare('UPDATE task_file_access SET task_id = ? WHERE conversation_id = ? AND task_id IS NULL').run(taskId, conversationId);
@@ -286,20 +296,45 @@ function taskExists(db, taskId) {
 }
 
 /**
- * Detects task ids referenced by a tool call (tasks.mjs CLI commands, MCP taskboard tools).
+ * Detects task ids referenced by a tool call (tasks.mjs CLI commands, MCP taskboard tools,
+ * subagent dispatch prompts). Returns `{ taskId, closes }` or null. `closes` is true when the
+ * call ends an execution cycle (status -> verification/done/failed), after which following
+ * steps of the conversation are treated as idle until the next task reference.
  */
 export function detectTaskReference(toolName, args) {
   const a = normArgs(args);
-  if (/taskboard_/i.test(toolName || '')) {
+  const name = String(toolName || '');
+  if (/taskboard_/i.test(name)) {
     const id = a.task_id || a.taskId || a.id;
-    if (typeof id === 'string' && /^task-/i.test(id)) return id;
+    if (typeof id === 'string' && /^task-/i.test(id)) {
+      const closes = /update_status/i.test(name) && /^(verification|done|failed)$/i.test(String(a.status || ''));
+      return { taskId: id, closes };
+    }
   }
   const cmd = a.CommandLine || a.command || a.cmd;
   if (typeof cmd === 'string' && /tasks(\.mjs)?\b|taskctl/.test(cmd)) {
-    // Ignore read-only listing commands that mention many tasks
-    if (/\b(list|json|poll|sessions|followups|costs?)\b/.test(cmd) && !/cost-bind/.test(cmd)) return null;
     const matches = cmd.match(TASK_ID_REGEX);
-    if (matches && matches.length) return matches[matches.length - 1];
+    // Supervisor loop polling / board listing without a task id = loop overhead, not task work
+    if ((!matches || !matches.length) && /tasks(\.mjs)?\s+(poll|next|list|active|sessions)\b/.test(cmd)) {
+      return { taskId: IDLE_TASK, closes: false };
+    }
+    // Ignore read-only listing commands that mention many tasks
+    if (/\b(list|json|poll|sessions|followups|costs?|cost-backfill)\b/.test(cmd) && !/cost-bind/.test(cmd)) return null;
+    if (matches && matches.length) {
+      const taskId = matches[matches.length - 1];
+      const closes = new RegExp(`\\bupdate\\s+["']?${taskId}["']?\\s+["']?(verification|done|failed)\\b`).test(cmd)
+        || (/\bcomment\s/.test(cmd) && /["']?walkthrough["']?\s*$/.test(cmd.trim()));
+      return { taskId, closes };
+    }
+  }
+  if (/invoke_subagent|send_message/i.test(name)) {
+    const prompt = [a.Prompt, a.Message, a.prompt].find(v => typeof v === 'string');
+    if (prompt) {
+      const explicit = prompt.match(/executing task\s*`?(task-[a-z0-9]{4,}-[a-z0-9]{2,})/i);
+      const any = prompt.match(TASK_ID_REGEX);
+      const taskId = explicit ? explicit[1] : (any ? any[0] : null);
+      if (taskId) return { taskId, closes: false };
+    }
   }
   return null;
 }
@@ -314,22 +349,17 @@ export function recordToolUse(db, payload, pricing = DEFAULT_PRICING) {
   const args = normArgs(payload.toolCall?.args || {});
 
   // 1. Auto-bind conversation to task if this tool call references one
-  const referenced = detectTaskReference(toolName, args);
-  if (referenced && conversationId && taskExists(db, referenced)) {
-    bindConversation(db, {
-      conversationId,
-      taskId: referenced,
-      stepIdx,
-      transcriptPath: payload.transcriptPath || null,
-      modelName: payload.modelName || null,
-      source: 'hook'
-    });
+  const ref = detectTaskReference(toolName, args);
+  if (ref && conversationId && (ref.taskId === IDLE_TASK || taskExists(db, ref.taskId))) {
+    const common = { conversationId, transcriptPath: payload.transcriptPath || null, modelName: payload.modelName || null, source: 'hook' };
+    bindConversation(db, { ...common, taskId: ref.taskId, stepIdx });
+    if (ref.closes) bindConversation(db, { ...common, taskId: IDLE_TASK, stepIdx: stepIdx + 1 });
   }
 
   // 2. Log file access
   const accessType = classifyTool(toolName);
   let filePath = extractPath(args);
-  if (accessType === 'other' && !filePath) return { bound: referenced || null, logged: false };
+  if (accessType === 'other' && !filePath) return { bound: ref ? ref.taskId : null, logged: false };
   if (filePath && !path.isAbsolute(filePath) && Array.isArray(payload.workspacePaths) && payload.workspacePaths[0]) {
     filePath = path.join(payload.workspacePaths[0], filePath);
   }
@@ -340,7 +370,7 @@ export function recordToolUse(db, payload, pricing = DEFAULT_PRICING) {
       file_size_bytes, bytes_read, lines_read, est_tokens, is_error)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    latest ? latest.task_id : null,
+    latest && latest.task_id !== IDLE_TASK ? latest.task_id : null,
     conversationId,
     stepIdx,
     toolName,
@@ -352,7 +382,7 @@ export function recordToolUse(db, payload, pricing = DEFAULT_PRICING) {
     m.est_tokens,
     payload.error ? 1 : 0
   );
-  return { bound: referenced || null, logged: true };
+  return { bound: ref ? ref.taskId : null, logged: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -360,27 +390,65 @@ export function recordToolUse(db, payload, pricing = DEFAULT_PRICING) {
 // ---------------------------------------------------------------------------
 export function resolveTranscriptPath(p) {
   if (!p) return null;
-  const candidates = [p];
+  // Prefer the full transcript: the compact one truncates long tool-call arguments
+  const candidates = [];
+  if (p.endsWith('transcript.jsonl')) candidates.push(p.replace(/transcript\.jsonl$/, 'transcript_full.jsonl'));
+  candidates.push(p);
   if (p.endsWith('transcript_full.jsonl')) candidates.push(p.replace('transcript_full.jsonl', 'transcript.jsonl'));
-  else if (p.endsWith('transcript.jsonl')) candidates.push(p.replace('transcript.jsonl', 'transcript_full.jsonl'));
   return candidates.find(c => { try { return fs.existsSync(c); } catch { return false; } }) || null;
 }
 
-export function transcriptPathForConversation(conversationId, appDataDir) {
+export function getBrainDir(appDataDir) {
   const base = appDataDir || process.env.ANTIGRAVITY_APP_DATA_DIR || path.join(process.env.HOME || '', '.gemini', 'antigravity');
-  return path.join(base, 'brain', conversationId, '.system_generated', 'logs', 'transcript.jsonl');
+  return path.join(base, 'brain');
 }
 
+export function transcriptPathForConversation(conversationId, appDataDir) {
+  return path.join(getBrainDir(appDataDir), conversationId, '.system_generated', 'logs', 'transcript.jsonl');
+}
+
+const MODEL_CHANGE_RE = /Model Selection`?\s+from\s+.+?\s+to\s+(.+?)(?:\.\s|\.$|\n|$)/;
+
+const _transcriptCache = new Map();
+
+/**
+ * Parses a transcript.jsonl: planner steps with token usage and tool calls, the model
+ * selected in the conversation, the parent conversation (for subagents), and the
+ * task id announced in the opening message ("You are executing task `task-...`").
+ */
 export function parseTranscript(transcriptPath) {
   const resolved = resolveTranscriptPath(transcriptPath);
   if (!resolved) return null;
+  let mtime = 0;
+  try { mtime = fs.statSync(resolved).mtimeMs; } catch {}
+  const cached = _transcriptCache.get(resolved);
+  if (cached && cached.mtime === mtime) return cached.parsed;
+
   const steps = [];
+  let model = null;
+  let parentConversation = null;
+  let openingText = '';
+  let firstAt = null;
+  let hasTokens = false;
   const text = fs.readFileSync(resolved, 'utf-8');
   for (const line of text.split('\n')) {
     if (!line.trim()) continue;
     let s;
     try { s = JSON.parse(line); } catch { continue; }
+    if (!firstAt && s.created_at) firstAt = s.created_at;
+    if (s.type === 'USER_INPUT' || s.type === 'SYSTEM_MESSAGE') {
+      const c = typeof s.content === 'string' ? s.content : '';
+      const mm = c.match(MODEL_CHANGE_RE);
+      if (mm) model = mm[1].trim();
+      if (Number(s.step_index ?? 0) <= 2 && !openingText) {
+        openingText = c.slice(0, 4000);
+        const sm = c.match(/sender=([0-9a-f-]{36})/i);
+        if (sm) parentConversation = sm[1];
+      }
+      continue;
+    }
     if (s.type !== 'PLANNER_RESPONSE') continue;
+    if (s.input_tokens !== undefined || s.output_tokens !== undefined) hasTokens = true;
     steps.push({
       step_index: Number(s.step_index ?? 0),
       created_at: s.created_at,
@@ -390,99 +458,224 @@ export function parseTranscript(transcriptPath) {
       tool_calls: Array.isArray(s.tool_calls) ? s.tool_calls.map(t => ({ name: t.name, args: normArgs(t.args) })) : []
     });
   }
-  return { path: resolved, steps };
+  const explicit = openingText.match(/executing task\s*`?(task-[a-z0-9]{4,}-[a-z0-9]{2,})/i);
+  const parsed = {
+    path: resolved,
+    steps,
+    model,
+    parent_conversation: parentConversation,
+    opening_task_id: explicit ? explicit[1] : null,
+    opening_task_ids: [...new Set((openingText.match(TASK_ID_REGEX) || []))],
+    first_at: firstAt,
+    has_tokens: hasTokens
+  };
+  _transcriptCache.set(resolved, { mtime, parsed });
+  return parsed;
+}
+
+/** Best-effort model name for a conversation: own transcript, else parent conversation's. */
+function resolveConversationModel(parsed, bindingsModel) {
+  if (bindingsModel) return bindingsModel;
+  if (parsed && parsed.model) return parsed.model;
+  if (parsed && parsed.parent_conversation) {
+    try {
+      const parent = parseTranscript(transcriptPathForConversation(parsed.parent_conversation));
+      if (parent && parent.model) return parent.model;
+    } catch {}
+  }
+  return null;
+}
+
+/**
+ * Maps a physical path to a stable logical path so reads of the same file from the main
+ * checkout and from per-subagent worktrees aggregate together:
+ *   ~/.gemini/antigravity/worktrees/<conv>/<subagent>/src/a.ts -> src/a.ts
+ *   <projectDir>/src/a.ts                                      -> src/a.ts
+ */
+export function logicalPath(p, projectDir) {
+  if (!p) return p;
+  const wt = p.match(/[\\/]\.gemini[\\/]antigravity[^\\/]*[\\/]worktrees[\\/][^\\/]+[\\/][^\\/]+[\\/](.+)$/);
+  if (wt) return wt[1];
+  if (projectDir && p.startsWith(projectDir + path.sep)) return p.slice(projectDir.length + 1);
+  return p;
+}
+
+function physicalPath(logical, projectDir) {
+  if (!logical) return logical;
+  if (path.isAbsolute(logical)) return logical;
+  return path.join(projectDir || process.cwd(), logical);
+}
+
+function toIso(ts) {
+  if (!ts) return null;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts)) return ts.replace(' ', 'T') + 'Z'; // SQLite UTC
+  return ts;
+}
+
+function dayOf(ts) {
+  const iso = toIso(ts);
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  // Local calendar day
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Estimated cost of reading a file into context:
+ *   ingestion  = tokens × input rate (first time the content is sent)
+ *   carry      = tokens × cache-read rate × following model calls in the conversation
+ *                (the content is re-sent, cached, on every later call; capped by carry_max_calls)
+ * This is an attribution of the total token cost, not an additional cost.
+ */
+function fileReadCost(tokens, rates, remainingCalls, pricing) {
+  const cap = pricing.carry_max_calls ?? DEFAULT_PRICING.carry_max_calls;
+  const carryCalls = Math.max(0, Math.min(remainingCalls || 0, cap));
+  return (tokens * rates.input + tokens * carryCalls * rates.cache_read) / 1e6;
+}
+
+function downsample(points, max = 120) {
+  if (points.length <= max) return points;
+  const step = points.length / max;
+  const out = [];
+  for (let i = 0; i < max; i++) out.push(points[Math.floor(i * step)]);
+  out[out.length - 1] = points[points.length - 1];
+  return out;
 }
 
 // ---------------------------------------------------------------------------
 // Cost computation
 // ---------------------------------------------------------------------------
-export function computeTaskCost(db, taskId, { pricing = DEFAULT_PRICING } = {}) {
+export function computeTaskCost(db, taskId, { pricing = DEFAULT_PRICING, projectDir = process.cwd() } = {}) {
   const convRows = db.prepare('SELECT DISTINCT conversation_id FROM task_cost_bindings WHERE task_id = ?').all(taskId);
   const totals = { input_tokens: 0, cache_read_tokens: 0, output_tokens: 0, model_calls: 0, tool_calls: 0, est_cost_usd: 0 };
   const conversations = [];
   const toolCounts = {};
-  const transcriptFileAccess = [];
-  const hookConversations = new Set();
+  const fileEvents = []; // every file access with timestamp, tokens and estimated cost
+  const daily = {};      // day -> { input_tokens, cache_read_tokens, output_tokens, input_cost, cache_cost, output_cost, cost, calls }
+  const stepPoints = []; // { ts, cost } per model call, for the cumulative cost chart
+  const sources = new Set();
 
   for (const { conversation_id } of convRows) {
     const bindings = getConversationBindings(db, conversation_id);
+    bindings.forEach(b => sources.add(b.source || 'hook'));
     const withPath = [...bindings].reverse().find(b => b.transcript_path);
-    const modelName = ([...bindings].reverse().find(b => b.model_name) || {}).model_name || null;
-    const rates = ratesForModel(pricing, modelName);
     const tPath = withPath ? withPath.transcript_path : transcriptPathForConversation(conversation_id);
-    const hookCount = db.prepare('SELECT COUNT(*) AS c FROM task_file_access WHERE conversation_id = ?').get(conversation_id).c;
-    if (hookCount > 0) hookConversations.add(conversation_id);
+    let parsed = null;
+    try { parsed = parseTranscript(tPath); } catch {}
+    const modelName = resolveConversationModel(parsed, ([...bindings].reverse().find(b => b.model_name) || {}).model_name || null);
+    const rates = ratesForModel(pricing, modelName);
+    const hookRows = db.prepare('SELECT * FROM task_file_access WHERE conversation_id = ? AND task_id = ? ORDER BY id ASC').all(conversation_id, taskId);
+    const hasHookRows = db.prepare('SELECT COUNT(*) AS c FROM task_file_access WHERE conversation_id = ?').get(conversation_id).c > 0;
 
     const conv = {
       conversation_id,
       model: modelName,
       rate_key: rates.matched,
-      transcript_found: false,
+      transcript_found: !!parsed,
+      has_token_data: parsed ? parsed.has_tokens : false,
+      first_at: parsed ? parsed.first_at : null,
       input_tokens: 0, cache_read_tokens: 0, output_tokens: 0, model_calls: 0, tool_calls: 0, est_cost_usd: 0,
-      shared_with_tasks: [...new Set(bindings.map(b => b.task_id))].filter(t => t !== taskId)
+      shared_with_tasks: [...new Set(bindings.map(b => b.task_id))].filter(t => t !== taskId && t !== IDLE_TASK)
     };
-    let parsed = null;
-    try { parsed = parseTranscript(tPath); } catch {}
-    if (parsed) {
-      conv.transcript_found = true;
-      for (const step of parsed.steps) {
-        if (taskForStep(bindings, step.step_index) !== taskId) continue;
-        conv.model_calls++;
-        conv.input_tokens += step.input_tokens;
-        conv.cache_read_tokens += step.cache_read_tokens;
-        conv.output_tokens += step.output_tokens;
-        conv.tool_calls += step.tool_calls.length;
-        for (const tc of step.tool_calls) {
-          toolCounts[tc.name] = (toolCounts[tc.name] || 0) + 1;
-          if (!hookConversations.has(conversation_id)) {
-            const type = classifyTool(tc.name);
-            const fp = extractPath(tc.args);
-            if (type !== 'other' && fp) transcriptFileAccess.push({ tool_name: tc.name, access_type: type, file_path: fp, args: tc.args });
+
+    const allSteps = parsed ? parsed.steps : [];
+    // Later model calls attributed to this task (content read now is re-sent on each of them)
+    const taskSteps = allSteps.filter(s => taskForStep(bindings, s.step_index) === taskId);
+    const remainingAfter = (stepIdx) => taskSteps.filter(s => s.step_index > stepIdx).length;
+    const stepTime = (stepIdx) => {
+      let ts = null;
+      for (const s of allSteps) { if (s.step_index <= stepIdx) ts = s.created_at; else break; }
+      return ts;
+    };
+
+    for (const step of allSteps) {
+      if (taskForStep(bindings, step.step_index) !== taskId) continue;
+      conv.model_calls++;
+      conv.input_tokens += step.input_tokens;
+      conv.cache_read_tokens += step.cache_read_tokens;
+      conv.output_tokens += step.output_tokens;
+      conv.tool_calls += step.tool_calls.length;
+      const ic = step.input_tokens * rates.input / 1e6;
+      const cc = step.cache_read_tokens * rates.cache_read / 1e6;
+      const oc = step.output_tokens * rates.output / 1e6;
+      const day = dayOf(step.created_at);
+      if (day) {
+        const d = daily[day] || (daily[day] = { input_tokens: 0, cache_read_tokens: 0, output_tokens: 0, input_cost: 0, cache_cost: 0, output_cost: 0, cost: 0, calls: 0 });
+        d.input_tokens += step.input_tokens; d.cache_read_tokens += step.cache_read_tokens; d.output_tokens += step.output_tokens;
+        d.input_cost += ic; d.cache_cost += cc; d.output_cost += oc; d.cost += ic + cc + oc; d.calls++;
+      }
+      stepPoints.push({ ts: step.created_at, delta: ic + cc + oc });
+      for (const tc of step.tool_calls) {
+        toolCounts[tc.name] = (toolCounts[tc.name] || 0) + 1;
+        if (!hasHookRows) {
+          const type = classifyTool(tc.name);
+          const fp = extractPath(tc.args);
+          if (type !== 'other' && fp) {
+            const m = measureFileAccess(fp, tc.args, type, pricing.chars_per_token);
+            const tokens = type === 'read' ? (m.est_tokens || 0) : 0;
+            fileEvents.push({
+              file_path: fp, access_type: type, tool_name: tc.name, source: 'transcript', conversation_id,
+              ts: step.created_at, step_idx: step.step_index, tokens, bytes_read: m.bytes_read,
+              size_at_access: null, cost: type === 'read' ? fileReadCost(tokens, rates, remainingAfter(step.step_index), pricing) : 0
+            });
           }
         }
       }
     }
+    for (const r of hookRows) {
+      const tokens = r.access_type === 'read' ? Number(r.est_tokens || 0) : 0;
+      fileEvents.push({
+        file_path: r.file_path, access_type: r.access_type, tool_name: r.tool_name, source: 'hook', conversation_id,
+        ts: toIso(r.created_at) || stepTime(r.step_idx), step_idx: r.step_idx, tokens, bytes_read: r.bytes_read,
+        size_at_access: r.file_size_bytes,
+        cost: r.access_type === 'read' ? fileReadCost(tokens, rates, remainingAfter(r.step_idx), pricing) : 0
+      });
+    }
+
     conv.est_cost_usd = priceTokens(rates, { input: conv.input_tokens, cache_read: conv.cache_read_tokens, output: conv.output_tokens });
     for (const k of ['input_tokens', 'cache_read_tokens', 'output_tokens', 'model_calls', 'tool_calls', 'est_cost_usd']) totals[k] += conv[k];
     conversations.push(conv);
   }
 
-  // File access aggregation: hook rows (size at access time) + transcript fallback
+  // Per-file aggregation
   const fileMap = new Map();
-  const addAccess = (row, source) => {
-    if (!row.file_path) return;
-    const key = row.file_path;
-    if (!fileMap.has(key)) {
-      fileMap.set(key, {
-        file_path: key, reads: 0, writes: 0, searches: 0, lists: 0,
-        bytes_read: 0, est_tokens: 0, size_at_first_access: null, size_at_last_access: null, current_size: null, source
+  for (const e of fileEvents) {
+    if (!e.file_path) continue;
+    e.file_path = logicalPath(e.file_path, projectDir);
+    if (!fileMap.has(e.file_path)) {
+      fileMap.set(e.file_path, {
+        file_path: e.file_path, reads: 0, writes: 0, searches: 0, lists: 0, bytes_read: 0, est_tokens: 0, read_cost_usd: 0,
+        size_at_first_access: null, size_at_last_access: null, current_size: null, first_read_at: null, last_read_at: null, source: e.source
       });
     }
-    const f = fileMap.get(key);
-    if (row.access_type === 'read') f.reads++;
-    else if (row.access_type === 'write') f.writes++;
-    else if (row.access_type === 'search') f.searches++;
-    else if (row.access_type === 'list') f.lists++;
-    if (row.access_type === 'read') {
-      f.bytes_read += Number(row.bytes_read || 0);
-      f.est_tokens += Number(row.est_tokens || 0);
+    const f = fileMap.get(e.file_path);
+    if (e.access_type === 'read') {
+      f.reads++;
+      f.bytes_read += Number(e.bytes_read || 0);
+      f.est_tokens += e.tokens;
+      f.read_cost_usd += e.cost;
+      if (!f.first_read_at || (e.ts && e.ts < f.first_read_at)) f.first_read_at = e.ts;
+      if (!f.last_read_at || (e.ts && e.ts > f.last_read_at)) f.last_read_at = e.ts;
+    } else if (e.access_type === 'write') f.writes++;
+    else if (e.access_type === 'search') f.searches++;
+    else if (e.access_type === 'list') f.lists++;
+    if (e.size_at_access != null) {
+      if (f.size_at_first_access == null) f.size_at_first_access = e.size_at_access;
+      f.size_at_last_access = e.size_at_access;
     }
-    if (row.file_size_bytes != null) {
-      if (f.size_at_first_access == null) f.size_at_first_access = row.file_size_bytes;
-      f.size_at_last_access = row.file_size_bytes;
-    }
-  };
-  const hookRows = db.prepare('SELECT * FROM task_file_access WHERE task_id = ? ORDER BY id ASC').all(taskId);
-  hookRows.forEach(r => addAccess(r, 'hook'));
-  for (const t of transcriptFileAccess) {
-    const m = measureFileAccess(t.file_path, t.args, t.access_type, pricing.chars_per_token);
-    addAccess({ ...t, ...m, file_size_bytes: null }, 'transcript');
   }
   for (const f of fileMap.values()) {
-    try { const st = fs.statSync(f.file_path); f.current_size = st.isFile() ? st.size : 0; } catch { f.current_size = null; }
+    try { const st = fs.statSync(physicalPath(f.file_path, projectDir)); f.current_size = st.isFile() ? st.size : 0; } catch { f.current_size = null; }
   }
-  const files = [...fileMap.values()].sort((a, b) => b.est_tokens - a.est_tokens || b.reads - a.reads);
+  const files = [...fileMap.values()].sort((a, b) => b.read_cost_usd - a.read_cost_usd || b.est_tokens - a.est_tokens || b.reads - a.reads);
   const readFiles = files.filter(f => f.reads > 0);
+
+  // Cumulative cost series
+  stepPoints.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+  let cum = 0;
+  const costSeries = downsample(stepPoints.map(p => { cum += p.delta; return { ts: p.ts, cost: +cum.toFixed(6) }; }));
+  const days = Object.keys(daily).sort();
 
   const report = {
     task_id: taskId,
@@ -496,14 +689,23 @@ export function computeTaskCost(db, taskId, { pricing = DEFAULT_PRICING } = {}) 
       files_read: readFiles.length,
       file_reads: readFiles.reduce((s, f) => s + f.reads, 0),
       file_read_tokens: readFiles.reduce((s, f) => s + f.est_tokens, 0),
+      file_read_cost_usd: readFiles.reduce((s, f) => s + f.read_cost_usd, 0),
       files_written: files.filter(f => f.writes > 0).length
     },
+    period: { first_at: costSeries.length ? costSeries[0].ts : null, last_at: costSeries.length ? costSeries[costSeries.length - 1].ts : null },
     conversations,
     tools: Object.entries(toolCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
     files,
+    daily: days.map(d => ({ day: d, ...daily[d] })),
+    cost_series: costSeries,
+    file_events: fileEvents
+      .filter(e => e.access_type === 'read')
+      .map(e => ({ file_path: e.file_path, ts: e.ts, tokens: e.tokens, cost: +e.cost.toFixed(6), size_at_access: e.size_at_access })),
     data_sources: {
-      hooks: hookRows.length > 0,
+      hooks: fileEvents.some(e => e.source === 'hook'),
       transcripts: conversations.some(c => c.transcript_found),
+      backfilled: sources.has('backfill'),
+      partial: conversations.some(c => !c.transcript_found || !c.has_token_data),
       bound_conversations: conversations.length
     }
   };
@@ -516,12 +718,12 @@ export function buildHints(report, pricing = DEFAULT_PRICING) {
   const hints = [];
   const t = report.totals;
   if (report.conversations.length === 0) {
-    hints.push({ level: 'info', message: 'No agent conversation is bound to this task yet. Enable the plugin hooks or run `tasks.mjs cost-bind <TASK_ID> --transcript <path>` from the agent working on it.' });
+    hints.push({ level: 'info', message: 'No agent conversation is bound to this task yet. Enable the plugin hooks, run `tasks.mjs cost-backfill`, or run `tasks.mjs cost-bind <TASK_ID> --transcript <path>` from the agent working on it.' });
     return hints;
   }
   for (const f of report.files) {
     if (f.reads >= h.reread_threshold) {
-      hints.push({ level: 'warn', file: f.file_path, message: `Read ${f.reads}× (~${fmtNum(f.est_tokens)} tokens). Consider reading once and keeping notes, or narrowing reads with line ranges.` });
+      hints.push({ level: 'warn', file: f.file_path, message: `Read ${f.reads}× (~${fmtNum(f.est_tokens)} tokens, ~${fmtUsd(f.read_cost_usd)} context cost). Consider reading once and keeping notes, or narrowing reads with line ranges.` });
     }
     const size = f.size_at_last_access ?? f.current_size ?? 0;
     if (f.reads > 0 && !IMAGE_EXT.test(f.file_path) && size / (pricing.chars_per_token || 4) >= h.large_file_tokens) {
@@ -534,6 +736,9 @@ export function buildHints(report, pricing = DEFAULT_PRICING) {
   const shared = report.conversations.filter(c => c.shared_with_tasks.length > 0);
   if (shared.length) {
     hints.push({ level: 'info', message: `${shared.length} conversation(s) also worked on other tasks; tokens were attributed by step ranges.` });
+  }
+  if (report.data_sources.partial) {
+    hints.push({ level: 'info', message: 'Some conversations have no transcript or no token data (older than token logging); totals are partial.' });
   }
   return hints.slice(0, 15);
 }
@@ -568,51 +773,193 @@ export function getSavedCostReport(db, taskId) {
 }
 
 // ---------------------------------------------------------------------------
+// Backfill from historical transcripts
+// ---------------------------------------------------------------------------
+/**
+ * Scans Antigravity transcripts (brain/<conversation>/.system_generated/logs/transcript.jsonl)
+ * and binds conversations to tasks of *this* project DB by step ranges:
+ *   - subagent conversations announcing "You are executing task `task-…`" bind from step 0
+ *   - tool calls referencing a task (tasks.mjs commands, MCP taskboard tools, subagent prompts)
+ *     bind from that step; status moves to verification/done/failed end the range (idle)
+ * Conversations already bound by hooks or manually are left untouched. Re-running replaces
+ * previous backfill bindings, so it is idempotent.
+ */
+export function backfillFromTranscripts(db, { since = '2026-10-23', brainDir = null, dryRun = false, pricing = DEFAULT_PRICING, onlyWithTokens = true, projectDir = process.cwd() } = {}) {
+  const dir = brainDir || getBrainDir();
+  const sinceMs = since ? new Date(since + (since.length === 10 ? 'T00:00:00' : '')).getTime() : 0;
+  const result = { scanned: 0, skipped_old: 0, skipped_no_tokens: 0, skipped_existing: 0, matched_conversations: 0, bindings: 0, tasks: [], conversations: [] };
+  let entries = [];
+  try { entries = fs.readdirSync(dir); } catch { return { ...result, error: `Brain directory not found: ${dir}` }; }
+
+  const validTask = new Map();
+  const isTask = (id) => {
+    if (!validTask.has(id)) validTask.set(id, taskExists(db, id));
+    return validTask.get(id);
+  };
+  const touchedTasks = new Set();
+
+  for (const conv of entries) {
+    const tPath = transcriptPathForConversation(conv, path.dirname(dir));
+    const resolved = resolveTranscriptPath(tPath);
+    if (!resolved) continue;
+    try { if (fs.statSync(resolved).mtimeMs < sinceMs) { result.skipped_old++; continue; } } catch { continue; }
+    result.scanned++;
+    let parsed;
+    try { parsed = parseTranscript(resolved); } catch { continue; }
+    if (!parsed) continue;
+    const lastAt = parsed.steps.length ? parsed.steps[parsed.steps.length - 1].created_at : parsed.first_at;
+    if (sinceMs && lastAt && new Date(lastAt).getTime() < sinceMs) { result.skipped_old++; continue; }
+    if (onlyWithTokens && !parsed.has_tokens) { result.skipped_no_tokens++; continue; }
+
+    const existing = getConversationBindings(db, conv);
+    if (existing.some(b => b.source !== 'backfill')) { result.skipped_existing++; continue; }
+
+    // Build the binding plan: [{ step, taskId }]
+    const plan = [];
+    const push = (step, taskId) => {
+      const last = plan[plan.length - 1];
+      if (last && last.taskId === taskId) return;
+      if (!last && taskId === IDLE_TASK) return;
+      plan.push({ step, taskId });
+    };
+    const opening = parsed.opening_task_id && isTask(parsed.opening_task_id)
+      ? parsed.opening_task_id
+      : (parsed.opening_task_ids.filter(isTask).length === 1 ? parsed.opening_task_ids.filter(isTask)[0] : null);
+    if (opening) push(0, opening);
+    for (const step of parsed.steps) {
+      for (const tc of step.tool_calls) {
+        const ref = detectTaskReference(tc.name, tc.args);
+        if (!ref || (ref.taskId !== IDLE_TASK && !isTask(ref.taskId))) continue;
+        push(plan.length ? step.step_index : 0, ref.taskId);
+        if (ref.closes) push(step.step_index + 1, IDLE_TASK);
+      }
+    }
+    if (!plan.length) continue;
+
+    result.matched_conversations++;
+    const model = resolveConversationModel(parsed, null);
+    const tasksInConv = [...new Set(plan.map(p => p.taskId).filter(t => t !== IDLE_TASK))];
+    tasksInConv.forEach(t => touchedTasks.add(t));
+    result.conversations.push({ conversation_id: conv, model, first_at: parsed.first_at, tasks: tasksInConv, ranges: plan.length });
+    result.bindings += plan.length;
+    if (dryRun) continue;
+
+    db.prepare("DELETE FROM task_cost_bindings WHERE conversation_id = ? AND source = 'backfill'").run(conv);
+    const ins = db.prepare('INSERT INTO task_cost_bindings (conversation_id, task_id, from_step, transcript_path, model_name, source) VALUES (?, ?, ?, ?, ?, ?)');
+    for (const p of plan) ins.run(conv, p.taskId, p.step, resolved, model, 'backfill');
+  }
+
+  if (!dryRun) {
+    try { refreshTaskCost(db, IDLE_TASK, { pricing, projectDir }); } catch {}
+  }
+  for (const taskId of touchedTasks) {
+    let report = null;
+    if (!dryRun) {
+      try { report = refreshTaskCost(db, taskId, { pricing, projectDir }); } catch {}
+    }
+    let title = null;
+    try { title = db.prepare('SELECT title FROM agent_tasks WHERE id = ?').get(taskId)?.title || null; } catch {}
+    result.tasks.push({ task_id: taskId, title, est_cost_usd: report ? report.totals.est_cost_usd : null, total_tokens: report ? report.totals.total_tokens : null });
+  }
+  result.tasks.sort((a, b) => (b.est_cost_usd || 0) - (a.est_cost_usd || 0));
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // Project-wide summary (for optimization decisions)
 // ---------------------------------------------------------------------------
-export function getProjectCostSummary(db, { pricing = DEFAULT_PRICING, limit = 25 } = {}) {
+export function getProjectCostSummary(db, { pricing = DEFAULT_PRICING, limit = 200, timelineFiles = 200 } = {}) {
   const tasks = db.prepare(`
     SELECT r.task_id, t.title, t.status, r.input_tokens, r.cache_read_tokens, r.output_tokens, r.total_tokens,
       r.est_cost_usd, r.model_calls, r.tool_calls, r.files_read, r.file_reads, r.file_read_tokens, r.updated_at
     FROM task_cost_reports r LEFT JOIN agent_tasks t ON t.id = r.task_id
+    WHERE (r.model_calls > 0 OR r.file_reads > 0) AND r.task_id != '${IDLE_TASK}'
     ORDER BY r.est_cost_usd DESC
   `).all();
+  const idleRow = db.prepare('SELECT * FROM task_cost_reports WHERE task_id = ?').get(IDLE_TASK);
   const totals = tasks.reduce((acc, t) => {
     for (const k of ['input_tokens', 'cache_read_tokens', 'output_tokens', 'total_tokens', 'est_cost_usd', 'model_calls', 'tool_calls', 'file_reads', 'file_read_tokens']) acc[k] += Number(t[k] || 0);
     return acc;
   }, { input_tokens: 0, cache_read_tokens: 0, output_tokens: 0, total_tokens: 0, est_cost_usd: 0, model_calls: 0, tool_calls: 0, file_reads: 0, file_read_tokens: 0 });
   totals.tasks = tasks.length;
   totals.avg_cost_per_task = tasks.length ? totals.est_cost_usd / tasks.length : 0;
+  totals.file_read_cost_usd = 0;
+  totals.overhead = idleRow ? {
+    est_cost_usd: idleRow.est_cost_usd, total_tokens: idleRow.total_tokens, model_calls: idleRow.model_calls,
+    input_tokens: idleRow.input_tokens, cache_read_tokens: idleRow.cache_read_tokens, output_tokens: idleRow.output_tokens
+  } : null;
 
-  // Aggregate files across all saved reports (covers hook + transcript sources)
+  // Aggregate files, daily cost and per-file timelines across all saved reports
   const fileAgg = new Map();
+  const dailyAgg = {};
+  const fileDaily = new Map(); // file -> day -> { reads, tokens, cost, max_size }
+  const fileTasks = new Map(); // file -> [{ task_id, title, reads, tokens, cost }]
+  const taskMeta = new Map(tasks.map(t => [t.task_id, t]));
   for (const row of db.prepare('SELECT task_id, report_json FROM task_cost_reports').all()) {
+    if (!taskMeta.has(row.task_id)) continue;
     let rep; try { rep = JSON.parse(row.report_json); } catch { continue; }
+    const meta = taskMeta.get(row.task_id);
+    meta.first_at = rep.period ? rep.period.first_at : null;
+    meta.last_at = rep.period ? rep.period.last_at : null;
+    meta.file_read_cost_usd = rep.totals ? (rep.totals.file_read_cost_usd || 0) : 0;
+    meta.partial = rep.data_sources ? !!rep.data_sources.partial : false;
+    meta.backfilled = rep.data_sources ? !!rep.data_sources.backfilled : false;
+    totals.file_read_cost_usd += meta.file_read_cost_usd;
+    for (const d of rep.daily || []) {
+      const a = dailyAgg[d.day] || (dailyAgg[d.day] = { day: d.day, input_cost: 0, cache_cost: 0, output_cost: 0, cost: 0, input_tokens: 0, cache_read_tokens: 0, output_tokens: 0, calls: 0, tasks: new Set() });
+      for (const k of ['input_cost', 'cache_cost', 'output_cost', 'cost', 'input_tokens', 'cache_read_tokens', 'output_tokens', 'calls']) a[k] += Number(d[k] || 0);
+      a.tasks.add(row.task_id);
+    }
     for (const f of rep.files || []) {
       if (!f.reads) continue;
-      if (!fileAgg.has(f.file_path)) fileAgg.set(f.file_path, { file_path: f.file_path, reads: 0, est_tokens: 0, tasks: 0, current_size: f.current_size, max_size: 0 });
+      if (!fileAgg.has(f.file_path)) fileAgg.set(f.file_path, { file_path: f.file_path, reads: 0, est_tokens: 0, read_cost_usd: 0, tasks: 0, current_size: f.current_size, max_size: 0 });
       const a = fileAgg.get(f.file_path);
       a.reads += f.reads;
       a.est_tokens += f.est_tokens;
+      a.read_cost_usd += f.read_cost_usd || 0;
       a.tasks += 1;
+      a.max_size_at_access = Math.max(a.max_size_at_access || 0, f.size_at_last_access || 0) || null;
       a.max_size = Math.max(a.max_size, f.size_at_last_access || f.current_size || 0);
+      if (!fileTasks.has(f.file_path)) fileTasks.set(f.file_path, []);
+      fileTasks.get(f.file_path).push({ task_id: row.task_id, title: meta.title, reads: f.reads, tokens: f.est_tokens, cost: +(f.read_cost_usd || 0).toFixed(6), last_read_at: f.last_read_at || null });
       if (f.current_size != null) a.current_size = f.current_size;
+    }
+    for (const e of rep.file_events || []) {
+      const day = dayOf(e.ts);
+      if (!day) continue;
+      if (!fileDaily.has(e.file_path)) fileDaily.set(e.file_path, {});
+      const fd = fileDaily.get(e.file_path);
+      const x = fd[day] || (fd[day] = { day, reads: 0, tokens: 0, cost: 0, max_size: null, tasks: new Set() });
+      x.reads++;
+      x.tokens += e.tokens || 0;
+      x.cost += e.cost || 0;
+      if (e.size_at_access != null) x.max_size = Math.max(x.max_size || 0, e.size_at_access);
+      x.tasks.add(row.task_id);
     }
   }
   const files = [...fileAgg.values()];
-  const topFilesByTokens = [...files].sort((a, b) => b.est_tokens - a.est_tokens).slice(0, limit);
-  const topFilesByReads = [...files].sort((a, b) => b.reads - a.reads).slice(0, limit);
+  const topFilesByCost = [...files].sort((a, b) => b.read_cost_usd - a.read_cost_usd || b.est_tokens - a.est_tokens).slice(0, limit);
+  const topFilesByTokens = [...files].sort((a, b) => b.est_tokens - a.est_tokens).slice(0, 25);
+  const topFilesByReads = [...files].sort((a, b) => b.reads - a.reads).slice(0, 25);
+  totals.unique_files_read = files.length;
+  const daily = Object.values(dailyAgg).sort((a, b) => a.day.localeCompare(b.day)).map(d => ({ ...d, tasks: d.tasks.size }));
+  const fileTimelines = topFilesByCost.slice(0, timelineFiles).map(f => ({
+    file_path: f.file_path,
+    current_size: f.current_size,
+    points: Object.values(fileDaily.get(f.file_path) || {}).sort((a, b) => a.day.localeCompare(b.day)).map(p => ({ ...p, cost: +p.cost.toFixed(6), tasks: p.tasks.size })),
+    tasks: (fileTasks.get(f.file_path) || []).sort((a, b) => b.cost - a.cost)
+  }));
 
   const toolAgg = {};
-  for (const row of db.prepare('SELECT tool_name, access_type, COUNT(*) AS c FROM task_file_access GROUP BY tool_name, access_type').all()) {
+  for (const row of db.prepare('SELECT tool_name, COUNT(*) AS c FROM task_file_access GROUP BY tool_name').all()) {
     toolAgg[row.tool_name] = (toolAgg[row.tool_name] || 0) + row.c;
   }
 
   const recommendations = [];
   const cpt = pricing.chars_per_token || 4;
-  for (const f of topFilesByTokens.slice(0, 5)) {
+  for (const f of topFilesByCost.slice(0, 5)) {
     if (f.tasks >= 2 && f.est_tokens > 5000) {
-      recommendations.push(`\`${f.file_path}\` was read by ${f.tasks} tasks (~${fmtNum(f.est_tokens)} tokens total). A short summary doc or splitting it would cut repeated reads.`);
+      recommendations.push(`\`${f.file_path}\` was read by ${f.tasks} tasks (~${fmtNum(f.est_tokens)} tokens, ~${fmtUsd(f.read_cost_usd)} context cost). A short summary doc or splitting it would cut repeated reads.`);
     }
     if (!IMAGE_EXT.test(f.file_path) && f.max_size / cpt >= (pricing.hints?.large_file_tokens || 8000)) {
       recommendations.push(`\`${f.file_path}\` is ~${fmtNum(Math.round(f.max_size / cpt))} tokens. Point agents at line ranges/symbols or split it up.`);
@@ -629,11 +976,14 @@ export function getProjectCostSummary(db, { pricing = DEFAULT_PRICING, limit = 2
   return {
     generated_at: new Date().toISOString(),
     currency: pricing.currency || 'USD',
-    pricing: { default: pricing.default, models: pricing.models, chars_per_token: cpt },
+    pricing: { default: pricing.default, models: pricing.models, chars_per_token: cpt, carry_max_calls: pricing.carry_max_calls ?? DEFAULT_PRICING.carry_max_calls },
     totals,
     tasks,
+    daily,
+    top_files_by_cost: topFilesByCost,
     top_files_by_tokens: topFilesByTokens,
     top_files_by_reads: topFilesByReads,
+    file_timelines: fileTimelines,
     tool_usage: Object.entries(toolAgg).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count),
     recommendations: [...new Set(recommendations)].slice(0, 10)
   };
@@ -674,14 +1024,14 @@ export function formatCostMarkdown(report, { projectDir = process.cwd(), maxFile
   lines.push(`- Estimated cost: **${fmtUsd(t.est_cost_usd)}** (${report.currency})`);
   lines.push(`- Tokens: input **${fmtNum(t.input_tokens)}**, cache read **${fmtNum(t.cache_read_tokens)}** (${Math.round(t.cache_hit_ratio * 100)}% hit), output **${fmtNum(t.output_tokens)}**`);
   lines.push(`- Model calls: ${t.model_calls} · Tool calls: ${t.tool_calls} · Conversations: ${report.conversations.length}`);
-  lines.push(`- Files read: ${t.files_read} unique / ${t.file_reads} reads (~${fmtNum(t.file_read_tokens)} tokens) · Files written: ${t.files_written}`);
+  lines.push(`- Files read: ${t.files_read} unique / ${t.file_reads} reads (~${fmtNum(t.file_read_tokens)} tokens, ~${fmtUsd(t.file_read_cost_usd)} context cost) · Files written: ${t.files_written}`);
   const readFiles = report.files.filter(f => f.reads > 0).slice(0, maxFiles);
   if (readFiles.length) {
     lines.push('');
-    lines.push('| File | Reads | Size at access | Current size | ~Tokens |');
-    lines.push('|---|---:|---:|---:|---:|');
+    lines.push('| File | Reads | Size at access | Current size | ~Tokens | ~Context cost |');
+    lines.push('|---|---:|---:|---:|---:|---:|');
     for (const f of readFiles) {
-      lines.push(`| \`${shortPath(f.file_path, projectDir)}\` | ${f.reads} | ${fmtBytes(f.size_at_last_access)} | ${fmtBytes(f.current_size)} | ${fmtNum(f.est_tokens)} |`);
+      lines.push(`| \`${shortPath(f.file_path, projectDir)}\` | ${f.reads} | ${fmtBytes(f.size_at_last_access)} | ${fmtBytes(f.current_size)} | ${fmtNum(f.est_tokens)} | ${fmtUsd(f.read_cost_usd)} |`);
     }
   }
   if (report.hints && report.hints.length) {

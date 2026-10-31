@@ -36,6 +36,7 @@ import {
   refreshTaskCost,
   getSavedCostReport,
   getProjectCostSummary,
+  backfillFromTranscripts,
   bindConversation,
   transcriptPathForConversation,
   formatCostMarkdown,
@@ -533,7 +534,7 @@ export function getCostPricing() {
 
 /** Recomputes the task's cost report from bindings, hook logs and transcripts and stores it. */
 export function computeAndStoreTaskCost(taskId) {
-  return refreshTaskCost(db, taskId, { pricing: getCostPricing() });
+  return refreshTaskCost(db, taskId, { pricing: getCostPricing(), projectDir: getProjectInfo().projectDir });
 }
 
 export function getTaskCost(taskId, { refresh = false } = {}) {
@@ -546,6 +547,16 @@ export function getTaskCost(taskId, { refresh = false } = {}) {
 
 export function getCostSummary() {
   return getProjectCostSummary(db, { pricing: getCostPricing() });
+}
+
+export function backfillTaskCosts(opts = {}) {
+  return backfillFromTranscripts(db, { ...opts, pricing: getCostPricing(), projectDir: getProjectInfo().projectDir });
+}
+
+export function refreshAllTaskCosts() {
+  const ids = db.prepare('SELECT DISTINCT task_id FROM task_cost_bindings').all().map(r => r.task_id);
+  for (const id of ids) { try { computeAndStoreTaskCost(id); } catch (e) {} }
+  return ids.length;
 }
 
 export function bindTaskCost(taskId, { conversationId, transcriptPath, modelName } = {}) {
@@ -1744,6 +1755,26 @@ if (isCliEntry && command) {
       }
       break;
     }
+    case 'cost-backfill': {
+      // Bind historical agent conversations (from transcripts) to tasks of this project and compute reports.
+      const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
+      const result = backfillTaskCosts({
+        since: opt('--since') || '2026-10-23',
+        brainDir: opt('--brain-dir'),
+        dryRun: args.includes('--dry-run')
+      });
+      if (args.includes('--json')) {
+        console.log(JSON.stringify(result, null, 2));
+        break;
+      }
+      if (result.error) { console.error('❌ ' + result.error); process.exit(1); }
+      console.log(`🔎 Scanned ${result.scanned} transcripts (skipped: ${result.skipped_old} older, ${result.skipped_no_tokens} without token data, ${result.skipped_existing} already tracked)`);
+      console.log(`🔗 Matched ${result.matched_conversations} conversations → ${result.tasks.length} tasks (${result.bindings} step ranges)${args.includes('--dry-run') ? ' [dry run]' : ''}`);
+      for (const t of result.tasks) {
+        console.log(`   ${t.est_cost_usd != null ? fmtUsd(t.est_cost_usd).padStart(9) : '        -'}  ${t.total_tokens != null ? fmtNum(t.total_tokens).padStart(7) + ' tok' : ''}  ${t.task_id}  ${t.title || ''}`);
+      }
+      break;
+    }
     case 'cost': {
       const [taskId, ...rest] = args;
       if (!taskId) {
@@ -1785,7 +1816,7 @@ if (isCliEntry && command) {
     }
 
     default: {
-      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup, begin-session, stop-session, running-sessions, sessions, cost, cost-bind, costs.`);
+      console.log(`Supported commands: info, poll, autonomous, active, next, list, json, get, update, add, subtasks, next-subtask, add-subtask, update-subtask, comment, update-comment, comments, attachments, add-attachment, get-attachment, delete-attachment, ack-task, ack-comment, notify-permission, beep, followups, create-followup, begin-session, stop-session, running-sessions, sessions, cost, cost-bind, cost-backfill, costs.`);
     }
   }
 }
